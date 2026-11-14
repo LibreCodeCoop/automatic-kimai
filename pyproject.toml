@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "automatic-kimai"
+version = "0.3.0a1"
+description = "Local-first, privacy-conscious time-entry review and reconciliation for Kimai"
+readme = "README.md"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+keywords = ["kimai", "time-tracking", "activitywatch", "privacy", "desktop"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Office/Business",
+]
+dependencies = [
+    "requests>=2.32,<3",
+    "python-dateutil>=2.9,<3",
+    "tzlocal>=5,<6",
+    "tzdata>=2025.1; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+desktop = ["keyring>=25,<27"]
+build = ["pyinstaller>=6,<8"]
+# Telegram requires a locally authorized individual account.
+telegram = ["telethon>=1.36,<2"]
+
+[project.scripts]
+automatic-kimai = "cooperator_agent.setup_gui:main"
+automatic-kimai-sync = "cooperator_agent.runtime:main"
+automatic-kimai-scheduler = "cooperator_agent.scheduler:main"
+
+[tool.setuptools]
+packages = ["cooperator_agent"]
+py-modules = ["kimai_client"]
+
+[tool.setuptools.package-data]
+cooperator_agent = ["profile.example.json"]

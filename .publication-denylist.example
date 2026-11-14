@@ -1,0 +1,6 @@
+# OPTIONAL: copy to .publication-denylist and list private tenant markers.
+# This real file is excluded from Git.
+# Example entries:
+private.example.internal
+my-company.example.invalid
+/home/user/local-projects

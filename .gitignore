@@ -1,0 +1,54 @@
+# Local credentials and identity
+.publication-denylist
+.env
+.env.*
+!.env.example
+profile.json
+sources.json
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.session
+*.session-journal
+*.session-shm
+*.session-wal
+
+# Runtime evidence and local state
+.kimai_cache/
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+aw_sanitized_*.json
+calendar_work_context.json
+nextcloud_talk_context.json
+telegram_context.json
+latest_daily_plan.json
+trial_monitor.sqlite3
+*.log
+
+# Python/build artifacts
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Local editor files
+.DS_Store
+.idea/
+.vscode/
+*~
