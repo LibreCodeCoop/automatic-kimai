@@ -26,13 +26,13 @@
 <a href="{{route('kimai.home',['view'=>'integrations'])}}" aria-label="Conexões habilitadas" title="Conexões habilitadas" class="nav-item nav-branch @if($view==='integrations') is-current @endif" @if($view==='integrations') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'plug-zap'])<span class="nav-label">Conexões habilitadas</span></a>
 <div class="nav-grandchildren">
 @if($connectionVisibility['nextcloud'])
-<a href="{{route('kimai.home',['view'=>'nextcloud'])}}" aria-label="Nextcloud" title="Nextcloud" class="nav-item @if($view==='nextcloud') is-current @endif" @if($view==='nextcloud') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'cloud'])<span class="nav-label">Nextcloud</span></a>
+<a href="{{route('kimai.home',['view'=>'nextcloud'])}}" aria-label="Nextcloud" title="Nextcloud" class="nav-item @if($view==='nextcloud') is-current @endif" @if($view==='nextcloud') aria-current="page" @endif>@include('automatic-kimai.components.brand-icon',['name'=>'nextcloud'])<span class="nav-label">Nextcloud</span></a>
 @endif
 @if($connectionVisibility['telegram'])
-<a href="{{route('kimai.home',['view'=>'telegram'])}}" aria-label="Telegram" title="Telegram" class="nav-item @if($view==='telegram') is-current @endif" @if($view==='telegram') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'send'])<span class="nav-label">Telegram</span></a>
+<a href="{{route('kimai.home',['view'=>'telegram'])}}" aria-label="Telegram" title="Telegram" class="nav-item @if($view==='telegram') is-current @endif" @if($view==='telegram') aria-current="page" @endif>@include('automatic-kimai.components.brand-icon',['name'=>'telegram'])<span class="nav-label">Telegram</span></a>
 @endif
 @if($connectionVisibility['github'])
-<a href="{{route('kimai.home',['view'=>'github'])}}" aria-label="GitHub" title="GitHub" class="nav-item @if($view==='github') is-current @endif" @if($view==='github') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'git-pull-request'])<span class="nav-label">GitHub</span></a>
+<a href="{{route('kimai.home',['view'=>'github'])}}" aria-label="GitHub" title="GitHub" class="nav-item @if($view==='github') is-current @endif" @if($view==='github') aria-current="page" @endif>@include('automatic-kimai.components.brand-icon',['name'=>'github'])<span class="nav-label">GitHub</span></a>
 @endif
 </div>
 </div>

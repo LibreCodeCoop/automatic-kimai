@@ -20,7 +20,10 @@ final class TelegramCollector
         $sources=$this->store->sources();
         if (!$sources['telegram'])throw new RuntimeException('Telegram must be explicitly opted in');
         $labels=$profile->get('work_messenger_labels');
-        if ($labels===[])throw new InvalidArgumentException('Approved Telegram work-chat labels missing');
+        $groupIds=$profile->get('work_messenger_dialog_ids');
+        if ($labels===[] && $groupIds===[]) {
+            throw new InvalidArgumentException('Approved Telegram work groups missing');
+        }
         $creds=$this->store->credentials();
         if ($client===null) {
             if (!isset($creds['TELEGRAM_API_ID'],$creds['TELEGRAM_API_HASH'])) {
@@ -35,7 +38,7 @@ final class TelegramCollector
         $first=$this->store->read('telegram_scoped_history.json');
         $days=14;
         $now??=new DateTimeImmutable();
-        $snapshot=(new TelegramSource())->scan($client,$labels,$days,600,$now);
+        $snapshot=(new TelegramSource())->scan($client,$labels,$days,600,$now,$groupIds);
         // The original history and read markers are stored privately, with
         // contents reduced to metadata. Never persist chat titles or bodies.
         $changes=TelegramReadProgress::compute($first,$snapshot);

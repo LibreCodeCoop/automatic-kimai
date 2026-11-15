@@ -168,8 +168,9 @@ final class TelegramWebLogin
         }
         if ($activate) {
             $profile=$this->store->profile();
-            if ($profile===null||$profile->get('work_messenger_labels')===[]) {
-                throw new RuntimeException('Escolha as conversas profissionais autorizadas');
+            if ($profile===null || ($profile->get('work_messenger_labels')===[] &&
+                $profile->get('work_messenger_dialog_ids')===[])) {
+                throw new RuntimeException('Escolha seus grupos profissionais autorizados');
             }
             $this->store->setSources(['telegram_setup'=>true,'telegram'=>true]);
         }

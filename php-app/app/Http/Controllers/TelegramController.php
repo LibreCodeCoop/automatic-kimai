@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\AutomaticKimai\LocalStore;
 use App\AutomaticKimai\Profile;
 use App\AutomaticKimai\TelegramWebLogin;
+use App\AutomaticKimai\TelegramGroupSelection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,11 +51,8 @@ final class TelegramController extends Controller
         $input=$request->validate([
             'telegram_api_id'=>'nullable|regex:/^[1-9][0-9]{3,12}$/D',
             'telegram_api_hash'=>'nullable|regex:/^[a-fA-F0-9]{32}$/D',
-            'telegram_labels'=>'nullable|string|max:3000',
         ]);
         try {
-            $profile=$this->store->profile();
-            if ($profile===null)throw new RuntimeException('Conecte sua conta Kimai primeiro');
             $creds=$this->store->credentials();
             $new=[];
             foreach (['telegram_api_id'=>'TELEGRAM_API_ID','telegram_api_hash'=>'TELEGRAM_API_HASH'] as $key=>$name) {
@@ -72,23 +70,44 @@ final class TelegramController extends Controller
                     }
                 }
             }
-            $labels=[];
-            foreach (preg_split('/[,\r\n]+/u',$input['telegram_labels']??'')?:[] as $label) {
-                $label=trim($label);
-                if ($label==='')continue;
-                if (strlen($label)>80||strlen($label)<2)throw new RuntimeException('Nome de conversa fora do limite');
-                $labels[$label]=$label;
-            }
-            if (!$labels)throw new RuntimeException('Informe pelo menos uma conversa profissional autorizada');
-            if (count($labels)>40)throw new RuntimeException('Limite de 40 conversas profissionais');
-            $settings=$profile->toArray();
-            $settings['work_messenger_labels']=array_values($labels);
-            $updated=new Profile($settings);
-            $this->store->saveCredentials($new);
-            $this->store->saveProfile($updated);
-            return back()->with('ok','Preferências Telegram salvas. Use o QR Code abaixo para autenticar a conta.');
+            if ($new!==[])$this->store->saveCredentials($new);
+            return back()->with('ok','Credenciais de conexão salvas. Agora conecte pelo QR Code.');
         } catch(Throwable $e) {
             return back()->withErrors(['telegram'=>$e->getMessage()]);
+        }
+    }
+
+    public function groups(Request $request,TelegramWebLogin $login,
+                           TelegramGroupSelection $selection): JsonResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        if (($login->status()['status']??null)!=='authorized') {
+            return self::noCache(['status'=>'error','message'=>'Conecte sua conta antes de listar grupos'],403);
+        }
+        try {
+            return self::noCache(array_replace(['status'=>'ok'],$selection->available()));
+        } catch(Throwable) {
+            return self::noCache(['status'=>'error','message'=>'Não foi possível consultar os grupos. Tente novamente.'],503);
+        }
+    }
+
+    public function selectGroups(Request $request,TelegramWebLogin $login,
+                                 TelegramGroupSelection $selection): JsonResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        if (($login->status()['status']??null)!=='authorized') {
+            return self::noCache(['status'=>'error','message'=>'Conecte sua conta antes de escolher grupos'],403);
+        }
+        $input=$request->validate([
+            'groups'=>'required|array|min:1|max:40',
+            'groups.*'=>'required|string|regex:/^-?[1-9][0-9]*$/D',
+        ]);
+        try {
+            return self::noCache($selection->select($input['groups']));
+        } catch(Throwable) {
+            return self::noCache(['status'=>'error','message'=>'Verifique se todos os grupos marcados pertencem à sua conta.'],422);
         }
     }
 

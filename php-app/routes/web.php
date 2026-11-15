@@ -22,6 +22,8 @@ Route::get('/telegram/status',[TelegramController::class,'status'])->name('kimai
 Route::post('/telegram/qr',[TelegramController::class,'qr'])->middleware('throttle:4,1')->name('kimai.telegram.qr');
 Route::post('/telegram/2fa',[TelegramController::class,'twoFactor'])->middleware('throttle:4,1')->name('kimai.telegram.2fa');
 Route::post('/telegram/activate',[TelegramController::class,'activate'])->name('kimai.telegram.activate');
+Route::get('/telegram/groups',[TelegramController::class,'groups'])->middleware('throttle:10,1')->name('kimai.telegram.groups');
+Route::post('/telegram/groups',[TelegramController::class,'selectGroups'])->middleware('throttle:10,1')->name('kimai.telegram.groups.save');
 Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('kimai.telegram.disable');
 
 // Local-only Nextcloud Login Flow v2. Each client gets a revocable app password.

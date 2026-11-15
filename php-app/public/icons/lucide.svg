@@ -19,14 +19,9 @@
   <path d="m9 14 2 2 4-4" />
 </symbol><symbol id="clock-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" />
   <path d="M12 6v6h4" />
-</symbol><symbol id="cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
 </symbol><symbol id="database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3" />
   <path d="M3 5V19A9 3 0 0 0 21 19V5" />
   <path d="M3 12A9 3 0 0 0 21 12" />
-</symbol><symbol id="git-pull-request" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3" />
-  <circle cx="6" cy="6" r="3" />
-  <path d="M13 6h3a2 2 0 0 1 2 2v7" />
-  <line x1="6" x2="6" y1="9" y2="21" />
 </symbol><symbol id="layout-dashboard" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1" />
   <rect width="7" height="5" x="14" y="3" rx="1" />
   <rect width="7" height="9" x="14" y="12" rx="1" />
@@ -49,8 +44,6 @@
   <path d="M7.5 13.5 10 11" />
   <path d="M10.5 16.5 13 14" />
   <path d="m18 3-4 4h6l-4 4" />
-</symbol><symbol id="send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" />
-  <path d="m21.854 2.147-10.94 10.939" />
 </symbol><symbol id="settings-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17H5" />
   <path d="M19 7h-9" />
   <circle cx="17" cy="17" r="3" />

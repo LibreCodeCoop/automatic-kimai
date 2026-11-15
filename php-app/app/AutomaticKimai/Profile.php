@@ -16,6 +16,7 @@ final class Profile
         'min_context_minutes' => 8, 'max_session_hours' => 8,
         'settle_minutes' => 12, 'capture_freshness_minutes' => 30,
         'work_topic_hints' => [], 'work_domains' => [], 'work_messenger_labels' => [],
+        'work_messenger_dialog_ids' => [],
         'allow_snapshots' => false, 'alert_on_unrecorded_weekdays' => false,
         'sync_mode' => 'review_only', 'allow_auto_nonbillable_preview' => false,
         'auto_min_work_minutes' => 8, 'auto_max_unknown_fraction' => 0.55,
@@ -77,10 +78,12 @@ final class Profile
             }
         }
         if (!is_array($settings['work_topic_hints']) || !is_array($settings['work_domains']) ||
-            !is_array($settings['work_messenger_labels'])) {
+            !is_array($settings['work_messenger_labels']) ||
+            !is_array($settings['work_messenger_dialog_ids'])) {
             throw new InvalidArgumentException('Invalid approved source lists');
         }
-        if (count($settings['work_domains']) > 40 || count($settings['work_messenger_labels']) > 40) {
+        if (count($settings['work_domains']) > 40 || count($settings['work_messenger_labels']) > 40 ||
+            count($settings['work_messenger_dialog_ids']) > 40) {
             throw new InvalidArgumentException('Too many work-source approvals');
         }
         foreach ($settings['work_domains'] as $host) {
@@ -98,6 +101,15 @@ final class Profile
                 str_contains($label,"\r") || str_contains($label,"\n")) {
                 throw new InvalidArgumentException('Invalid messenger label');
             }
+        }
+        foreach ($settings['work_messenger_dialog_ids'] as $id) {
+            if (!is_int($id) || $id===0) {
+                throw new InvalidArgumentException('Invalid approved Telegram group identifier');
+            }
+        }
+        if (count(array_unique($settings['work_messenger_dialog_ids'])) !==
+            count($settings['work_messenger_dialog_ids'])) {
+            throw new InvalidArgumentException('Duplicate approved Telegram groups');
         }
         $this->settings = $settings;
     }

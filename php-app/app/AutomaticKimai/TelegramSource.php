@@ -126,9 +126,16 @@ final class TelegramSource
      * unit tests. Peer names and IDs exist only in process memory/private store.
      */
     public function scan(object $api,array $labels,int $lookbackDays=14,int $limit=600,
-                         ?DateTimeImmutable $now=null): array
+                         ?DateTimeImmutable $now=null,array $approvedDialogIds=[]): array
     {
-        if ($labels===[])throw new InvalidArgumentException('Explicit approved Telegram work labels are required');
+        if ($labels===[] && $approvedDialogIds===[]) {
+            throw new InvalidArgumentException('Explicit approved Telegram work groups are required');
+        }
+        foreach ($approvedDialogIds as $approvedId) {
+            if (!is_int($approvedId)||$approvedId===0) {
+                throw new InvalidArgumentException('Invalid approved group identifier');
+            }
+        }
         if ($lookbackDays<1||$lookbackDays>31||$limit<1||$limit>1000) {
             throw new InvalidArgumentException('Invalid bounded Telegram scan options');
         }
@@ -139,8 +146,24 @@ final class TelegramSource
         $result=[];
         foreach ($dialogs as $dialog) {
             if (!is_array($dialog))continue;
-            $hint=self::allowedDialog((string)($dialog['title']??''),$labels);
-            if ($hint===null)continue;
+            $id=$dialog['id']??null;
+            if ($approvedDialogIds!==[]) {
+                // Exact peer IDs prevent accidental collection from an unrelated
+                // group with a similar or identical title.
+                if (!is_int($id) || !in_array($id,$approvedDialogIds,true))continue;
+                $title=(string)($dialog['title']??'');
+                $hint=self::allowedDialog($title,$labels);
+                if ($hint===null) {
+                    $fallback=trim(mb_substr($title,0,80));
+                    $hint=['client_hint'=>mb_strlen($fallback)>=2?$fallback:'Grupo Telegram',
+                           'product_hint'=>null];
+                }
+            } else {
+                // Legacy profiles with manually attested group names retain
+                // their old behavior until selection by stable IDs.
+                $hint=self::allowedDialog((string)($dialog['title']??''),$labels);
+                if ($hint===null)continue;
+            }
             $peer=$dialog['peer']??null;
             if (!(is_int($peer)||is_string($peer)||is_array($peer)))continue;
             $rows=$api->history($peer,$limit);

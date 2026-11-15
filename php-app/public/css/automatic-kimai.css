@@ -392,6 +392,15 @@ footer { margin: 30px 0; }
 .hub-card small { color:var(--secondary-fg); font-weight:750; }
 .hub-icon { border-radius:12px; background:var(--secondary-bg); color:var(--secondary-fg); height:48px; width:48px; display:grid; place-items:center; font-size:24px; }
 .hub-icon .icon { width:25px; height:25px; }
+/* Service marks are from Simple Icons, never generic Lucide pictograms.
+   Neutral navigation follows the active theme; hub marks use recognizable brand colors. */
+.brand-icon { display:inline-block; width:19px; height:19px; flex:0 0 auto; fill:currentColor; stroke:none; vertical-align:middle; }
+.nav-item .brand-icon { flex:0 0 18px; }
+.hub-icon .brand-icon { width:27px; height:27px; }
+.hub-icon .brand-icon-nextcloud { color:#0082c9; }
+.hub-icon .brand-icon-telegram { color:#26a5e4; }
+.hub-icon .brand-icon-github { color:var(--fg); }
+
 .hub-arrow { width:18px; height:18px; color:var(--muted); margin-top:14px; }
 .connected-icon .icon { width:23px; height:23px; }
 .approval-step { margin-top:18px; background:var(--raised); border:1px solid var(--line); border-radius:12px; padding:18px; }
@@ -428,6 +437,27 @@ a.button:hover { background:var(--primary-hover); }
 .main-content a:not(.button):not(.hub-card):hover { text-decoration:underline; }
 .overview-metrics { grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); }
 .overview-metrics .metrics { overflow-wrap:anywhere; }
+/* Telegram onboarding: account authorization precedes scope selection. */
+.onboarding-step { padding:18px; border:1px solid var(--line); border-radius:12px; background:var(--raised); }
+.step-heading { display:flex; align-items:flex-start; gap:13px; margin-bottom:12px; }
+.step-number { display:grid; place-items:center; border-radius:50%; width:34px; height:34px; flex:0 0 34px; font-weight:750; background:var(--secondary-bg); color:var(--secondary-fg); }
+.step-heading h3 { margin:0 0 4px; }
+.step-heading p { margin:0; }
+#tg-qr-area { margin-top:18px; }
+#tg-qr-img { display:block; max-width:100%; height:auto; background:white; padding:8px; border-radius:10px; margin:14px 0; }
+#tg-advanced-settings { margin:18px 0 0; }
+#tg-groups-step { display:grid; gap:16px; margin-top:18px; }
+.group-selection-toolbar { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
+.group-selection-toolbar label { width:100%; }
+.group-selection-toolbar input { min-width:min(100%,300px); flex:1 1 260px; }
+.group-selection-toolbar button { margin:0; }
+.telegram-group-list { display:grid; max-height:420px; overflow-y:auto; border:1px solid var(--line); border-radius:10px; background:var(--raised); padding:8px; }
+.telegram-group-option { display:flex; gap:12px; align-items:center; padding:12px; margin:0; border-radius:8px; cursor:pointer; min-height:44px; font-size:14px; }
+.telegram-group-option:hover { background:var(--secondary-bg); }
+.telegram-group-option input { margin:0; flex:0 0 18px; }
+.telegram-group-option span { overflow-wrap:anywhere; }
+.activate-step { margin-top:20px; padding:16px 20px; border:1px solid var(--line); border-radius:12px; }
+.activate-step h3 { margin-top:0; }
 /* Source selection is the single source of truth for the integrations menu. */
 .source-category { margin:22px 0; padding:16px 18px; border:1px solid var(--line); border-radius:12px; background:var(--raised); }
 .source-category h3 { font-size:15px; font-weight:750; margin:0 0 8px; }

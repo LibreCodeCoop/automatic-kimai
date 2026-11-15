@@ -113,3 +113,14 @@ A tela **Fontes de dados** controla a visibilidade e a leitura:
 Os ícones são um subconjunto do **Lucide Static 1.72.0** (licença ISC), servido localmente em public/icons/lucide.svg, com licença em public/icons/LUCIDE-LICENSE. Nenhum CDN ou pacote de fontes é necessário em runtime. O conjunto contém apenas os ícones utilizados pela interface, não todo o catálogo Lucide.
 
 A interface continua **somente leitura** para publicação no Kimai. Ocultar a conexão não apaga credenciais; a prevenção de coleta é aplicada também no coletor e nos endpoints de autorização.
+
+
+### Telegram: conexão primeiro, grupos depois
+
+Em **Fontes de dados**, habilite Telegram e salve. A página **Conexões → Telegram** inicia com o fluxo principal para conectar a conta; configurações MTProto ficam recolhidas até serem necessárias. Após o QR Code (e 2FA se solicitada), o aplicativo apresenta apenas grupos e supergrupos da conta autenticada. Contatos individuais e canais de transmissão são excluídos.
+
+A tela oferece busca e seleção múltipla de grupos (máximo de 40). A lista é obtida do Telegram **sem ler histórico de mensagens** e é mostrada apenas na sessão local autorizada. Ao salvar, o programa persiste IDs exatos dos grupos na área privada e suspende a coleta anterior. Só o botão separado **Ativar análise dos grupos** habilita a leitura de metadados dos grupos escolhidos. Não ativa publicação de horas no Kimai. Nomes repetidos não autorizam outros grupos porque a coleta passa a usar identificadores de diálogos, não correspondência aproximada de títulos.
+
+Perfis anteriores com aprovação explícita apenas por nome continuam compatíveis até passarem pelo seletor. Chaves e sessões Telegram ficam restritas ao armazenamento local criptografado ou à sessão privada MadelineProto. A versão PHP segue em **modo de revisão sem publicação de horas**, embora a autenticação e as escolhas locais sejam gravadas normalmente.
+
+Os símbolos de **Nextcloud, Telegram e GitHub** são agora suas marcas, obtidas do projeto Simple Icons (versão 16.37.0), separadas dos pictogramas de interface Lucide. Estão embutidos em public/icons/brands.svg, com licença e observações sobre marcas comerciais nos dois arquivos de licença em public/icons. Não dependem de CDN.

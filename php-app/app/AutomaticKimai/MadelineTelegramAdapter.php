@@ -63,21 +63,48 @@ final class MadelineTelegramAdapter
         if (count($raw)>4000)throw new RuntimeException('Telegram dialog limit exceeded');
         $result=[];
         foreach ($raw as $id=>$item) {
-            if (!is_int($id) && !ctype_digit((string)$id))continue;
+            if (!(is_int($id) || (is_string($id) && preg_match('/^-?[0-9]+$/D',$id))))continue;
             if (!is_array($item))continue;
             try {
                 $info=$this->api->getInfo((int)$id);
             } catch (\Throwable) {continue;}
             $chat=$info['Chat']??$info['User']??$info;
+            $group=self::groupInfoIsEligible($info);
             $title=(string)($chat['title']??trim((string)($chat['first_name']??'').' '.(string)($chat['last_name']??'')));
             if ($title==='')continue;
             $result[]=[
                 'id'=>(int)$id,'peer'=>(int)$id,'title'=>$title,
+                'is_group'=>$group,
                 'read_inbox_max_id'=>$item['read_inbox_max_id']??null,
                 'unread_count'=>$item['unread_count']??null,
             ];
         }
         return $result;
+    }
+
+    /** Only groups/supergroups are selectable; exclude direct chats, bots and broadcast channels. */
+    public static function groupInfoIsEligible(array $info): bool
+    {
+        $type=$info['type']??null;
+        if (in_array($type,['chat','supergroup'],true))return true;
+        if (in_array($type,['user','bot','channel'],true))return false;
+
+        $chat=$info['Chat']??null;
+        if (!is_array($chat))return false;
+        $kind=$chat['_']??null;
+        if ($kind==='chat')return true;
+        return $kind==='channel' && ($chat['megagroup']??false)===true;
+    }
+
+    /** No message histories, names of private contacts or channel posts are returned. */
+    public function groups(): array
+    {
+        $groups=[];
+        foreach ($this->dialogs() as $dialog) {
+            if (($dialog['is_group']??false)!==true)continue;
+            $groups[]=['id'=>$dialog['id'],'title'=>$dialog['title']];
+        }
+        return $groups;
     }
 
     public function history(array|int|string $peer,int $limit): array

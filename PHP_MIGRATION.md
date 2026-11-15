@@ -80,10 +80,20 @@ Documentação oficial consultada:
 - A seleção de Fontes de dados determina a exibição das conexões. **Nextcloud** só se Agenda/Talk ativo, **GitHub** só se ativo, **Telegram** só com pedido explícito de configuração ou scanner autorizado. URLs de configuração desabilitadas retornam à tela de fontes; endpoints de autenticação Nextcloud e Telegram bloqueiam chamadas quando a fonte não está selecionada.
 - O flag telegram_setup separa **desejo de configurar** do estado operacional telegram (leitura autenticada após QR/2FA). Desabilitar telegram_setup cancela coleta e oculta sua conexão; as sessões antigas permanecem guardadas localmente. Perfis legados com Telegram ativo continuam encontrando a configuração.
 - O botão Conectar só aparece depois que o usuário salva uma fonte selecionada. Credenciais individuais permanecem criptografadas, mas não são reutilizadas por fontes desabilitadas, nem revogadas sem ação do usuário.
-- Substituídos os símbolos de marca, conexão, setas e tema desenhados manualmente por 20 ícones **Lucide Static 1.72.0** em SVG local, com licença ISC. Nenhuma dependência de rede ou fonte proprietária.
+- Substituídos os símbolos de marca, conexão, setas e tema desenhados manualmente por 17 ícones **Lucide Static 1.72.0** em SVG local, com licença ISC. Nenhuma dependência de rede ou fonte proprietária.
 - Correção adicional encontrada na verificação visual: status do monitoramento antes exibia tokens do template após Atualizado; corrigidos o estado e a data/hora para formato brasileiro (dd/mm/aaaa HH:mm). Links visitados receberam cor consistente com tema claro/escuro.
 - Testes de regressão cobrem estados de fonte isolados, ausência de conexão, proteções contra autenticação de fonte desligada, URLs diretas, legado Telegram, licenciamento dos ícones e status legível. Navegador headless verificou menu compacto, persistência, hierarquia e responsividade em quatro larguras.
 - **A edição/aprovação de registros e o publicador PHP seguem pendentes; runtime PHP permanece shadow read-only.** A melhoria de interface não elimina bloqueios de migração.
+
+## Identidade visual e onboarding do Telegram (15/11/2026)
+
+- Substituídos símbolos genéricos para os produtos Nextcloud, Telegram e GitHub por logotipos vetoriais correspondentes do **Simple Icons 16.37.0** (licença e ressalvas de marcas incluídas); Lucide permanece apenas para a interface genérica.
+- Telegram agora começa pela **autenticação QR/2FA**. Os campos de API só são expandidos quando necessários. O seletor de grupos fica invisível até que a sessão Telegram seja verificada.
+- Após o login, a lista mostra somente grupos/supergrupos, não mensagens, contatos privados nem canais; o usuário pode buscar e selecionar até 40 grupos. Uma API local com validação de sessão fornece a lista e recebe as escolhas.
+- A configuração de escopo grava IDs exatos, nunca apenas correspondência aproximada de títulos, evitando que dois grupos homônimos sejam confundidos. Gravação de novas seleções suspende a coleta até que o usuário a reative explicitamente. Perfis legados por nome mantêm compatibilidade até que o usuário selecione grupos.
+- O QR Code, as credenciais de API e a lista de grupos são **alterações/leituras locais**, mesmo enquanto o PHP é somente leitura para **publicação de horas no Kimai**. A interface explica essa distinção.
+- Testes com clientes Telegram simulados garantem filtragem de grupos, seleção por ID, rejeição de IDs desconhecidos ou repetidos, ausência de consulta a mensagens durante o catálogo, bloqueio de endpoints antes do login e não ativação implícita.
+- **Pendente:** homologação real do QR/2FA e da listagem de grupos com conta autorizada e cenário distribuído Windows/macOS/Linux, sem habilitar publicação de horas.
 
 ## Bloqueio de segurança para empacotamento (detectado em 14/11)
 

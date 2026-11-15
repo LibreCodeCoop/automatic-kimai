@@ -45,7 +45,9 @@ final class TelegramUiTest extends TestCase
     public function test_panel_exposes_telegram_onboarding_but_no_credentials(): void
     {
         $this->get('http://localhost/?view=telegram')->assertOk()
-            ->assertSee('Conecte seu Telegram pelo celular')
+            ->assertSee('Conecte sua conta no celular')
+            ->assertSee('id="tg-groups-step" hidden',false)
+            ->assertDontSee('name="telegram_labels"',false)
             ->assertSee('Conectar pelo QR Code')
             ->assertDontSee('TELEGRAM_API_HASH');
     }
@@ -59,7 +61,7 @@ final class TelegramUiTest extends TestCase
         $response->assertDontSee('api_hash');
     }
 
-    public function test_telegram_configuration_can_save_a_private_allowlist(): void
+    public function test_telegram_configuration_does_not_save_or_request_group_names_before_login(): void
     {
         $this->seedProfile();
         $apiHash=str_repeat('a',32);
@@ -67,11 +69,25 @@ final class TelegramUiTest extends TestCase
             'telegram_api_id'=>'123456','telegram_api_hash'=>$apiHash,
             'telegram_labels'=>'Client A, Client B'
         ])->assertRedirect();
-        self::assertSame(['Client A','Client B'],
+        self::assertSame(['Client A'],
             $this->private->profile()->get('work_messenger_labels'));
         self::assertSame($apiHash,
             $this->private->credentials()['TELEGRAM_API_HASH']);
         self::assertSame(false,$this->private->sources()['telegram']);
+    }
+
+    public function test_groups_cannot_be_listed_or_selected_without_authentication(): void
+    {
+        $this->get('http://localhost/telegram/groups')
+            ->assertForbidden()->assertDontSee('groups');
+        $this->postJson('http://localhost/telegram/groups',[
+            'groups'=>['-1001234567'],
+        ])->assertForbidden();
+        $this->private->setSources(['telegram_setup'=>false]);
+        $this->get('http://localhost/telegram/groups')->assertForbidden();
+        $this->postJson('http://localhost/telegram/groups',[
+            'groups'=>['-1001234567'],
+        ])->assertForbidden();
     }
 
     public function test_password_submission_rejected_without_active_qr_handshake(): void
@@ -97,5 +113,6 @@ final class TelegramUiTest extends TestCase
         $this->get('http://public.example/telegram/status')->assertForbidden();
         $this->post('http://public.example/telegram/configure')->assertForbidden();
         $this->postJson('http://public.example/telegram/qr')->assertForbidden();
+        $this->get('http://public.example/telegram/groups')->assertForbidden();
     }
 }
