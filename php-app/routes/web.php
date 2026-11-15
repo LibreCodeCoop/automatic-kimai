@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AutomaticKimaiController;
 use App\Http\Controllers\TelegramController;
+use App\Http\Controllers\NextcloudLoginController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/',[AutomaticKimaiController::class,'home'])->name('kimai.home');
@@ -22,3 +23,10 @@ Route::post('/telegram/qr',[TelegramController::class,'qr'])->middleware('thrott
 Route::post('/telegram/2fa',[TelegramController::class,'twoFactor'])->middleware('throttle:4,1')->name('kimai.telegram.2fa');
 Route::post('/telegram/activate',[TelegramController::class,'activate'])->name('kimai.telegram.activate');
 Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('kimai.telegram.disable');
+
+// Local-only Nextcloud Login Flow v2. Each client gets a revocable app password.
+Route::get('/nextcloud/status',[NextcloudLoginController::class,'status'])->name('kimai.nextcloud.status');
+Route::post('/nextcloud/start',[NextcloudLoginController::class,'start'])->middleware('throttle:5,1')->name('kimai.nextcloud.start');
+Route::post('/nextcloud/poll',[NextcloudLoginController::class,'poll'])->middleware('throttle:25,1')->name('kimai.nextcloud.poll');
+
+Route::post('/nextcloud/sources',[AutomaticKimaiController::class,'nextcloudSources'])->name('kimai.nextcloud.sources');

@@ -43,6 +43,37 @@ O identificador de sessão, hashes de evidência, horário de fim de dia e diges
 
 A API do Kimai foi consultada via PHP com a credencial existente em um contêiner efêmero, somente leitura, sem gravar a credencial no repositório PHP.
 
+## Usabilidade e conexão Nextcloud (14/11/2026)
+
+A interface Laravel foi repartida em **11 áreas de finalidade única**, com menu lateral e menu móvel: visão geral; revisão de períodos; trabalho presencial; registro manual; Kimai; fontes; conexões; Nextcloud; Telegram; GitHub; migração/segurança. Os formulários de registro e de credenciais não são mais apresentados juntos na mesma tela. A preferência de aparência continua seguindo o sistema até a primeira escolha manual por ícone de sol/lua.
+
+**Autorização Nextcloud recomendada — Login Flow v2:**
+
+1. O usuário informa somente a URL HTTPS do Nextcloud (ou escolhe uma sugestão do arquivo de configuração do cliente desktop, quando disponível no ambiente nativo). **Nenhum segredo do cliente desktop é importado.**
+2. O PHP solicita ao servidor /index.php/login/v2 um link de autorização e token de consulta temporário. O usuário abre o link **no navegador padrão**, que pode reutilizar a sessão web já autenticada, e aprova o acesso na própria página Nextcloud, com 2FA quando exigido.
+3. O PHP consulta apenas a URL de polling autorizada pelo mesmo servidor, aceita HTTP 404 enquanto aguarda, valida a identidade pela API OCS e armazena a senha de aplicativo individual criptografada, separando o nome de login do UID CalDAV. O token de polling fica somente em arquivo local 0600 com prazo de 20 minutos; não é enviado ao browser.
+4. Agenda e Talk começam **desativados por padrão** até consentimento separado. O Nextcloud pode revogar a senha por dispositivo na página Segurança.
+
+O fallback avançado de senha de aplicativo é validado pela API antes do armazenamento. TLS verificado, sem redirecionamentos HTTP, endpoints da negociação limitados à origem informada e ao caminho esperado. O CalDAV foi corrigido para instalações em subdiretórios.
+
+Documentação oficial consultada:
+- https://docs.nextcloud.com/server/stable/developer_manual/client_apis/LoginFlow/index.html
+- https://docs.nextcloud.com/server/stable/admin_manual/configuration_user/authentication.html
+- https://docs.nextcloud.com/server/stable/user_manual/pt_BR/session_management.html
+
+**Escopo comprovado:** testes PHP com servidor simulado, testes de fronteiras e validação da interface em navegador headless nas larguras 375/768/1280/1920 px. **Ainda pendente:** autorização real feita pelo usuário, 2FA real, credencial individual na instância de produção e testes CalDAV/Talk com essa identidade. A conexão não acontece silenciosamente sem clique e autorização do usuário.
+
+**Atenção à paridade:** nova navegação e novo login não significam que a versão PHP substitui o Python. O SyncEngine PHP ainda bloqueia publicação automática, e as rotinas Python de áudio, histórico Telegram, revisão/aprovação, telemetria e publicador precisam de equivalência e provas de migração em ambiente real. O aviso de migração foi movido para área discreta, mas a restrição continua ativa.
+
+## Correção de falha de monitoramento e validação de paridade (15/11/2026)
+
+- **Falha real diagnosticada:** o perfil de avaliação PHP tinha as fontes Agenda/Talk habilitadas, mas não tinha credencial de aplicativo Nextcloud no armazenamento PHP separado. O ciclo de 15/11 à 00h falhou com RuntimeException enquanto o Python continuou independente. Não se deve copiar automaticamente credenciais privadas do piloto Python.
+- **Correção:** fontes opcionais sem credenciais passam a needs_connection, erros transitórios a unavailable; as sugestões e os registros não reutilizam evidências antigas de Calendar/Talk/GitHub/Telegram quando a fonte não é autorizada e verificada no ciclo. A página inicial oferece link explícito para conectar Nextcloud. Testes de regressão simulam ausência de credenciais, conteúdos de caches antigos e falha de autorização.
+- **Verificação de runtime:** um ciclo PHP real, ainda **somente leitura**, encerrou PHP_CYCLE success remote_writes=0 reviews=10; o automatic-kimai-php-shadow.service foi executado novamente via systemd com Result=success, ExecMainStatus=0; timer preservado.
+- **Paridade calculada em dados reais:** evidências sanitizadas e referências Python para os dias 11, 12 e 13/11 produziram 7+7+5 = **19 sessões** no PHP com zero divergências nas projeções comparadas (id, início, fim, durações de trabalho/contexto desconhecido, lacunas e hash de evidência). Comparação foi realizada com snapshot temporário restrito, removido após teste. Não equivale a validar escrita, aprovação, histórico de mídias nem todos os serviços.
+- **Navegador padrão no Electron:** o processo principal agora abre links externos HTTPS usando shell.openExternal e impede que navegações externas substituam a janela local; isso permite reutilizar a sessão web do navegador padrão durante Login Flow v2. APP_PATH apontando para php-app e npm run build compilou a ponte Electron; não foi homologado o instalador final.
+- **Status de migração:** o Python segue ativo para publicação legítima; o PHP permanece shadow. Não habilitar POST/PATCH, não desligar timers Python, não mesclar PR como versão final. A homologação de todas as fontes, aprovação/ledger, migração de pendências, retomada e distribuição nativa é exigida para paridade integral.
+
 ## Bloqueio de segurança para empacotamento (detectado em 14/11)
 
 Um teste local de `native:build` identificou que o NativePHP, por padrão, copia também `storage/app/private` e a chave `APP_KEY` do ambiente de desenvolvimento para o instalador. Essa cópia incluiu o perfil de avaliação e suas credenciais criptografadas. **Os instaladores de teste não foram publicados**; os arquivos compilados e o diretório de estágio foram imediatamente apagados, preservando o armazenamento local original.

@@ -24,7 +24,7 @@ final class ThemeUiTest extends TestCase
 
     public function test_icon_theme_switch_follows_system_until_manual_override(): void
     {
-        $view=file_get_contents(resource_path('views/automatic-kimai/dashboard.blade.php'));
+        $view=file_get_contents(resource_path('views/automatic-kimai/scripts/theme.blade.php'));
         self::assertIsString($view);
         foreach ([
             "button.addEventListener('click'",
@@ -102,8 +102,8 @@ final class ThemeUiTest extends TestCase
             '.notice.error','button:disabled','input::placeholder',
             'select option','details[open]',':focus-visible',
             'color-scheme: dark','--line-strong',
-            '.theme-switch','.theme-switch:focus-visible','.app-nav',
-            '.nav-link.is-current','width: 44px;',
+            '.theme-switch','.theme-switch:focus-visible','.sidebar-nav',
+            '.nav-item.is-current','width: 44px;',
         ] as $rule) {
             self::assertStringContainsString($rule,$stylesheet);
         }

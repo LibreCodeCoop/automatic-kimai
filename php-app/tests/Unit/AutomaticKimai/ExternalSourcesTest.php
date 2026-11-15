@@ -29,6 +29,34 @@ final class ExternalSourcesTest extends TestCase
         self::assertStringNotContainsString('customer',json_encode($events));
     }
 
+    public function test_caldav_can_use_server_subdirectory_and_separate_login_name(): void
+    {
+        $seen=[];
+        $fake=new HttpTransport(static function($method,$url,$headers,$body,$basic) use (&$seen) {
+            $seen[]=['method'=>$method,'url'=>$url,'login'=>$basic[0]??''];
+            if ($method==='PROPFIND') {
+                return ['status'=>207,'body'=>
+                    '<d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'.
+                    '<d:response><d:href>/cloud/remote.php/dav/calendars/worker/work/</d:href>'.
+                    '<d:propstat><d:prop><c:supported-calendar-component-set>'.
+                    '<c:comp name="VEVENT"/></c:supported-calendar-component-set>'.
+                    '</d:prop></d:propstat></d:response></d:multistatus>'];
+            }
+            return ['status'=>207,'body'=>'<d:multistatus xmlns:d="DAV:"/>'];
+        });
+        $out=(new NextcloudSource($fake))->calendar($this->profile(),[
+            'NEXTCLOUD_URL'=>'https://nextcloud.example.org/cloud',
+            'NEXTCLOUD_USERNAME'=>'worker',
+            'NEXTCLOUD_LOGIN_NAME'=>'worker@example.org',
+            'NEXTCLOUD_APP_PASSWORD'=>'test-value',
+        ],new DateTimeImmutable('2026-11-07T12:00:00-03:00'));
+        self::assertCount(2,$seen);
+        self::assertSame('https://nextcloud.example.org/cloud/remote.php/dav/calendars/worker/',$seen[0]['url']);
+        self::assertSame('https://nextcloud.example.org/cloud/remote.php/dav/calendars/worker/work/',$seen[1]['url']);
+        self::assertSame('worker@example.org',$seen[0]['login']);
+        self::assertSame(1,$out['calendars_scanned']);
+    }
+
     public function test_github_only_releases_hashes_and_event_timestamps(): void
     {
         $client=new HttpTransport(static function($method,$url){

@@ -6,6 +6,8 @@ namespace App\Http\Controllers;
 use App\AutomaticKimai\ActivityWatchClient;
 use App\AutomaticKimai\KimaiClient;
 use App\AutomaticKimai\LocalStore;
+use App\AutomaticKimai\NextcloudDesktopDiscovery;
+use App\AutomaticKimai\NextcloudLoginFlow;
 use App\AutomaticKimai\ManualTime;
 use App\AutomaticKimai\Profile;
 use App\AutomaticKimai\SyncEngine;
@@ -34,9 +36,39 @@ final class AutomaticKimaiController extends Controller
     {
         $this->local($request);
         $view=(string)$request->query('view','overview');
-        if (!in_array($view,['overview','review','settings','integrations'],true))$view='overview';
+        if ($view==='settings')$view='kimai'; // Existing bookmarks.
+        $titles=[
+            'overview'=>'Visão geral',
+            'review'=>'Revisar minhas horas',
+            'attendance'=>'Trabalho presencial',
+            'manual'=>'Informar horas',
+            'kimai'=>'Conta Kimai',
+            'sources'=>'Fontes de dados',
+            'integrations'=>'Conexões',
+            'nextcloud'=>'Nextcloud',
+            'telegram'=>'Telegram',
+            'github'=>'GitHub',
+            'about'=>'Migração e segurança',
+        ];
+        $hints=[
+            'overview'=>'Acompanhe seu monitoramento e veja o que precisa de atenção.',
+            'review'=>'Confira períodos sugeridos e lacunas que precisam de confirmação.',
+            'attendance'=>'Revise compromissos presenciais e desconte as pausas.',
+            'manual'=>'Informe atividades realizadas fora da coleta automática.',
+            'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',
+            'sources'=>'Controle quais informações o aplicativo pode consultar.',
+            'integrations'=>'Conecte cada serviço separadamente.',
+            'nextcloud'=>'Autorize o acesso no navegador sem usar sua senha principal.',
+            'telegram'=>'Escolha as conversas profissionais que deseja autorizar.',
+            'github'=>'Metadados de atividades técnicas, sem presumir horas.',
+            'about'=>'O que já funciona e o que falta validar para migrar com segurança.',
+        ];
+        if (!array_key_exists($view,$titles))$view='overview';
         return view('automatic-kimai.dashboard',[
             'view'=>$view,
+            'pageTitles'=>$titles,
+            'pageHints'=>$hints,
+            'desktopNextcloudServers'=>NextcloudDesktopDiscovery::discover(),
             'profile'=>$this->store->profile(),
             'creds'=>$this->store->credentials(),
             'sources'=>$this->store->sources(),
@@ -148,20 +180,30 @@ final class AutomaticKimaiController extends Controller
         ]);
         try {
             $credentials=[];
-            if (!empty($input['nextcloud_url'])) {
-                $url=parse_url($input['nextcloud_url']);
-                if (!is_array($url)||($url['scheme']??null)!=='https'||
-                    !empty($url['query'])||!empty($url['user'])||
-                    !empty($url['pass'])||!in_array($url['path']??'',['','/'],true)) {
-                    throw new RuntimeException('O servidor Nextcloud precisa de um endereço HTTPS simples');
+            $manual=isset($input['nextcloud_url']) || isset($input['nextcloud_user']) ||
+                isset($input['nextcloud_password']);
+            if ($manual) {
+                $existing=$this->store->credentials();
+                $server=NextcloudLoginFlow::normalizeServer((string)($input['nextcloud_url']??''));
+                $login=trim((string)($input['nextcloud_user']??''));
+                $pass=(string)($input['nextcloud_password']??'');
+                if ($pass==='' && $server===($existing['NEXTCLOUD_URL']??null) &&
+                    $login===($existing['NEXTCLOUD_LOGIN_NAME']??$existing['NEXTCLOUD_USERNAME']??null)) {
+                    $pass=(string)($existing['NEXTCLOUD_APP_PASSWORD']??'');
                 }
-                $credentials['NEXTCLOUD_URL']=$input['nextcloud_url'];
+                if ($pass==='')throw new RuntimeException('Informe uma senha de aplicativo do Nextcloud.');
+                $uid=NextcloudLoginFlow::verifyIdentity($server,$login,$pass);
+                $credentials=[
+                    'NEXTCLOUD_URL'=>$server,
+                    'NEXTCLOUD_LOGIN_NAME'=>$login,
+                    'NEXTCLOUD_USERNAME'=>$uid,
+                    'NEXTCLOUD_APP_PASSWORD'=>$pass,
+                ];
             }
-            if (!empty($input['nextcloud_user']))$credentials['NEXTCLOUD_USERNAME']=$input['nextcloud_user'];
-            if (!empty($input['nextcloud_password']))$credentials['NEXTCLOUD_APP_PASSWORD']=$input['nextcloud_password'];
             if (!empty($input['github_token']))$credentials['GITHUB_TOKEN']=$input['github_token'];
+            if ($credentials===[])return back()->with('ok','Nenhuma conexão foi alterada.');
             $this->store->saveCredentials($credentials);
-            return back()->with('ok','Conexões opcionais salvas localmente de forma criptografada.');
+            return back()->with('ok','Conexões verificadas e salvas localmente.');
         } catch(Throwable $e) {
             return back()->withErrors(['connectors'=>$e->getMessage()]);
         }
@@ -174,6 +216,8 @@ final class AutomaticKimaiController extends Controller
             'day'=>'required|date_format:Y-m-d','label'=>'required|string|min:3|max:64',
             'start'=>'required|date_format:H:i','end'=>'required|date_format:H:i',
             'breaks'=>'nullable|string|max:200',
+            'pause_start'=>'nullable|date_format:H:i|required_with:pause_end',
+            'pause_end'=>'nullable|date_format:H:i|required_with:pause_start',
             'schedule_source'=>'required|string|max:150',
             'attended'=>'accepted',
         ]);
@@ -189,6 +233,9 @@ final class AutomaticKimaiController extends Controller
                 }
                 $breaks[]=explode('-',$text);
             }
+            if (!empty($input['pause_start']) && !empty($input['pause_end'])) {
+                $breaks[]=[$input['pause_start'],$input['pause_end']];
+            }
             $sections=ManualTime::attendanceSegments($profile,[
                 'day'=>$input['day'],'start'=>$input['start'],'end'=>$input['end'],
                 'breaks'=>$breaks,'label'=>$input['label'],
@@ -200,6 +247,20 @@ final class AutomaticKimaiController extends Controller
         } catch(Throwable $e) {
             return back()->withErrors(['attendance'=>$e->getMessage()]);
         }
+    }
+
+    public function nextcloudSources(Request $request): RedirectResponse
+    {
+        $this->local($request);
+        $creds=$this->store->credentials();
+        if (empty($creds['NEXTCLOUD_APP_PASSWORD'])||empty($creds['NEXTCLOUD_USERNAME'])) {
+            return back()->withErrors(['nextcloud'=>'Conecte sua conta Nextcloud antes de ativar essas fontes.']);
+        }
+        $this->store->setSources([
+            'nextcloud_calendar'=>$request->boolean('calendar'),
+            'nextcloud_talk'=>$request->boolean('talk'),
+        ]);
+        return back()->with('ok','Permissões do Nextcloud salvas.');
     }
 
     public function sources(Request $request): RedirectResponse

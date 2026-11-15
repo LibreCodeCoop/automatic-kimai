@@ -87,3 +87,14 @@ Lembre-se: um agendamento ou um processo de IA rodando sozinho não equivale a h
 Algoritmos de segmentação, lacunas, GET Kimai, proteção de escrita, ActivityWatch, Nextcloud Calendar/Talk, GitHub, Ollama e frontend Laravel têm implementação e testes. Telegram MTProto já oferece QR/2FA pela interface local mas depende da autenticação final pelo usuário; o publicador aprovado, o histórico de revisão e componentes do piloto precisam de paridade completa e testes de produção **somente leitura** antes de qualquer substituição do runtime antigo.
 
 Este código é um **candidato de implementação** — não uma release e não uma autorização para remover os serviços Python ainda ativos.
+
+
+## Interface de configuração por tarefa
+
+O painel local divide o fluxo em telas separadas: **Visão geral**, **Revisar horas**, **Trabalho presencial**, **Informar horas**, **Conta Kimai**, **Fontes de dados**, **Contas conectadas**, **Nextcloud**, **Telegram**, **GitHub** e **Migração e segurança**. O menu lateral vira menu recolhível no celular, sem apresentar todos os formulários de uma vez.
+
+Para conectar Nextcloud, abra **Conexões → Nextcloud**, informe o endereço HTTPS e clique em **Conectar pelo navegador**. Autorize no próprio Nextcloud usando sua sessão de navegador (quando já estiver conectada). O servidor gera uma **senha de aplicativo individual e revogável** via Login Flow v2. Ative separadamente **Agenda** e/ou **Talk** somente após a conexão. Em servidores sem Login Flow v2, há configuração manual com senha de aplicativo e validação OCS. Nenhuma senha principal, cookie de navegador ou credencial de outro aplicativo é importada.
+
+Quando o cliente Nextcloud Desktop está instalado na mesma conta local, o aplicativo pode sugerir somente a URL conhecida no arquivo de configuração. Em contêiner isolado, esse arquivo não fica automaticamente acessível; nesse caso, informe a URL manualmente. O usuário sempre precisa confirmar o acesso.
+
+Durante a migração, o registro automático pelo PHP permanece bloqueado. O serviço Python ativo não pode ser desligado até que todos os coletores, a fila de aprovações, o publicador, o ledger e a retomada após falhas tenham comprovado paridade. Consulte ../PHP_MIGRATION.md.

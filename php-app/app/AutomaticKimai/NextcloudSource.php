@@ -21,14 +21,8 @@ final class NextcloudSource
 
     private static function base(string $url): string
     {
-        $parts=parse_url(rtrim($url,'/'));
-        if (!is_array($parts)||($parts['scheme']??null)!=='https'||
-            empty($parts['host'])||isset($parts['user'])||isset($parts['pass'])||
-            isset($parts['query'])||isset($parts['fragment'])||
-            !in_array($parts['path']??'',['','/'],true)) {
-            throw new InvalidArgumentException('Nextcloud base URL must be an HTTPS origin');
-        }
-        return rtrim($url,'/');
+        // Support installations mounted beneath an HTTPS origin.
+        return NextcloudLoginFlow::normalizeServer($url);
     }
 
     private function xml(string $method,string $url,string $payload,array $auth): DOMXPath
@@ -94,10 +88,12 @@ final class NextcloudSource
         if ($username===''||$password===''||strpbrk($username,"/\\\r\n")!==false) {
             throw new InvalidArgumentException('Nextcloud account password or username missing');
         }
-        $auth=[$username,$password];
-        $root='/remote.php/dav/calendars/'.rawurlencode($username).'/';
+        $auth=[(string)($credentials['NEXTCLOUD_LOGIN_NAME']??$username),$password];
+        $prefix=(string)(parse_url($base,PHP_URL_PATH) ?: '');
+        $origin=substr($base,0,strlen($base)-strlen($prefix));
+        $root=$prefix.'/remote.php/dav/calendars/'.rawurlencode($username).'/';
         $find='<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:displayname/><c:supported-calendar-component-set/></d:prop></d:propfind>';
-        $xpath=$this->xml('PROPFIND',$base.$root,$find,$auth);
+        $xpath=$this->xml('PROPFIND',$origin.$root,$find,$auth);
         $paths=[];
         foreach ($xpath->query('//d:response') as $node) {
             if ($xpath->query('.//c:comp[@name="VEVENT"]',$node)->length===0)continue;
@@ -114,7 +110,7 @@ final class NextcloudSource
         $query='<c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT"><c:time-range start="'.$fromUTC.'" end="'.$untilUTC.'"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>';
         $events=[];$seen=[];
         foreach ($paths as $path) {
-            $items=$this->xml('REPORT',$base.$path,$query,$auth);
+            $items=$this->xml('REPORT',$origin.$path,$query,$auth);
             foreach ($items->query('//c:calendar-data') as $data) {
                 foreach (self::parseEvents($data->textContent,$profile,$from,$until) as $item) {
                     if ($item['date']<$from->format('Y-m-d')||$item['date']>$until->format('Y-m-d'))continue;
@@ -137,7 +133,7 @@ final class NextcloudSource
         $username=(string)($credentials['NEXTCLOUD_USERNAME']??'');
         $password=(string)($credentials['NEXTCLOUD_APP_PASSWORD']??'');
         if ($username===''||$password==='')throw new InvalidArgumentException('Nextcloud credentials required');
-        $auth=[$username,$password];
+        $auth=[(string)($credentials['NEXTCLOUD_LOGIN_NAME']??$username),$password];
         $query=function(string $endpoint,array $params=[])use($auth,$base) {
             $params=array_merge(['format'=>'json'],$params);
             $url=$base.$endpoint.'?'.http_build_query($params);

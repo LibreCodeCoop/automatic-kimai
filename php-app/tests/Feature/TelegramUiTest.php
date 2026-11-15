@@ -43,7 +43,7 @@ final class TelegramUiTest extends TestCase
 
     public function test_panel_exposes_telegram_onboarding_but_no_credentials(): void
     {
-        $this->get('http://localhost/?view=integrations')->assertOk()
+        $this->get('http://localhost/?view=telegram')->assertOk()
             ->assertSee('Conecte seu Telegram pelo celular')
             ->assertSee('Conectar pelo QR Code')
             ->assertDontSee('TELEGRAM_API_HASH');

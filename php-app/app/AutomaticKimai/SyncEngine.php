@@ -86,21 +86,37 @@ final class SyncEngine
         $enabled=$this->store->sources();
         $http=$this->providers??new HttpTransport();
         $sources=['activitywatch'=>'local'];
+        $nextcloudReady=!empty($creds['NEXTCLOUD_URL']) &&
+            !empty($creds['NEXTCLOUD_USERNAME']) &&
+            !empty($creds['NEXTCLOUD_APP_PASSWORD']);
         if ($enabled['nextcloud_calendar']) {
-            if (empty($creds['NEXTCLOUD_URL'])||empty($creds['NEXTCLOUD_USERNAME'])||
-                empty($creds['NEXTCLOUD_APP_PASSWORD'])) {
-                throw new RuntimeException('CalDAV enabled without Nextcloud credentials');
+            if (!$nextcloudReady) {
+                // Optional provider setup must not suppress otherwise valid
+                // work evidence or prevent the next scheduled PHP shadow cycle.
+                $sources['nextcloud_calendar']=['status'=>'needs_connection','events'=>0];
+            } else {
+                try {
+                    $events=(new NextcloudSource($http))->calendar($profile,$creds,$now);
+                    $this->store->write('calendar_work_context.json',$events);
+                    $sources['nextcloud_calendar']=['status'=>'ok','events'=>count($events['events'])];
+                } catch(Throwable) {
+                    // Do not reuse stale calendar snapshots for work inference.
+                    $sources['nextcloud_calendar']=['status'=>'unavailable','events'=>0];
+                }
             }
-            $events=(new NextcloudSource($http))->calendar($profile,$creds,$now);
-            $this->store->write('calendar_work_context.json',$events);
-            $sources['nextcloud_calendar']=['events'=>count($events['events'])];
         }
         if ($enabled['nextcloud_talk']) {
-            try {
-                $result=(new NextcloudSource($http))->talk($profile,$creds);
-                $this->store->write('nextcloud_talk_context.json',$result);
-                $sources['nextcloud_talk']=['own_actions'=>count($result['own_actions']??[])];
-            } catch(Throwable) {$sources['nextcloud_talk']='unavailable_context_only';}
+            if (!$nextcloudReady) {
+                $sources['nextcloud_talk']=['status'=>'needs_connection','own_actions'=>0];
+            } else {
+                try {
+                    $result=(new NextcloudSource($http))->talk($profile,$creds);
+                    $this->store->write('nextcloud_talk_context.json',$result);
+                    $sources['nextcloud_talk']=['status'=>'ok','own_actions'=>count($result['own_actions']??[])];
+                } catch(Throwable) {
+                    $sources['nextcloud_talk']=['status'=>'unavailable','own_actions'=>0];
+                }
+            }
         }
         if ($enabled['github']) {
             try {
@@ -128,15 +144,17 @@ final class SyncEngine
         return $sources;
     }
 
-    private function actionAnchors(Profile $profile): array
+    private function actionAnchors(Profile $profile,array $providerStatuses): array
     {
         $actions=[];
-        $talk=$this->store->read('nextcloud_talk_context.json');
+        $talk=(($providerStatuses['nextcloud_talk']['status']??'')==='ok')?
+            $this->store->read('nextcloud_talk_context.json'):[];
         foreach (array_slice($talk['own_actions']??[],0,20_000) as $item) {
             try {$actions[]=TimeMath::parse((string)$item['utc'],$profile->zone);}
             catch(Throwable){}
         }
-        $telegram=$this->store->read('telegram_scoped_history.json');
+        $telegram=(($providerStatuses['telegram']['status']??'')==='ok')?
+            $this->store->read('telegram_scoped_history.json'):[];
         foreach ($telegram['scoped_client_chats']??[] as $chat) {
             foreach (array_slice($chat['observations']??[],0,20_000) as $item) {
                 if (($item['outgoing']??false)!==true)continue;
@@ -144,7 +162,8 @@ final class SyncEngine
                 catch(Throwable){}
             }
         }
-        $github=$this->store->read('github_context.json');
+        $github=(($providerStatuses['github']['status']??'')==='ok')?
+            $this->store->read('github_context.json'):[];
         foreach (array_slice($github['events']??[],0,1000) as $event) {
             if (!in_array($event['kind']??'',[
                 'PullRequestReviewEvent','PullRequestReviewCommentEvent',
@@ -232,9 +251,9 @@ final class SyncEngine
                 try {
                     $engine=new Reconciler();
                     $pending=$engine->recover($api,$profile,$userId,$ledger,$days);
-                    $calendar=$sourceOpts['nextcloud_calendar']?
+                    $calendar=(($sources['nextcloud_calendar']['status']??'')==='ok')?
                         ($this->store->read('calendar_work_context.json')['events']??[]):[];
-                    $anchors=$this->actionAnchors($profile);
+                    $anchors=$this->actionAnchors($profile,$sources);
                     $coverage=new Coverage();$segmenter=new Segmenter();
                     $candidateBuilder=new ReviewCandidateBuilder();
                     $reviewCandidates=[];
