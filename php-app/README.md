@@ -207,3 +207,23 @@ automaticamente.
 Essa paginação foi testada com respostas Telegram simuladas. A velocidade e
 a compatibilidade com uma conta real muito grande ainda precisam de
 homologação autorizada; nenhum teste desta mudança fez login ou leu mensagens.
+
+
+### Correção do catálogo de grupos Telegram no aplicativo local (15/11/2026)
+
+MadelineProto 8 normaliza identificadores de chats, diálogos e mensagens para
+IDs numéricos do Bot API, incluindo IDs negativos de grupos. Além disso, a
+primeira resposta de `messages.getDialogs` pode conter diálogos fixados
+**além** dos 30 itens ordinários solicitados. O seletor agora interpreta ambos
+os formatos (construtores TL e IDs numéricos já normalizados), tolera uma
+quantidade limitada de itens fixados e avança pelo último diálogo não fixado.
+
+A UI mostra a falha na própria lista, habilita **Tentar novamente** e interrompe
+a espera após 15 segundos. Ela não permanece em uma mensagem permanente de
+carregamento quando o backend retorna HTTP 503.
+
+**Validação local real, somente metadados:** primeira página HTTP 200 em
+aproximadamente 0,47 s, 32 diálogos recebidos (incluindo fixados) e 28
+grupos válidos; segunda página com mais 16 grupos sem duplicações na seleção.
+A inspeção não consultou o conteúdo de mensagens nem habilitou a coleta.
+Regressões PHPUnit usam somente identificadores e nomes fictícios.

@@ -98,9 +98,9 @@ final class TelegramGroupSelection
             if ($own && method_exists($client,'close'))$client->close();
         }
         if (!is_array($result)||!is_array($result['groups']??null)||
-            count($result['groups'])>MadelineTelegramAdapter::PAGE_SIZE ||
+            count($result['groups'])>MadelineTelegramAdapter::PAGE_SIZE+MadelineTelegramAdapter::MAX_PINNED ||
             !is_int($result['scanned_dialog_count']??null)||
-            $result['scanned_dialog_count']>MadelineTelegramAdapter::PAGE_SIZE) {
+            $result['scanned_dialog_count']>MadelineTelegramAdapter::PAGE_SIZE+MadelineTelegramAdapter::MAX_PINNED) {
             throw new RuntimeException('Telegram retornou uma página inválida');
         }
         if (!is_array($recommendations)||count($recommendations)>2) {

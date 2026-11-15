@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\AutomaticKimai;
 
 use danog\MadelineProto\API;
+use danog\DialogId\DialogId;
 use danog\MadelineProto\Settings;
 use RuntimeException;
 
@@ -105,6 +106,9 @@ final class MadelineTelegramAdapter
      * conversations, which are discarded before returning the response.
      */
     public const PAGE_SIZE=30;
+    // Telegram includes pinned chats *in addition to* the requested limit
+    // on the first page. Never reject valid responses because of this.
+    public const MAX_PINNED=100;
 
     public function groupsPage(?array $offset=null): array
     {
@@ -134,29 +138,50 @@ final class MadelineTelegramAdapter
     {
         $dialogs=$response['dialogs']??null;
         $chats=$response['chats']??null;
-        if (!is_array($dialogs)||!is_array($chats)||count($dialogs)>$limit) {
+        if (!is_array($dialogs)||!is_array($chats)||
+            count($dialogs)>$limit+self::MAX_PINNED) {
             throw new RuntimeException('Telegram returned an invalid dialogs page');
         }
+        $pinned=0;$ordinary=0;
+        foreach ($dialogs as $dialog) {
+            if (!is_array($dialog))continue;
+            if (($dialog['pinned']??false)===true)$pinned++;
+            else $ordinary++;
+        }
+        if ($pinned>self::MAX_PINNED||$ordinary>$limit) {
+            throw new RuntimeException('Telegram dialogs page exceeded bounds');
+        }
+        // MadelineProto normalizes peerChat/peerChannel constructors to
+        // integer Bot API dialog IDs, including inside message.peer_id.
+        // Resolve each chat's ID using the same library's DialogId mapping.
         $metadata=[];
         foreach ($chats as $chat) {
             if (!is_array($chat) || !is_int($chat['id']??null))continue;
-            $metadata[$chat['id']]=$chat;
+            try {
+                $id=$chat['id']<0 ? $chat['id'] : match($chat['_']??null) {
+                    // The MadelineProto RPC wrapper often returns chat IDs
+                    // already normalized to negative Bot API dialog IDs.
+                    // Convert only raw positive MTProto IDs.
+                    'chat' => DialogId::fromChatId($chat['id']),
+                    'channel','channelForbidden' =>
+                        DialogId::fromSupergroupOrChannelId($chat['id']),
+                    default => null,
+                };
+                if ($id!==null)$metadata[$id]=$chat;
+            } catch (\Throwable) {continue;}
         }
 
         $groups=[];
         foreach ($dialogs as $dialog) {
-            if (!is_array($dialog)||!is_array($dialog['peer']??null))continue;
-            $peer=$dialog['peer'];
-            $kind=$peer['_']??null;
-            $chatId=$kind==='peerChat'?($peer['chat_id']??null):
-                ($kind==='peerChannel'?($peer['channel_id']??null):null);
-            if (!is_int($chatId) || !isset($metadata[$chatId]))continue;
-            $chat=$metadata[$chatId];
+            if (!is_array($dialog))continue;
+            $peer=$dialog['peer']??null;
+            if (!(is_int($peer)||is_array($peer)))continue;
+            $id=is_int($peer)?$peer:$peerId($peer);
+            if (!is_int($id)||$id===0||!isset($metadata[$id]))continue;
+            $chat=$metadata[$id];
             if (!self::isUsableGroupChat($chat))continue;
             $title=trim(mb_substr((string)($chat['title']??''),0,150));
             if ($title==='')continue;
-            $id=$peerId($peer);
-            if (!is_int($id)||$id===0)continue;
             $username=self::publicUsername($chat);
             $groups[$id]=[
                 'id'=>$id,
@@ -164,25 +189,29 @@ final class MadelineTelegramAdapter
                 'recommended'=>in_array(strtolower($username??''),['librecodecoop','libresign'],true),
             ];
         }
-        // No global count/sort. Telegram already returned the page in order.
+        // Pinned dialogs must NOT provide the offset: the next page uses
+        // exclude_pinned=true, so continuation tracks the last ordinary one.
         $next=null;
-        if (count($dialogs)===$limit && $dialogs!==[]) {
-            $last=end($dialogs);
-            if (is_array($last)&&is_array($last['peer']??null)) {
-                $peer=$peerId($last['peer']);
+        if ($ordinary===$limit) {
+            foreach (array_reverse($dialogs) as $last) {
+                if (!is_array($last)||($last['pinned']??false)===true)continue;
+                $rawPeer=$last['peer']??null;
+                if (!(is_int($rawPeer)||is_array($rawPeer)))continue;
+                $peer=is_int($rawPeer)?$rawPeer:$peerId($rawPeer);
                 $messageId=$last['top_message']??0;
-                if (is_int($peer)&&$peer!==0&&is_int($messageId)&&$messageId>0) {
-                    $date=0;
-                    foreach (($response['messages']??[]) as $message) {
-                        if (!is_array($message)||($message['id']??null)!==$messageId||
-                            !is_array($message['peer_id']??null))continue;
-                        if ($peerId($message['peer_id'])===$peer) {
-                            $date=(int)($message['date']??0);
-                            break;
-                        }
+                if (!is_int($peer)||$peer===0||!is_int($messageId)||$messageId<=0)continue;
+                $date=0;
+                foreach (($response['messages']??[]) as $message) {
+                    if (!is_array($message)||($message['id']??null)!==$messageId)continue;
+                    $msgPeer=$message['peer_id']??null;
+                    if (!(is_int($msgPeer)||is_array($msgPeer)))continue;
+                    if ((is_int($msgPeer)?$msgPeer:$peerId($msgPeer))===$peer) {
+                        $date=(int)($message['date']??0);
+                        break;
                     }
-                    $next=['date'=>$date,'id'=>$messageId,'peer'=>$peer];
                 }
+                $next=['date'=>max(0,$date),'id'=>$messageId,'peer'=>$peer];
+                break;
             }
         }
         return [
@@ -254,9 +283,10 @@ final class MadelineTelegramAdapter
         }
         $title=trim(mb_substr((string)($chat['title']??''),0,150));
         $channelId=$chat['id']??null;
-        if ($title===''||!is_int($channelId)||$channelId<1)return null;
-        $id=$peerId(['_'=>'peerChannel','channel_id'=>$channelId]);
-        if (!is_int($id)||$id===0)return null;
+        if ($title===''||!is_int($channelId)||$channelId===0)return null;
+        // MadelineProto may already expose Bot API's negative dialog ID.
+        $id=$channelId<0?$channelId:$peerId(['_'=>'peerChannel','channel_id'=>$channelId]);
+        if (!is_int($id)||$id===0||!DialogId::isSupergroupOrChannel($id))return null;
         return ['id'=>$id,'title'=>$title,'recommended'=>true];
     }
 

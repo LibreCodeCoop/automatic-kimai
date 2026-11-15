@@ -224,3 +224,25 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   marcações, cursor inválido e sugestões com username verificado passaram.
 - Pendente: testes de latência com conta real e comportamento do Telegram
   sob volume, sem consultar conteúdo de chats sem aprovação explícita.
+
+
+## Recuperação do catálogo Telegram e fidelidade funcional (15/11/2026)
+
+- Corrigida falha da primeira página: Telegram devolvia 32 diálogos para um
+  limite de 30 devido a conversas fixadas e a validação PHP rejeitava a
+  resposta. O parser agora permite fixados extras com limite defensivo.
+- MadelineProto devolve os identificadores de peer e de chat normalizados
+  como inteiros (negativos para grupos), enquanto os testes anteriores só
+  simulavam os construtores TL em array. O parser aceita ambos e preserva o
+  cursor pelo último diálogo não fixado.
+- O navegador mostra erros HTTP e opção de nova tentativa, encerrando a espera
+  com falha visível após 15 segundos se não houver resposta.
+- Testes reais restritos ao catálogo Telegram autorizado: HTTP 200, cerca de
+  0,47 s, 28 grupos na primeira página e 16 grupos distintos na segunda.
+  Nenhum corpo de mensagem foi inspecionado; o scanner e a publicação
+  continuam desativados.
+- Interpretação de requisitos: a meta de homologação é **100% das
+  funcionalidades e comportamentos operacionais** existentes no piloto
+  Python, não igualdade byte a byte de toda saída intermediária. Mudanças que
+  corrijam defeitos de performance, cobertura ou segurança são desejadas
+  quando preservam o resultado funcional necessário e têm testes.

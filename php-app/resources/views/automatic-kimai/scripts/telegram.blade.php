@@ -126,13 +126,19 @@
     try {
       const url=new URL(urls.groups,location.origin);
       if(nextCursor!==null)url.searchParams.set('cursor',nextCursor);
-      const response=await fetch(url.toString(),{
-        method:'GET',cache:'no-store',credentials:'same-origin',
-        headers:{Accept:'application/json'},
-      });
+      const controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),15000);
+      let response;
+      try {
+        response=await fetch(url.toString(),{
+          method:'GET',cache:'no-store',credentials:'same-origin',
+          headers:{Accept:'application/json'},
+          signal:controller.signal,
+        });
+      } finally {clearTimeout(timeout);}
       const data=await response.json();
       if(!response.ok)throw new Error(data.message||'Não foi possível listar grupos.');
-      if(!Array.isArray(data.groups)||data.groups.length>30||
+      if(!Array.isArray(data.groups)||data.groups.length>130||
          !(data.next_cursor===null || typeof data.next_cursor==='string')){
         throw new Error('Resposta de paginação inválida. Atualize a lista.');
       }
@@ -156,6 +162,7 @@
       }
       nextCursor=data.next_cursor;
       button.hidden=nextCursor===null;
+      button.textContent='Carregar mais grupos';
       if(loadedGroups.size===0){
         const empty=document.createElement('p');
         empty.className='muted';
@@ -175,7 +182,20 @@
           'Continue rolando ou clique em Carregar mais grupos.')+
         ' Nenhum histórico de mensagens foi consultado.';
     }catch(error){
-      $('tg-groups-status').textContent=error.message;
+      const explanation=error.name==='AbortError'?
+        'A consulta ao Telegram ultrapassou 15 segundos. Tente novamente.':
+        (error.message||'Não foi possível carregar os grupos.');
+      $('tg-groups-status').textContent=explanation;
+      if(!groupsLoaded){
+        const alert=document.createElement('p');
+        alert.className='muted';
+        alert.setAttribute('role','alert');
+        alert.textContent=explanation;
+        $('tg-group-list').replaceChildren(alert);
+        button.textContent='Tentar carregar a primeira página';
+      } else {
+        button.textContent='Tentar carregar mais grupos';
+      }
       button.hidden=false;
     }finally{
       fetchingGroups=false;

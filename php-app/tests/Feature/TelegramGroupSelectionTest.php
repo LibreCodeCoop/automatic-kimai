@@ -195,6 +195,13 @@ final class TelegramGroupSelectionTest extends TestCase
                 ['Chat'=>array_replace($info['Chat'],['username'=>'LiBrEcOdEcOoP'])],
                 'LibreCodeCoop',$resolve)['id']
         );
+        // Real MadelineProto sessions return the already normalized negative
+        // ID inside getInfo()['Chat']['id'], not the raw MTProto ID.
+        self::assertSame(-1000000000015,
+            MadelineTelegramAdapter::verifiedRecommendation(
+                ['Chat'=>array_replace($info['Chat'],['id'=>-1000000000015])],
+                'LibreCodeCoop',$resolve)['id']
+        );
     }
 
     public function test_early_recommendations_need_no_full_account_enumeration(): void
@@ -242,6 +249,62 @@ final class TelegramGroupSelectionTest extends TestCase
         self::assertSame(1,$fake->recommendations);
     }
 
+    public function test_actual_madeline_proto_shape_handles_normalized_peers_and_extra_pinned_dialogs(): void
+    {
+        // The real MadelineProto wrapper returns negative int Bot API IDs in
+        // both chats[].id and dialogs[].peer, even though the raw TL schema
+        // documents peerChannel constructors. It also returns pinned entries
+        // beyond the requested 30 ordinary dialogs.
+        $first=-1000000000100;
+        $dialogs=[
+            ['_'=>'dialog','pinned'=>true,'peer'=>$first,'top_message'=>501],
+            ['_'=>'dialog','pinned'=>true,'peer'=>123456,'top_message'=>502],
+        ];
+        $messages=[];
+        for($i=0;$i<30;$i++) {
+            $peer=$i===0?-42:-1000000000200-$i;
+            $dialogs[]=['_'=>'dialog','pinned'=>false,
+                'peer'=>$peer,'top_message'=>1000+$i];
+            $messages[]=['_'=>'message','peer_id'=>$peer,
+                'id'=>1000+$i,'date'=>1794000200+$i];
+        }
+        $raw=['_'=>'messages.dialogsSlice',
+            'dialogs'=>$dialogs,'messages'=>$messages,
+            'chats'=>[
+                ['_'=>'channel','id'=>$first,'title'=>'LibreCode oficial',
+                    'megagroup'=>true,'left'=>false,'username'=>'LibreCodeCoop'],
+                ['_'=>'chat','id'=>-42,'title'=>'Equipe interna'],
+                ['_'=>'channel','id'=>-1000000000205,'title'=>'LibreSign equipe',
+                    'megagroup'=>true,'left'=>false,'username'=>'LibreSign'],
+                ['_'=>'channel','id'=>-1000000000208,'title'=>'Canal de notícias',
+                    'megagroup'=>false,'broadcast'=>true],
+            ]];
+        $resolve=static function (array $peer): never {
+            throw new \RuntimeException('No conversion is needed for normalized peer IDs');
+        };
+        $result=MadelineTelegramAdapter::filterDialogPage($raw,$resolve);
+        self::assertSame(32,$result['scanned_dialog_count']);
+        self::assertSame([$first,-42,-1000000000205],
+            array_column($result['groups'],'id'));
+        self::assertSame([true,false,true],
+            array_column($result['groups'],'recommended'));
+        self::assertSame([
+            'date'=>1794000229,'id'=>1029,'peer'=>-1000000000229,
+        ],$result['next_offset']);
+        // The cursor must use the last ordinary dialog, never a pinned item.
+    }
+
+    public function test_parser_rejects_more_than_a_bounded_number_of_dialogs(): void
+    {
+        $oversized=array_fill(0,30+MadelineTelegramAdapter::MAX_PINNED+1,[
+            '_'=>'dialog','peer'=>123,'top_message'=>1,'pinned'=>true,
+        ]);
+        $this->expectException(\RuntimeException::class);
+        MadelineTelegramAdapter::filterDialogPage([
+            'dialogs'=>$oversized,'chats'=>[],
+        ],static fn(array $peer): int=>123);
+    }
+
     public function test_telegram_dialogs_are_bounded_and_only_exact_public_group_usernames_are_suggested(): void
     {
         $chats=[
@@ -260,14 +323,15 @@ final class TelegramGroupSelectionTest extends TestCase
         $dialogs=[];
         $messages=[];
         foreach(range(10,39) as $id){
-            $peer=['_'=>'peerChannel','channel_id'=>$id];
+            $peer=$id===15?['_'=>'peerChat','chat_id'=>15]:['_'=>'peerChannel','channel_id'=>$id];
             $dialogs[]=['_'=>'dialog','peer'=>$peer,'top_message'=>$id+100];
             $messages[]=['_'=>'message','peer_id'=>$peer,
                 'id'=>$id+100,'date'=>1794000000+$id];
         }
         $raw=['dialogs'=>$dialogs,'messages'=>$messages,'chats'=>$chats];
         $resolve=static fn(array $peer): int=>
-            -1000000000000-(int)($peer['channel_id']??$peer['chat_id']??0);
+            ($peer['_']??null)==='peerChat'?
+                -(int)$peer['chat_id']:-1000000000000-(int)$peer['channel_id'];
         $page=MadelineTelegramAdapter::filterDialogPage($raw,$resolve);
         self::assertSame(30,$page['scanned_dialog_count']);
         self::assertCount(4,$page['groups']);
