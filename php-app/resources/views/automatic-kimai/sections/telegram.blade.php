@@ -84,6 +84,9 @@
 </div>
 <button type="button" class="secondary" id="tg-reload-groups">Atualizar lista</button>
 </div>
+<div class="telegram-group-columns">
+<div class="telegram-available-panel">
+<h4>Grupos disponíveis</h4>
 <div id="tg-group-list" class="telegram-group-list" role="group" aria-label="Grupos disponíveis para autorização">
 <p class="muted">Carregando a primeira página de grupos não arquivados…</p>
 </div>
@@ -91,16 +94,19 @@
 <button type="button" id="tg-load-more" class="secondary" hidden>Carregar mais grupos</button>
 <span id="tg-page-status" class="muted" role="status" aria-live="polite"></span>
 </div>
-<p class="muted">Na navegação, mais conversas são carregadas conforme você avança. A busca consulta as demais páginas automaticamente, incluindo arquivadas; o progresso e eventuais limites aparecem acima.</p>
-<div id="tg-selected-area" class="telegram-selected-area" hidden>
+</div>
+<div id="tg-selected-area" class="telegram-selected-area">
 <div class="telegram-selected-heading">
 <strong>Selecionados para análise: <span id="tg-selected-count">0</span></strong>
 <button type="button" id="tg-clear-selected" class="secondary">Desmarcar todos</button>
 </div>
-<div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados"></div>
-<p class="muted">A seleção fica nesta área mesmo ao alternar entre pastas e buscas. Desmarque na lista ou use Remover aqui.</p>
+<p id="tg-selected-empty" class="muted">Marque grupos na lista de disponíveis para incluí-los aqui.</p>
+<div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados" hidden></div>
+<p class="muted">Os grupos marcados saem da lista de disponíveis. Use Remover para devolvê-los à lista.</p>
 <p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram sugeridos. Revise a seleção; nenhuma coleta começa automaticamente.</p>
 </div>
+</div>
+<p class="muted">A busca consulta o catálogo progressivamente, incluindo arquivados, e reutiliza os grupos já encontrados. Grupos ainda não carregados aparecerão conforme a consulta avançar.</p>
 <p id="tg-group-count" class="muted">Nenhum grupo selecionado.</p>
 <button id="tg-save-groups" type="submit" disabled>Salvar seleção de grupos</button>
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>

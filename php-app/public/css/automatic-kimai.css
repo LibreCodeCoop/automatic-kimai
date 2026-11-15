@@ -454,6 +454,9 @@ a.button:hover { background:var(--primary-hover); }
 .group-selection-toolbar label { width:100%; }
 .group-selection-toolbar input { min-width:min(100%,300px); flex:1 1 260px; }
 .group-selection-toolbar button { margin:0; }
+.telegram-group-columns { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(230px,1fr); gap:14px; align-items:start; }
+.telegram-available-panel { min-width:0; }
+.telegram-available-panel h4 { margin:0 0 10px; }
 .telegram-group-list { display:grid; max-height:420px; overflow-y:auto; border:1px solid var(--line); border-radius:10px; background:var(--raised); padding:8px; }
 .telegram-group-option { display:flex; gap:12px; align-items:center; padding:12px; margin:0; border-radius:8px; cursor:pointer; min-height:44px; font-size:14px; }
 .telegram-group-option:hover { background:var(--secondary-bg); }
@@ -462,10 +465,16 @@ a.button:hover { background:var(--primary-hover); }
 .telegram-group-option span { overflow-wrap:anywhere; }
 .telegram-group-option .group-recommendation { font-size:11px; font-weight:650; color:var(--secondary-fg); }
 /* Selected items are separate from the paginated catalog, like Nextcloud's picker. */
-.telegram-selected-area { border:1px solid var(--line); border-radius:11px; padding:12px; background:var(--raised); }
+.telegram-selected-area { border:1px solid var(--line); border-radius:11px; padding:12px; background:var(--raised); min-width:0; position:sticky; top:12px; }
 .telegram-selected-heading { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:8px; }
 .telegram-selected-heading button { margin:0; }
-.telegram-selected-list { display:grid; gap:3px; max-height:250px; overflow-y:auto; }
+.telegram-selected-list { display:grid; gap:3px; max-height:330px; overflow-y:auto; }
+.telegram-selected-list[hidden],#tg-selected-empty[hidden] { display:none; }
+@media (max-width:720px) {
+  .telegram-group-columns { grid-template-columns:minmax(0,1fr); }
+  .telegram-selected-area { order:-1; position:static; }
+  .telegram-selected-list { max-height:170px; }
+}
 .telegram-selected-list .telegram-group-option { background:var(--secondary-bg); }
 .telegram-folder-switch { display:flex; gap:4px; border:1px solid var(--line); border-radius:10px; padding:3px; flex-wrap:wrap; }
 .telegram-folder-switch button { margin:0; border:0; font-size:13px; }

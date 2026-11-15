@@ -335,16 +335,17 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   sucesso limpa a seleção de grupos e os metadados locais da conta. Mantém
   ID/hash do aplicativo (não identificam o usuário) e outras integrações.
   A revogação é uma ação do usuário: não é acionada no carregamento da tela.
-- A antiga busca no cliente filtrava apenas os títulos já paginados.
-  Agora é feita uma **busca explícita** no catálogo MTProto da conta,
-  incluindo diálogos não arquivados e arquivados. O servidor busca em lotes
-  de até 5 páginas × 100 diálogos por requisição, com cursores criptografados
-  vinculados a conta, consulta e pasta. A interface percorre até dez lotes
-  por pasta, permite cancelar uma consulta antiga e exibe o progresso e
-  resultados parciais. As buscas usam POST com CSRF, sem nomes de grupos
-  em URLs ou logs de acesso. A busca não lê históricos nem textos de mensagens.
-  Em contas extremamente grandes, a interface informa o limite em vez de
-  afirmar que listou todos os grupos.
+- A busca usa um **catálogo temporário na memória da página**: ao pesquisar,
+  exibe primeiro os grupos já conhecidos e continua consultando em segundo
+  plano as pastas normais e arquivadas, alternadamente, a uma página MTProto
+  de até 100 diálogos por requisição. Alterar o termo filtra os dados já
+  consultados, sem reiniciar a paginação. Cursores criptografados são
+  vinculados à conta e à pasta, não à pesquisa. A interface consulta até
+  doze páginas por pasta automaticamente; em contas grandes informa o
+  resultado parcial e permite continuar mediante ação explícita.
+  As chamadas usam POST local com CSRF, sem nomes pesquisados na URL;
+  não há leitura de histórico de mensagens nem persistência de títulos
+  não autorizados fora da memória da página.
 - **Comunidades Telegram nativas** são distintas de pastas de conversas
   e de grupos com tópicos. Com base no Telegram Desktop upstream e no TL
   da versão instalada do MadelineProto, a interface lê comunidades vinculadas
@@ -362,11 +363,12 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   o token local do GitHub, preservando outras integrações; revogar o token
   no servidor exige ação na conta GitHub.
 - As novas chamadas de descoberta e imagem são restritas ao localhost,
-  GET somente leitura e limites de requisição, inclusive por quantidade
+  com operações somente leitura (GET ou POST com CSRF) e limites de requisição,
+  inclusive por quantidade
   de páginas, grupos e tamanho de imagem. Não há importação de credenciais
   pessoais para código ou builds de distribuição.
-- Testes com fakes cobrem resultados de busca em páginas profundas e
-  arquivadas, escopo de cursores, comunidades elegíveis, identidade
+- Testes com fakes cobrem o catálogo paginado de uma RPC por requisição,
+  grupos arquivados, escopo de cursores, comunidades elegíveis, identidade
   sanitizada, avatar e falha/revogação. Chromium headless validou seleção
   de comunidade e busca em dois tamanhos de tela com APIs simuladas.
   **Ainda pendente homologar com uma comunidade Telegram real.**
@@ -375,13 +377,12 @@ sem abrir janelas ou assumir controle de mouse/teclado.
 
 ## Correção do seletor de grupos Telegram (15/11/2026)
 
-- A seleção agora mantém os checkboxes **na lista de origem**. Ao marcar ou
-  desmarcar, somente o resumo dos grupos escolhidos muda; a lista não é
-  remontada nem perde foco/posição. Os itens selecionados aparecem em uma área
-  de resumo **abaixo** do catálogo, com ação Remover, sem retirar os controles
-  de sua posição. Esse layout também evita deslocar a lista após cada clique.
-  Durante uma busca paginada, a atualização incremental preserva os nós
-  existentes e mantém os checkboxes marcados enquanto novas páginas chegam.
+- Os checkboxes não são mais transferidos fisicamente entre painéis.
+  Ao marcar um grupo, a opção desaparece do painel **Disponíveis** e
+  aparece como item distinto no painel **Selecionados**, com botão Remover.
+  A remoção devolve a opção ao painel de origem. Os dois painéis ficam
+  lado a lado em desktop e empilhados em telas menores. A reconciliação
+  incremental preserva os nós dos demais checkboxes durante a paginação.
 - O limite de 40 grupos era silencioso: ao tentar o 41º, o checkbox voltava
   para desligado e o aviso surgia abaixo do catálogo. O limite agora é 100,
   centralizado na validação do perfil, serviço, endpoint e UI. Há contagem
@@ -398,3 +399,38 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   de um item permitiu selecionar novamente. Também houve teste de marcar e
   desmarcar um grupo com a sessão local autenticada, **sem POST ou alteração
   persistida** na seleção do usuário.
+
+## Otimização de buscas Telegram e painéis de seleção (15/11/2026)
+
+- **Problema de desempenho:** o antigo endpoint de busca abria a sessão
+  MTProto para verificar a autorização e executava até cinco chamadas
+  `messages.getDialogs` de 100 diálogos por requisição. O JavaScript
+  repetia a varredura inteira de duas pastas a cada mudança de busca,
+  chegando potencialmente a cem chamadas MTProto para um único termo.
+- **Correção:** o endpoint local POST /telegram/catalog retorna uma única
+  página MTProto de até 100 diálogos (mais os eventuais fixados). Não
+  revalida a sessão por uma segunda conexão: o adaptador já valida
+  `getSelf` ao acessar a conta. Cursores criptografados são vinculados
+  à conta autenticada e à pasta. Nenhum histórico de mensagens é consultado.
+- O catálogo fica **somente na memória da página**: os grupos da primeira
+  página e as comunidades já conhecidas aparecem imediatamente; outras
+  páginas são consultadas progressivamente, alternando entre arquivados
+  e não arquivados. Digitar outro termo refiltra as mesmas entradas sem
+  reiniciar a paginação. A consulta é interrompida se o campo ficar vazio,
+  pode ser retomada pelo cursor e informa o progresso ou erro de forma clara.
+  O orçamento automático é de 12 páginas por pasta; mais páginas exigem a
+  opção **Continuar busca**, para limitar custo e risco de flood.
+- **Seleção:** os painéis Disponíveis e Selecionados são visualmente
+  independentes, lado a lado no desktop, empilhados no celular. Um clique
+  retira o item da lista disponível e cria um item de seleção separado,
+  com ação Remover. A remoção restitui o grupo à lista original. Os
+  controles da lista não são movidos fisicamente entre painéis; isso
+  evita o bug de seleção que ocorria ao trocar de posição durante o clique.
+- **Evidência:** consulta única ao endpoint novo com uma sessão Telegram
+  autorizada retornou HTTP 200 após 813 ms para 100 diálogos,
+  47 deles grupos elegíveis. Não é promessa de latência total de indexação.
+  Chromium com respostas simuladas confirmou a busca em ambas as pastas,
+  filtragem instantânea após mudar o termo, nenhuma requisição duplicada
+  por pesquisa, a interrupção no limite e a continuação manual. Também
+  confirmou marcar/remover grupo com a sessão real: sem POST, sem alterar
+  grupos previamente salvos nem publicar horas.

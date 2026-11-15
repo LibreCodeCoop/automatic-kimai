@@ -24,7 +24,7 @@ Route::post('/telegram/qr',[TelegramController::class,'qr'])->middleware('thrott
 Route::post('/telegram/2fa',[TelegramController::class,'twoFactor'])->middleware('throttle:4,1')->name('kimai.telegram.2fa');
 Route::post('/telegram/activate',[TelegramController::class,'activate'])->name('kimai.telegram.activate');
 Route::get('/telegram/groups',[TelegramController::class,'groups'])->middleware('throttle:10,1')->name('kimai.telegram.groups');
-Route::post('/telegram/search',[TelegramController::class,'search'])->middleware('throttle:30,1')->name('kimai.telegram.search');
+Route::post('/telegram/catalog',[TelegramController::class,'catalog'])->middleware('throttle:30,1')->name('kimai.telegram.catalog');
 Route::get('/telegram/communities',[TelegramController::class,'communities'])->middleware('throttle:10,1')->name('kimai.telegram.communities');
 Route::get('/telegram/avatar',[TelegramController::class,'avatar'])->middleware('throttle:20,1')->name('kimai.telegram.avatar');
 Route::post('/telegram/disconnect',[TelegramController::class,'disconnect'])->middleware('throttle:5,1')->name('kimai.telegram.disconnect');

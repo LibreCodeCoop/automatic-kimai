@@ -51,6 +51,8 @@ final class TelegramUiTest extends TestCase
             ->assertSee('Conectar pelo QR Code')
             ->assertSee('id="tg-selection-feedback"',false)
             ->assertSee('id="tg-selection-summary"',false)
+            ->assertSee('id="tg-selected-empty"',false)
+            ->assertSee('telegram-group-columns')
             ->assertSee('const MAX_GROUPS=100;',false)
             ->assertDontSee('TELEGRAM_API_HASH');
     }
@@ -169,7 +171,7 @@ final class TelegramUiTest extends TestCase
         $this->post('http://public.example/telegram/configure')->assertForbidden();
         $this->postJson('http://public.example/telegram/qr')->assertForbidden();
         $this->get('http://public.example/telegram/groups')->assertForbidden();
-        $this->postJson('http://public.example/telegram/search',['q'=>'LibreCode'])->assertForbidden();
+        $this->postJson('http://public.example/telegram/catalog',['folder'=>'0'])->assertForbidden();
         $this->get('http://public.example/telegram/communities')->assertForbidden();
         $this->get('http://public.example/telegram/avatar')->assertForbidden();
         $this->postJson('http://public.example/telegram/disconnect')->assertForbidden();
@@ -177,8 +179,18 @@ final class TelegramUiTest extends TestCase
 
     public function test_discovery_does_not_read_groups_without_telegram_authorization(): void
     {
-        $this->postJson('http://localhost/telegram/search',['q'=>'LibreCode'])->assertForbidden();
+        $this->postJson('http://localhost/telegram/catalog',['folder'=>'0'])->assertForbidden();
         $this->get('http://localhost/telegram/communities')->assertForbidden();
         $this->get('http://localhost/telegram/avatar')->assertNotFound();
+
+        // Configuring app credentials alone does not grant Telegram access.
+        $this->private->saveCredentials([
+            'TELEGRAM_API_ID'=>'123456',
+            'TELEGRAM_API_HASH'=>str_repeat('a',32),
+        ]);
+        $this->postJson('http://localhost/telegram/catalog',['folder'=>'0'])
+            ->assertStatus(503)->assertDontSee('groups');
+        $this->postJson('http://localhost/telegram/catalog',['folder'=>'9'])
+            ->assertUnprocessable();
     }
 }

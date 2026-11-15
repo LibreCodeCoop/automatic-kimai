@@ -68,63 +68,81 @@ final class TelegramDiscoveryTest extends TestCase
         };
     }
 
-    public function test_account_wide_search_finds_groups_beyond_first_five_pages_and_in_archive(): void
+    public function test_catalog_fetches_one_page_per_request_and_includes_archive(): void
     {
         $client=$this->fakeDialogs();
         $picker=new TelegramGroupSelection($this->store);
-        $first=$picker->search('libreCODE',null,$client,0);
+        $first=$picker->catalog(null,$client,0);
         self::assertSame('ok',$first['status']);
         self::assertCount(1,$first['groups']);
         self::assertSame('LibreCode equipe',$first['groups'][0]['title']);
+        self::assertSame(['id','title','archived','recommended'],array_keys($first['groups'][0]));
+        self::assertFalse($first['groups'][0]['archived']);
         self::assertIsString($first['next_cursor']);
-        self::assertSame(500,$first['scanned_dialog_count']);
-        $next=$picker->search('libreCODE',$first['next_cursor'],$client,0);
-        self::assertSame('LibreCode remoto',$next['groups'][0]['title']);
-        self::assertNull($next['next_cursor']);
-        $archived=$picker->search('LibreCode',null,$client,1);
+        self::assertSame(100,$first['scanned_dialog_count']);
+        self::assertSame(1,$client->calls,'One HTTP request must not trigger five MTProto RPCs');
+        $second=$picker->catalog($first['next_cursor'],$client,0);
+        self::assertSame(100,$second['scanned_dialog_count']);
+        self::assertSame(2,$client->calls);
+        $archived=$picker->catalog(null,$client,1);
         self::assertSame('LibreCode arquivado',$archived['groups'][0]['title']);
-        self::assertSame(12,$client->calls);
+        self::assertTrue($archived['groups'][0]['archived']);
+        self::assertSame(3,$client->calls);
     }
 
-    public function test_search_cursors_cannot_be_reused_for_other_query_account_or_folder(): void
+    public function test_catalog_cursors_are_account_and_folder_scoped_and_reject_tampering(): void
     {
         $picker=new TelegramGroupSelection($this->store);
         $client=$this->fakeDialogs();
-        $token=$picker->search('LibreCode',null,$client,0)['next_cursor'];
-        foreach ([
-            ['LibreSign',0,12345],['LibreCode',1,12345],
-            ['LibreCode',0,999],['LibreCode',0,12345],
-        ] as $index=>$params) {
-            if($index===3)continue;
-            [$q,$folder,$account]=$params;
-            $client->userId=$account;
+        $token=$picker->catalog(null,$client,0)['next_cursor'];
+        $before=$client->calls;
+        foreach ([1,2,-1] as $folder) {
             try {
-                $picker->search($q,$token,$client,$folder);
-                self::fail('A mismatched search cursor was accepted');
+                $picker->catalog($token,$client,$folder);
+                self::fail('A mismatched or invalid folder was accepted');
             } catch (InvalidArgumentException) {
                 self::assertTrue(true);
             }
         }
-        $client->userId=12345;
+        $client->userId=999;
         try {
-            $picker->search('LibreCode','tampered.encrypted.cursor',$client,0);
-            self::fail('An invalid token was accepted');
+            $picker->catalog($token,$client,0);
+            self::fail('A different Telegram account reused an old catalog cursor');
         } catch (InvalidArgumentException) {
             self::assertTrue(true);
         }
+        $client->userId=12345;
+        try {
+            $picker->catalog('tampered.encrypted.cursor',$client,0);
+            self::fail('An untrusted cursor was accepted');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+        self::assertSame($before,$client->calls,
+            'Rejected cursors must not make extra Telegram RPC calls');
     }
 
-    public function test_search_requires_a_meaningful_explicit_query(): void
+    public function test_catalog_never_returns_unrelated_telegram_metadata_or_reads_messages(): void
     {
-        $picker=new TelegramGroupSelection($this->store);
-        foreach (['','a',str_repeat('A',81),"LibreCode\nquery"] as $query) {
-            try {
-                $picker->search($query,null,$this->fakeDialogs());
-                self::fail('Unbounded or empty query was accepted');
-            } catch (InvalidArgumentException) {
-                self::assertTrue(true);
+        $client=new class {
+            public function selfId(): int {return 12345;}
+            public function groupsPage(?array $offset=null,int $folder=0,int $limit=30): array
+            {
+                if ($limit!==100)throw new \RuntimeException('Catalog must be bounded');
+                return ['groups'=>[
+                    ['id'=>-1001,'title'=>'LibreCode','private_note'=>'do not leak',
+                        'member_count'=>200,'recommended'=>false],
+                    ['id'=>null,'title'=>'Invalid'],
+                ],'next_offset'=>null,'scanned_dialog_count'=>2];
             }
-        }
+            public function history(): never {throw new \RuntimeException('No history reads');}
+            public function getFullDialogs(): never {throw new \RuntimeException('No full dialog enumeration');}
+        };
+        $result=(new TelegramGroupSelection($this->store))->catalog(null,$client,0);
+        self::assertSame([[
+            'id'=>-1001,'title'=>'LibreCode','archived'=>false,'recommended'=>false,
+        ]],$result['groups']);
+        self::assertStringNotContainsString('do not leak',json_encode($result));
     }
 
     public function test_community_parser_only_returns_member_groups_and_no_bots_or_channels(): void

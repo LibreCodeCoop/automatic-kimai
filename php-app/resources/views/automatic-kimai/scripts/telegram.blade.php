@@ -9,7 +9,7 @@
     activate:@json(route('kimai.telegram.activate')),
     groups:@json(route('kimai.telegram.groups')),
     saveGroups:@json(route('kimai.telegram.groups.save')),
-    search:@json(route('kimai.telegram.search')),
+    catalog:@json(route('kimai.telegram.catalog')),
     communities:@json(route('kimai.telegram.communities')),
     avatar:@json(route('kimai.telegram.avatar')),
     disconnect:@json(route('kimai.telegram.disconnect')),
@@ -28,11 +28,17 @@
   const loadedGroups=new Map();
   const searchMatches=new Set();
   const nativeCommunities=[];
-  let searchGeneration=0;
+  // Volatile catalog: loaded once per page lifetime and reused across queries.
+  // No chat list, group names or search strings enter persistent browser storage.
+  const catalogFolders={
+    0:{cursor:null,done:false,requests:0,scanned:0},
+    1:{cursor:null,done:false,requests:0,scanned:0},
+  };
   let searchTimer=null;
-  let searchController=null;
-  let searchBusy=false;
-  let searchCompleted=false;
+  let catalogRunning=false;
+  let catalogController=null;
+  let catalogError='';
+  let catalogLimit=12;
   let communitiesLoaded=false;
   let avatarRequested=false;
   const pages={
@@ -93,13 +99,14 @@
         selectedSelection.delete(group.id);
         if(group.recommended)manuallyExcludedSuggestions.add(group.id);
         clearLimit();
-        renderSelection();
+        renderList();
       });
       chip.append(title,remove);
       chips.append(chip);
     }
     $('tg-selected-list').replaceChildren(chips);
-    $('tg-selected-area').hidden=selectedSelection.size===0;
+    $('tg-selected-empty').hidden=selectedSelection.size!==0;
+    $('tg-selected-list').hidden=selectedSelection.size===0;
     $('tg-selected-count').textContent=String(selectedSelection.size);
     $('tg-selection-summary').textContent=selectedSelection.size+' de '+MAX_GROUPS+
       ' grupos selecionados'+(selectedSelection.size===MAX_GROUPS?' · limite atingido':'');
@@ -117,16 +124,33 @@
       group.checkbox.checked=selectedSelection.has(group.id);
     }
     for(const control of $('tg-communities-list').querySelectorAll('[data-community-group]')){
-      control.checked=selectedSelection.has(control.dataset.communityGroup);
+      const selected=selectedSelection.has(control.dataset.communityGroup);
+      control.checked=selected;
+      control.closest('label').hidden=selected;
+    }
+  };
+  const refreshSearchMatches=()=>{
+    searchMatches.clear();
+    const q=$('tg-search').value.trim().toLocaleLowerCase();
+    if(q.length<2)return;
+    for(const group of loadedGroups.values()){
+      if(group.title.toLocaleLowerCase().includes(q))searchMatches.add(group.id);
+    }
+    for(const community of nativeCommunities){
+      if(community.title.toLocaleLowerCase().includes(q)){
+        for(const group of community.groups)searchMatches.add(String(group.id));
+      }
     }
   };
   const renderList=()=>{
+    refreshSearchMatches();
     const current=pages[activeFolder];
     const search=$('tg-search').value.trim().toLocaleLowerCase();
     const alphabetically=$('tg-sort').value==='name';
     const previousScroll=$('tg-group-list').scrollTop;
     const searching=search.length>=2;
     const others=[...loadedGroups.values()].filter(group=>
+      !selectedSelection.has(group.id) &&
       (searching ? searchMatches.has(group.id) :
         (group.folders.has(activeFolder) || group.recommended)));
     others.sort((a,b)=>alphabetically?
@@ -146,9 +170,10 @@
       note.className='muted';
       if(current.error)note.setAttribute('role','alert');
       note.textContent=searching ?
-        (searchBusy?'Consultando as páginas do Telegram…':
-          searchCompleted?'Nenhum grupo correspondente nesta conta.':
-            'Digite para buscar nos grupos da conta.') :
+        (catalogRunning?'Procurando mais grupos no Telegram…':
+          catalogFolders[0].done&&catalogFolders[1].done?
+            'Nenhum outro grupo disponível com esse nome.':
+            'Nenhum outro grupo encontrado até agora.') :
         current.error?current.errorMessage:
         current.loading?'Carregando a primeira página…':
         current.loaded?(current.cursor===null?'Nenhum outro grupo nesta categoria.':
@@ -168,15 +193,16 @@
     while(catalog.children.length>children.length)catalog.lastElementChild.remove();
     catalog.scrollTop=previousScroll;
     $('tg-page-status').textContent=searching ?
-      visible+' grupos encontrados na busca'+(searchBusy?' · buscando…':'') :
+      visible+' grupos disponíveis na busca'+(catalogRunning?' · procurando mais…':'') :
       current.seen+' grupos carregados'+
       (current.cursor!==null?' · há mais páginas':current.loaded?' · fim da lista':'');
     $('tg-load-more').hidden=searching||!(current.error || (current.loaded&&current.cursor!==null));
     $('tg-load-more').disabled=fetchingGroups;
-    $('tg-reload-groups').disabled=fetchingGroups;
+    $('tg-reload-groups').disabled=fetchingGroups||catalogRunning;
     $('tg-load-more').textContent=current.error?
       'Tentar carregar novamente':'Carregar mais grupos';
     renderSelection();
+    showSearchProgress();
   };
   const upsertGroup=(source,folder=null)=>{
     if(!source||!Number.isSafeInteger(source.id)||
@@ -212,7 +238,7 @@
           if(group.recommended)manuallyExcludedSuggestions.add(id);
         }
         clearLimit();
-        renderSelection();
+        renderList();
       });
       loadedGroups.set(id,group);
     } else if(source.title!==group.title &&
@@ -290,7 +316,7 @@
         const name=document.createElement('strong');
         name.textContent=item.title;
         const count=document.createElement('small');
-        count.textContent=children.length+' grupo(s) disponíveis';
+        count.textContent=children.length+' grupo(s) vinculados';
         summary.append(name,count);
         detail.append(summary);
         const content=document.createElement('div');
@@ -315,7 +341,7 @@
             }
             for(const id of fresh)selectedSelection.add(id);
             clearLimit();
-            renderSelection();
+            renderList();
           });
           content.append(selectAll);
           const list=document.createElement('div');
@@ -338,7 +364,7 @@
                 selectedSelection.add(id);
               }else selectedSelection.delete(id);
               clearLimit();
-              renderSelection();
+              renderList();
             });
             const text=document.createElement('span');
             text.textContent=child.title;
@@ -376,90 +402,116 @@
     }
   };
 
-  const searchAll=async()=>{
-    const query=$('tg-search').value.trim();
-    const generation=++searchGeneration;
-    if(searchController)searchController.abort();
-    searchMatches.clear();
-    searchCompleted=false;
-    if(query.length<2) {
-      searchBusy=false;
-      $('tg-search-status').textContent='Digite pelo menos 2 caracteres para buscar em todas as páginas.';
-      renderList();
+  const catalogComplete=()=>catalogFolders[0].done&&catalogFolders[1].done;
+  const catalogAtLimit=()=>[0,1].every(folder=>
+    catalogFolders[folder].done||catalogFolders[folder].requests>=catalogLimit);
+  const showSearchProgress=()=>{
+    const q=$('tg-search').value.trim();
+    if(q.length<2){
+      $('tg-search-status').textContent='Digite pelo menos 2 caracteres. Os grupos já consultados ficam disponíveis imediatamente.';
+      $('tg-reload-groups').textContent='Atualizar lista';
       return;
     }
-    searchBusy=true;
+    const scanned=catalogFolders[0].scanned+catalogFolders[1].scanned;
+    const matched=searchMatches.size;
+    const prefix=matched+' grupos encontrados · '+scanned+' diálogos adicionais consultados.';
+    $('tg-reload-groups').textContent=catalogComplete()?'Atualizar busca':
+      catalogAtLimit()?'Continuar busca':'Atualizar lista';
+    $('tg-search-status').textContent=catalogError?
+      prefix+' Busca parcial: '+catalogError+' Use Atualizar lista para tentar novamente.':
+      catalogRunning?prefix+' Procurando mais, incluindo arquivados…':
+      catalogComplete()?prefix+' Busca concluída. Alterar o texto não refaz chamadas à API.':
+      catalogAtLimit()?prefix+' Busca parcial por limite de segurança. Clique em Continuar busca.':
+      prefix+' Mostrando resultados locais; as demais páginas serão consultadas.';
+  };
+
+  /**
+   * Build a volatile, account-scoped catalog in the current browser page.
+   * Unlike the previous query-bound RPC search, one catalog page is read
+   * only once even if the person changes the search term many times.
+   */
+  const searchAll=async()=>{
+    if(catalogRunning||catalogComplete()||catalogAtLimit())return;
+    if($('tg-search').value.trim().length<2)return;
+    catalogRunning=true;
+    catalogError='';
     const controller=new AbortController();
-    searchController=controller;
-    const signal=controller.signal;
-    let scanned=0;
-    let partial=false;
-    const q=query.toLocaleLowerCase();
-    // Native community membership is indexed separately from dialog folders.
-    for(const community of nativeCommunities) {
-      if(community.title.toLocaleLowerCase().includes(q)) {
-        for(const child of community.groups)searchMatches.add(String(child.id));
-      }
-    }
+    catalogController=controller;
     renderList();
-    const progress=folder=>{
-      $('tg-search-status').textContent='Buscando "'+query+'" em '+
-        (folder===0?'conversas não arquivadas':'conversas arquivadas')+
-        ' · '+scanned+' diálogos verificados · '+searchMatches.size+' grupos encontrados.';
-    };
-    try {
-      for(const folder of [0,1]){
-        let cursor=null;
-        let batches=0;
-        do {
-          if(signal.aborted||generation!==searchGeneration)return;
-          progress(folder);
-          // POST keeps private group names out of URL, access and referrer logs.
-          const payload={q:query,folder:String(folder)};
-          if(cursor!==null)payload.cursor=cursor;
-          const timeout=setTimeout(()=>controller.abort(),20000);
+    try{
+      while(!catalogComplete()&&!catalogAtLimit()&&
+            $('tg-search').value.trim().length>=2&&!controller.signal.aborted){
+        // Alternate folders so archived matches are not delayed until all
+        // non-archived groups have been scanned.
+        for(const folder of [0,1]){
+          const state=catalogFolders[folder];
+          if(state.done||state.requests>=catalogLimit||
+             controller.signal.aborted||$('tg-search').value.trim().length<2)continue;
+          const payload={folder:String(folder)};
+          if(state.cursor!==null)payload.cursor=state.cursor;
+          const timeout=setTimeout(()=>controller.abort('timeout'),16000);
           let data;
-          try{data=await post(urls.search,payload,signal);}
+          try{data=await post(urls.catalog,payload,controller.signal);}
           finally{clearTimeout(timeout);}
           if(data.status!=='ok'||data.folder!==folder||
-              !Array.isArray(data.groups)||data.groups.length>500||
-              !(data.next_cursor===null||typeof data.next_cursor==='string')) {
-            throw new Error('Resultado de busca inválido.');
+             !Array.isArray(data.groups)||data.groups.length>200||
+             !Number.isSafeInteger(data.scanned_dialog_count)||
+             data.scanned_dialog_count<0||data.scanned_dialog_count>200||
+             !(data.next_cursor===null||
+               (typeof data.next_cursor==='string'&&data.next_cursor.length<=2048))||
+             (state.cursor!==null&&data.next_cursor===state.cursor)){
+            throw new Error('Resposta de catálogo inválida.');
           }
-          scanned+=Number.isSafeInteger(data.scanned_dialog_count)?
-            data.scanned_dialog_count:0;
-          for(const group of data.groups){
-            upsertGroup(group);
-            if(Number.isSafeInteger(group.id))searchMatches.add(String(group.id));
-          }
-          cursor=data.next_cursor;
-          batches++;
+          // Catalog browsing must never add a group to the allowlist
+          // merely because the Telegram username is a known suggestion.
+          for(const group of data.groups)upsertGroup({...group,recommended:false});
+          state.scanned+=data.scanned_dialog_count;
+          state.requests++;
+          state.cursor=data.next_cursor;
+          state.done=data.next_cursor===null;
           renderList();
-          if(batches>=10 && cursor!==null){partial=true;break;}
-        }while(cursor!==null);
+        }
       }
-      if(generation!==searchGeneration)return;
-      searchCompleted=true;
-      $('tg-search-status').textContent=searchMatches.size+
-        ' grupos encontrados em '+scanned+' diálogos.'+
-        (partial?' A busca atingiu o limite de segurança; refine o nome para continuar.':
-          ' Busca concluída nas conversas não arquivadas e arquivadas.');
     }catch(error){
-      if(signal.aborted||generation!==searchGeneration)return;
-      $('tg-search-status').textContent='Busca parcial ('+searchMatches.size+
-        ' encontrados). '+(error.message||'Falha de comunicação')+
-        ' Tente novamente.';
+      if(controller.signal.reason!=='query-cleared'){
+        catalogError=controller.signal.reason==='timeout'?
+          'Uma página excedeu o tempo limite de 16 segundos.':
+          (error.message||'Falha de comunicação.');
+      }
     }finally{
-      if(generation===searchGeneration){
-        searchBusy=false;
-        searchController=null;
-        renderList();
+      catalogRunning=false;
+      catalogController=null;
+      renderList();
+      if(controller.signal.reason==='query-cleared'&&
+         $('tg-search').value.trim().length>=2&&!catalogAtLimit()){
+        searchTimer=setTimeout(()=>void searchAll(),250);
       }
     }
   };
 
   const reloadCurrent=()=>{
     if($('tg-search').value.trim().length>=2){
+      // Explicit retries never discard already indexed groups.
+      if(catalogComplete()){
+        for(const folder of [0,1]){
+          Object.assign(catalogFolders[folder],
+            {cursor:null,done:false,requests:0,scanned:0});
+        }
+        catalogLimit=12;
+      }else if(catalogError.includes('expirado')){
+        // A 20-minute encrypted cursor can expire during a long editing
+        // session. Restart only on explicit retry, preserving indexed rows.
+        for(const folder of [0,1]){
+          if(!catalogFolders[folder].done){
+            Object.assign(catalogFolders[folder],
+              {cursor:null,done:false,requests:0,scanned:0});
+          }
+        }
+        catalogLimit=12;
+      }else if(catalogAtLimit()){
+        catalogLimit+=12;
+      }
+      catalogError='';
       void searchAll();
       return;
     }
@@ -670,17 +722,17 @@
   });
   $('tg-search').addEventListener('input',()=>{
     if(searchTimer!==null)clearTimeout(searchTimer);
-    if(searchController)searchController.abort();
-    ++searchGeneration;
-    searchMatches.clear();
-    searchCompleted=false;
     const q=$('tg-search').value.trim();
-    searchBusy=q.length>=2;
-    $('tg-search-status').textContent=q.length>=2 ?
-      'Preparando busca em todos os grupos…':
-      'Digite pelo menos 2 caracteres para buscar em todas as páginas.';
+    if(q.length<2 && catalogController){
+      catalogController.abort('query-cleared');
+    }
+    // Update immediately from the in-memory catalog, including groups
+    // found during older searches. Do not repeat MTProto pagination.
     renderList();
-    if(searchBusy)searchTimer=setTimeout(()=>void searchAll(),420);
+    if(q.length>=2 && !catalogRunning&&!catalogComplete()&&!catalogAtLimit()&&
+       catalogError===''){
+      searchTimer=setTimeout(()=>void searchAll(),320);
+    }
   });
   $('tg-sort').addEventListener('change',renderList);
   $('tg-folder-active').addEventListener('click',()=>switchFolder(0));
@@ -708,7 +760,7 @@
     }
     selectedSelection.clear();
     clearLimit();
-    renderSelection();
+    renderList();
   });
   // One more Telegram page is requested only following an actual scroll.
   $('tg-group-list').addEventListener('scroll',()=>{

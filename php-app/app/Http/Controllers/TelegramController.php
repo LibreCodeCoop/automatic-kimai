@@ -102,30 +102,30 @@ final class TelegramController extends Controller
         }
     }
 
-    public function search(Request $request,TelegramWebLogin $login,
-                           TelegramGroupSelection $selection): JsonResponse
+    public function catalog(Request $request,TelegramWebLogin $login,
+                            TelegramGroupSelection $selection): JsonResponse
     {
         $this->local($request);
         $this->requireSelectedSource();
-        if (($login->status()['status']??null)!=='authorized') {
-            return self::noCache(['status'=>'error','message'=>'Conecte o Telegram para buscar grupos'],403);
+        // The adapter authenticates the user session while obtaining selfId.
+        // Avoid a second MadelineProto session handshake via status() here.
+        if (!$login->configured()) {
+            return self::noCache(['status'=>'error','message'=>'Conecte o Telegram para listar grupos'],403);
         }
         $input=$request->validate([
-            'q'=>'required|string|min:2|max:80',
             'cursor'=>'sometimes|string|max:2048',
             'folder'=>'sometimes|in:0,1',
         ]);
         try {
-            return self::noCache($selection->search(
-                $input['q'],$input['cursor']??null,null,
-                (int)($input['folder']??0)
+            return self::noCache($selection->catalog(
+                $input['cursor']??null,null,(int)($input['folder']??0)
             ));
         } catch (\InvalidArgumentException) {
             return self::noCache(['status'=>'error',
-                'message'=>'Busca inválida ou expirada. Digite o nome novamente.'],422);
+                'message'=>'Catálogo expirado. Atualize a busca para reiniciar.'],422);
         } catch (Throwable) {
             return self::noCache(['status'=>'error',
-                'message'=>'Não foi possível concluir esta etapa da busca. Tente novamente.'],503);
+                'message'=>'Não foi possível consultar esta página do Telegram.'],503);
         }
     }
 
