@@ -26,6 +26,8 @@ php artisan native:run
 
 A estrutura Electron publicada está em `nativephp/electron` e é um **runtime de interface**, não o núcleo de negócio. Os executáveis devem incluir um PHP próprio; não exigir instalação manual de PHP para o usuário final. A assinatura, atualização e binários multiplataforma ainda precisam de testes reais.
 
+**Empacotamento bloqueado por segurança:** `native:build` é recusado se houver perfil, sessão ou chave `APP_KEY` de uma instalação em uso. O empacotador NativePHP não respeita automaticamente o `.gitignore`, por isso credenciais criptografadas e a chave de descriptografia poderiam acabar dentro do instalador. Os binários de prova gerados durante a avaliação foram eliminados; o código PHP continua intacto. Antes de qualquer release, implementar chave única no primeiro acesso e validar o isolamento dos segredos no instalador.
+
 ## Comandos CLI
 
 ```sh

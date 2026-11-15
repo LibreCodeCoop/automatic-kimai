@@ -70,6 +70,15 @@ return [
      * You may use wildcards to match multiple keys.
      */
     'cleanup_env_keys' => [
+        // The application key and credentials must be provisioned on the
+        // recipient's device, NEVER embedded in an installer or release.
+        'APP_KEY',
+        'KIMAI_*',
+        'NEXTCLOUD_*',
+        'TELEGRAM_*',
+        'OPENAI_*',
+        'ANTHROPIC_*',
+        'DB_PASSWORD',
         'AWS_*',
         'AZURE_*',
         'GITHUB_*',
@@ -92,6 +101,16 @@ return [
      * You may use glob / wildcard patterns here.
      */
     'cleanup_exclude_files' => [
+        // NativePHP copies storage independently of Git ignore rules.
+        // Never distribute private credentials, reports or telemetry.
+        'storage/app/private',
+        'storage/app/private/*',
+        'storage/framework/sessions',
+        'storage/framework/cache',
+        'storage/framework/views',
+        'storage/logs',
+        'database/database.sqlite',
+        'database/*.sqlite',
         'build',
         'temp',
         'content',

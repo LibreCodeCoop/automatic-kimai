@@ -38,6 +38,12 @@ O identificador de sessão, hashes de evidência, horário de fim de dia e diges
 
 A API do Kimai foi consultada via PHP com a credencial existente em um contêiner efêmero, somente leitura, sem gravar a credencial no repositório PHP.
 
+## Bloqueio de segurança para empacotamento (detectado em 14/11)
+
+Um teste local de `native:build` identificou que o NativePHP, por padrão, copia também `storage/app/private` e a chave `APP_KEY` do ambiente de desenvolvimento para o instalador. Essa cópia incluiu o perfil de avaliação e suas credenciais criptografadas. **Os instaladores de teste não foram publicados**; os arquivos compilados e o diretório de estágio foram imediatamente apagados, preservando o armazenamento local original.
+
+A proteção agora faz o comando `native:build` recusar qualquer diretório que contenha perfis privados ou uma `APP_KEY` preenchida, e a configuração de empacotamento exclui `storage/app/private`, logs e dados de sessão. Testes de regressão confirmam o bloqueio. **Não distribuir binários** antes de implementar geração de chave **individual por instalação**, armazenamento em chaveiro do sistema e auditoria do pacote final. O build JavaScript da ponte Electron continua possível sem dados pessoais.
+
 ## Componentes do piloto ainda não substituídos
 
 **Esta lista bloqueia a desativação do Python e a mesclagem como versão definitiva.**
