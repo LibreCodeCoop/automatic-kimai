@@ -28,14 +28,9 @@ final class TelegramSource
             }
         }
         if (count($matches)!==1)return null;
-        $product=null;
-        foreach (['LibreSign','e-Cidade','Nextcloud','SuiteCRM'] as $knownProduct) {
-            if (mb_stripos($title,$knownProduct)!==false) {
-                $product=$knownProduct;
-                break;
-            }
-        }
-        return ['client_hint'=>$matches[0],'product_hint'=>$product];
+        // Product/customer labels must come from the user's private profile
+        // rather than hard-coded names of the developer's organizations.
+        return ['client_hint'=>$matches[0],'product_hint'=>null];
     }
 
     /** No message bodies, ids of users or raw links are stored. */
@@ -75,15 +70,9 @@ final class TelegramSource
         ] as $label=>$pattern) {
             if (preg_match($pattern,$body))$hints[]=$label;
         }
+        // Never retain brand names inferred from private chat message bodies.
+        // Generic work-content categories above remain available as hints.
         $products=[];
-        foreach ([
-            'LibreSign'=>'~\\blibresign\\b~iu',
-            'e-Cidade'=>'~\\be[- ]?cidade\\b~iu',
-            'Nextcloud'=>'~\\bnextcloud\\b~iu',
-            'SuiteCRM'=>'~\\bsuitecrm\\b~iu',
-        ] as $label=>$pattern) {
-            if (preg_match($pattern,$body))$products[]=$label;
-        }
         $date=$message['date']??null;
         if (is_int($date)) {
             $timestamp=(new DateTimeImmutable('@'.$date))->setTimezone(new DateTimeZone('UTC'));

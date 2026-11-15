@@ -4,7 +4,7 @@
 evidências de atividade, identificar lacunas e revisar horas que poderão ser
 registradas em uma conta individual do [Kimai](https://www.kimai.org/).
 
-**Estado:** migração em desenvolvimento; PR em draft. O código PHP funciona
+**Estado:** código de desenvolvimento mesclado; a aplicação PHP funciona
 localmente em modo de revisão. O publicador PHP de sessões aprovadas está
 implementado com testes simulados, mas sua ativação está bloqueada até
 homologação completa e corte único de escritor. Não distribuir como instalador
@@ -19,8 +19,8 @@ explicitamente projeto, atividade e fontes de dados.
 - Coleta local sanitizada do ActivityWatch; vigilância AFK e exclusão de contexto privado.
 - Leitura Kimai com verificação da conta, catálogo e intervalos já registrados.
 - Fontes opt-in de calendário, Talk, Activity e Mail do Nextcloud, GitHub e Telegram MTProto.
-- Revisão manual das lacunas, contexto de trabalho presencial e avisos sobre evidências incompletas.
-- Fila de aprovação com decisão humana e hash da evidência congelado.
+- Conciliação automática de períodos já registrados e observações inconclusivas, sem fabricar horas.
+- Fila auditável e mecanismo de aprovação explícita para lançamentos confirmados.
 - Outbox SQLite que impede POST duplicado e reconciliação por GET para resultados incertos.
 - Importação idempotente do histórico legado, sem sobrescrever propostas do algoritmo PHP.
 - Metadados de áudio PipeWire e telemetria de agentes separados de horas humanas.
@@ -106,21 +106,25 @@ arquivos privados ou termos definidos pelo desenvolvedor em
 O projeto propõe licença GPL-3.0-or-later, sujeita à verificação da
 titularidade e dos avisos de dependências antes da primeira release.
 Consulte [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md),
-[SECURITY.md](SECURITY.md) e [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+[SECURITY.md](SECURITY.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
+e [docs/PUBLICATION_SECURITY.md](docs/PUBLICATION_SECURITY.md), incluindo
+o procedimento independente para criar um histórico público limpo.
+**Não torne o repositório atual público antes de revisar e substituir o
+histórico Git**: um PR não elimina commits anteriores, referências de PR
+ou caches do GitHub.
 
-## Condições para substituir o piloto Python
+## Condições para desligar uma instalação Python anterior
 
-A branch PHP pode remover o código Python versionado **sem** interromper
+A versão PHP pode remover o código Python versionado **sem** interromper
 o processo antigo que opera em outro diretório do computador. Isso não
 representa aprovação operacional para o corte.
 
-Antes de desativar serviços antigos ou mesclar como migração concluída:
+Antes de desativar serviços antigos ou liberar publicação PHP em produção:
 homologar a fonte Telegram autorizada; testar publicação real em Kimai
 descartável com falhas e limpeza; concluir agendadores de áudio/agentes;
 comparar evidências em replay; congelar a origem, repetir a transferência
 do histórico e comprovar um só escritor e rollback. Testes de instalação
-Windows/Linux/macOS ocorrerão sob demanda, **não bloqueiam o merge**. A situação e os resultados estão em
-[PHP_MIGRATION.md](PHP_MIGRATION.md).
+Windows/Linux/macOS ocorrerão sob demanda, **não bloqueiam o merge**. O procedimento está em [PHP_MIGRATION.md](PHP_MIGRATION.md).
 
 O Automatic Kimai é independente dos projetos Kimai, Nextcloud, GitHub,
 Telegram, OpenAI e Anthropic; nomes são usados apenas para descrever

@@ -72,7 +72,7 @@
 <p id="tg-selection-summary" class="telegram-selection-counter" role="status" aria-live="polite">0 grupos selecionados</p>
 <p id="tg-selection-feedback" class="telegram-selection-feedback" role="alert" hidden></p>
 <label for="tg-search">Buscar em todos os grupos do Telegram</label>
-<input type="search" id="tg-search" placeholder="Ex.: LibreCode (inclui arquivados)" autocomplete="off" minlength="2" maxlength="80" aria-describedby="tg-search-status">
+<input type="search" id="tg-search" placeholder="Ex.: equipe de projeto (inclui arquivados)" autocomplete="off" minlength="2" maxlength="80" aria-describedby="tg-search-status">
 <p id="tg-search-status" class="muted" role="status" aria-live="polite">Digite pelo menos 2 caracteres para consultar seus grupos, inclusive os arquivados.</p>
 <progress id="tg-search-progress" aria-label="Busca Telegram em andamento" hidden></progress>
 <div class="telegram-folder-switch" role="group" aria-label="Exibir conversas Telegram">
@@ -107,7 +107,7 @@
 <p id="tg-selected-empty" class="muted">Marque grupos na lista de disponíveis para incluí-los aqui.</p>
 <div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados" hidden></div>
 <p class="muted">Os grupos marcados saem da lista de disponíveis. Use Remover para devolvê-los à lista.</p>
-<p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram sugeridos. Revise a seleção; nenhuma coleta começa automaticamente.</p>
+<p id="tg-suggestion-note" class="muted" hidden>Nenhuma comunidade é sugerida automaticamente. Autorize apenas grupos de sua escolha.</p>
 </div>
 </div>
 <p class="muted">A busca consulta o catálogo progressivamente, incluindo arquivados, e reutiliza os grupos já encontrados. Grupos ainda não carregados aparecerão conforme a consulta avançar.</p>

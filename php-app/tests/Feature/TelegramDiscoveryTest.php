@@ -50,10 +50,10 @@ final class TelegramDiscoveryTest extends TestCase
                 $this->calls++;
                 $page=$offset['id']??0;
                 $group=$folder===0 ? [
-                    'id'=>-1002000-$page,'title'=>$page===6?'LibreCode remoto':
-                        ($page===0?'LibreCode equipe':'Grupo diverso '.$page),
+                    'id'=>-1002000-$page,'title'=>$page===6?'SampleTeam remoto':
+                        ($page===0?'SampleTeam equipe':'Grupo diverso '.$page),
                 ] : [
-                    'id'=>-1003000-$page,'title'=>$page===0?'LibreCode arquivado':'Arquivado diverso',
+                    'id'=>-1003000-$page,'title'=>$page===0?'SampleTeam arquivado':'Arquivado diverso',
                 ];
                 return [
                     'groups'=>[$group],
@@ -75,7 +75,7 @@ final class TelegramDiscoveryTest extends TestCase
         $first=$picker->catalog(null,$client,0);
         self::assertSame('ok',$first['status']);
         self::assertCount(1,$first['groups']);
-        self::assertSame('LibreCode equipe',$first['groups'][0]['title']);
+        self::assertSame('SampleTeam equipe',$first['groups'][0]['title']);
         self::assertSame(['id','title','archived','recommended'],array_keys($first['groups'][0]));
         self::assertFalse($first['groups'][0]['archived']);
         self::assertIsString($first['next_cursor']);
@@ -85,7 +85,7 @@ final class TelegramDiscoveryTest extends TestCase
         self::assertSame(100,$second['scanned_dialog_count']);
         self::assertSame(2,$client->calls);
         $archived=$picker->catalog(null,$client,1);
-        self::assertSame('LibreCode arquivado',$archived['groups'][0]['title']);
+        self::assertSame('SampleTeam arquivado',$archived['groups'][0]['title']);
         self::assertTrue($archived['groups'][0]['archived']);
         self::assertSame(3,$client->calls);
     }
@@ -130,7 +130,7 @@ final class TelegramDiscoveryTest extends TestCase
             {
                 if ($limit!==100)throw new \RuntimeException('Catalog must be bounded');
                 return ['groups'=>[
-                    ['id'=>-1001,'title'=>'LibreCode','private_note'=>'do not leak',
+                    ['id'=>-1001,'title'=>'SampleTeam','private_note'=>'do not leak',
                         'member_count'=>200,'recommended'=>false],
                     ['id'=>null,'title'=>'Invalid'],
                 ],'next_offset'=>null,'scanned_dialog_count'=>2];
@@ -140,7 +140,7 @@ final class TelegramDiscoveryTest extends TestCase
         };
         $result=(new TelegramGroupSelection($this->store))->catalog(null,$client,0);
         self::assertSame([[
-            'id'=>-1001,'title'=>'LibreCode','archived'=>false,'recommended'=>false,
+            'id'=>-1001,'title'=>'SampleTeam','archived'=>false,'recommended'=>false,
         ]],$result['groups']);
         self::assertStringNotContainsString('do not leak',json_encode($result));
     }
@@ -148,7 +148,7 @@ final class TelegramDiscoveryTest extends TestCase
     public function test_community_parser_only_returns_member_groups_and_no_bots_or_channels(): void
     {
         $id=static fn(array|int $peer): int=>is_int($peer)?$peer:$peer['id'];
-        $community=['_'=>'community','id'=>-100777,'title'=>'LibreCode','left'=>false];
+        $community=['_'=>'community','id'=>-100777,'title'=>'SampleTeam','left'=>false];
         $full=[
             'full_chat'=>['_'=>'communityFull','linked_peers'=>[
                 ['_'=>'communityPeer','peer'=>-1001,'can_view_history'=>true],
@@ -159,8 +159,8 @@ final class TelegramDiscoveryTest extends TestCase
                 ['_'=>'communityPeer','peer'=>-1006,'can_view_history'=>true],
             ]],
             'chats'=>[
-                ['_'=>'channel','id'=>-1001,'title'=>'LibreCode Projetos','megagroup'=>true],
-                ['_'=>'chat','id'=>-1002,'title'=>'LibreCode Eventos'],
+                ['_'=>'channel','id'=>-1001,'title'=>'SampleTeam Projetos','megagroup'=>true],
+                ['_'=>'chat','id'=>-1002,'title'=>'SampleTeam Eventos'],
                 ['_'=>'channel','id'=>-1003,'title'=>'Canal de avisos','broadcast'=>true],
                 ['_'=>'channel','id'=>-1004,'title'=>'Grupo que saiu','megagroup'=>true,'left'=>true],
                 ['_'=>'channel','id'=>-1005,'title'=>'Oculto','megagroup'=>true],
@@ -169,7 +169,7 @@ final class TelegramDiscoveryTest extends TestCase
         ];
         $data=MadelineTelegramAdapter::communityFromFull($community,$full,$id);
         self::assertSame(-100777,$data['id']);
-        self::assertSame('LibreCode',$data['title']);
+        self::assertSame('SampleTeam',$data['title']);
         self::assertSame([-1001,-1002],array_column($data['groups'],'id'));
         self::assertSame([-100777,-100777],array_column($data['groups'],'community_id'));
         self::assertNull(MadelineTelegramAdapter::communityFromFull(
@@ -184,10 +184,10 @@ final class TelegramDiscoveryTest extends TestCase
     {
         $account=TelegramWebLogin::publicAccount([
             'id'=>12345,'first_name'=>'Pessoa','last_name'=>'Exemplo',
-            'username'=>'librecode_dev','phone'=>'5511999999999','access_hash'=>'secret',
+            'username'=>'example_dev','phone'=>'5511999999999','access_hash'=>'secret',
         ]);
         self::assertSame([
-            'id'=>'12345','display_name'=>'Pessoa Exemplo','username'=>'librecode_dev',
+            'id'=>'12345','display_name'=>'Pessoa Exemplo','username'=>'example_dev',
         ],$account);
         self::assertStringNotContainsString('5511',json_encode($account));
         self::assertNull(TelegramWebLogin::publicAccount(['id'=>12,'bot'=>true]));

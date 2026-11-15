@@ -17,12 +17,18 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   containing any forbidden customer-specific domain/name and rerun the scan.
 - [ ] Confirm no credential, session, encrypted secret, private SQLite,
   personal browsing record or other runtime state exists in Git or builds.
+- [ ] Review **all historical commits, old PR refs, author metadata,
+  artifacts and forks**; if needed, create a separate clean root history
+  before switching repository visibility. A source-code PR does NOT purge
+  the existing GitHub history. See docs/PUBLICATION_SECURITY.md.
+- [ ] Run Gitleaks on all reachable refs and verify the signed clean
+  public tree. Keep any scan reports/private search terms off GitHub.
 - [ ] Obtain an independent code review and working CI; do not waive
   a failing/missing check because a GitHub Actions billing limit blocks it.
 - [ ] Avoid hardcoded organizations, customers, instance URLs and paths.
 - [ ] Maintain a clear vulnerability reporting and maintainer contact.
 
-## Additional blockers for PR #1 — Python to PHP migration
+## Operational migration safeguards (separate from source merge)
 
 - [ ] Confirm every historical Python publication and human declaration is
   preserved with its original remote ID/provenance, without overwriting new
@@ -44,9 +50,8 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   Linux and macOS is explicitly **not** a prerequisite for merging this
   code migration; platform-specific install E2E occurs on demand.
 
-**Do not enable PHP unattended posting or mark the PR ready for merge
-until the applicable correctness, security, cutover and review gates
-are evidenced.** Historical Python source files may be removed from the
+**Do not enable PHP unattended posting until correctness, security,
+cutover and review gates are evidenced.** Historical Python source files may be removed from the
 PHP branch independently of stopping the original Python runtime.
 
 ## Additional end-user installer gates (on demand; not a PR merge blocker)

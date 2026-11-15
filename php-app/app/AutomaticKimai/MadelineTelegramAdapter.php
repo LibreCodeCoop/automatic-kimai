@@ -188,11 +188,11 @@ final class MadelineTelegramAdapter
             if (!self::isUsableGroupChat($chat))continue;
             $title=trim(mb_substr((string)($chat['title']??''),0,150));
             if ($title==='')continue;
-            $username=self::publicUsername($chat);
             $groups[$id]=[
                 'id'=>$id,
                 'title'=>$title,
-                'recommended'=>in_array(strtolower($username??''),['librecodecoop','libresign'],true),
+                // A repository must never preselect a maintainer's groups.
+                'recommended'=>false,
                 'archived'=>$folder===1,
             ];
         }
@@ -244,66 +244,6 @@ final class MadelineTelegramAdapter
             ($chat['deactivated']??false))return false;
         return ($chat['_']??null)==='chat' ||
             (($chat['_']??null)==='channel' && ($chat['megagroup']??false)===true);
-    }
-
-    private static function publicUsername(array $chat): ?string
-    {
-        if (is_string($chat['username']??null)&&$chat['username']!=='') {
-            return $chat['username'];
-        }
-        foreach (($chat['usernames']??[]) as $username) {
-            if (is_array($username)&&($username['active']??true)===true &&
-                is_string($username['username']??null))return $username['username'];
-        }
-        return null;
-    }
-
-    /**
-     * Resolve only the two canonical public communities, without crawling
-     * the account. Both must be joined supergroups verified by username.
-     */
-    public function recommendedGroups(): array
-    {
-        $groups=[];
-        foreach (['LibreCodeCoop','LibreSign'] as $username) {
-            try {
-                $info=$this->api->getInfo('@'.$username);
-                $group=self::verifiedRecommendation(
-                    $info,$username,
-                    fn(array $peer): int=>$this->api->getId($peer),
-                );
-                if ($group!==null)$groups[$group['id']]=$group;
-            } catch (\Throwable) {
-                // Public groups are optional; a network error never blocks
-                // the ordinary account-scoped dialogs page.
-                continue;
-            }
-        }
-        return array_values($groups);
-    }
-
-    /** @param callable(array):int $peerId */
-    public static function verifiedRecommendation(mixed $info,string $expectedUsername,
-                                                  callable $peerId): ?array
-    {
-        if (!is_array($info)||!is_array($info['Chat']??null))return null;
-        $chat=$info['Chat'];
-        // Resolving an accessible public group is not proof of membership.
-        // Telegram must explicitly report that the current account has joined.
-        if (($chat['_']??null)!=='channel'||
-            ($chat['megagroup']??false)!==true||
-            ($chat['left']??false)===true||
-            ($chat['kicked']??false)===true||
-            strcasecmp(self::publicUsername($chat)??'',$expectedUsername)!==0) {
-            return null;
-        }
-        $title=trim(mb_substr((string)($chat['title']??''),0,150));
-        $channelId=$chat['id']??null;
-        if ($title===''||!is_int($channelId)||$channelId===0)return null;
-        // MadelineProto may already expose Bot API's negative dialog ID.
-        $id=$channelId<0?$channelId:$peerId(['_'=>'peerChannel','channel_id'=>$channelId]);
-        if (!is_int($id)||$id===0||!DialogId::isSupergroupOrChannel($id))return null;
-        return ['id'=>$id,'title'=>$title,'recommended'=>true,'archived'=>null];
     }
 
     /**

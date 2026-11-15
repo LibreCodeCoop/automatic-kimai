@@ -39,11 +39,14 @@ if (in_array('--paths-stdin',$argv,true)) {
 }
 $forbiddenFile=static function(string $file): bool {
     // Repository placeholder to keep the private directory present.
-    if ($file==='php-app/storage/app/private/.gitignore')return false;
+    if ($file==='php-app/storage/app/private/.gitignore' ||
+        $file==='php-app/nativephp/electron/.npmrc')return false;
     if (preg_match('/(^|\/)\.env\.example$/D',$file))return false;
     if (str_ends_with($file,'.py')||
         preg_match('~(^|/)(?:\.env(?:\..*)?|secrets\.enc|id_rsa|id_ed25519|'
-        .'[^/]*\.(?:sqlite3?|db|session|pem|key|pfx|p12))$~iD',$file))return true;
+        .'[^/]*\.(?:sqlite3?|db|session|pem|key|pfx|p12|p8|jks|keystore|kdbx|agekey|dump|bak|backup|tfstate))$~iD',$file))return true;
+    if (preg_match('~(^|/)(?:\.npmrc|\.pypirc|\.netrc|credentials\.json|service-account[^/]*\.json)$~iD',$file)||
+        preg_match('~(^|/)(?:\.ssh|\.aws|\.kube|migration-snapshots)(/|$)~iD',$file))return true;
     if (str_contains($file,'/.kimai_cache/') ||
         str_contains($file,'/storage/app/private/') ||
         str_starts_with($file,'.kimai_cache/'))return true;
@@ -55,6 +58,11 @@ $patterns=[
     '/\bgithub_pat_[A-Za-z0-9_]{30,}\b/',
     '/\bsk-[A-Za-z0-9_-]{40,}\b/',
     '/\bAIza[A-Za-z0-9_-]{30,}\b/',
+    '/\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/',
+    '/\bglpat-[A-Za-z0-9_-]{16,}\b/',
+    '/\bxox[baprs]-[A-Za-z0-9-]{18,}\b/',
+    '/\b(?:sk|rk)_live_[A-Za-z0-9]{20,}\b/',
+    '/-----BEGIN PGP '. 'PRIVATE KEY BLOCK-----/',
 ];
 $denylist=[];
 $denyFile=$root.'/.publication-denylist';
@@ -83,13 +91,45 @@ foreach (explode("\0",$names) as $relative) {
         $errors[]=['path'=>$relative,'cause'=>'unexpected_tracked_file'];
         continue;
     }
-    if (filesize($file)>4_000_000)continue;
+    if (filesize($file)>4_000_000) {
+        $errors[]=['path'=>$relative,'cause'=>'oversized_source_requires_explicit_audit'];
+        continue;
+    }
     $content=file_get_contents($file);
     if ($content===false) {
         $errors[]=['path'=>$relative,'cause'=>'unreadable'];
         continue;
     }
     if (str_contains(substr($content,0,4096),"\0"))continue;
+    if ($relative==='php-app/nativephp/electron/.npmrc') {
+        // Required npm 11 install-script allowlist is safe, but do not allow
+        // registry auth or arbitrary package configurations to slip in later.
+        foreach (explode("\n",$content) as $line) {
+            $line=trim($line);
+            if ($line==='' || str_starts_with($line,';') ||
+                str_starts_with($line,'#'))continue;
+            if (!in_array($line,['ignore-scripts=false',
+                'allow-scripts[]=electron','allow-scripts[]=esbuild'],true)) {
+                $errors[]=['path'=>$relative,'cause'=>'unexpected_npm_configuration'];
+                break;
+            }
+        }
+    }
+    // A user:password@host URL is unsafe outside deliberately synthetic
+    // negative test fixtures using reserved, unroutable example domains.
+    if (preg_match_all('~https?://[^\s/@]+:[^\s/@]+@([^\s/]+)~i',
+        $content,$urls,PREG_SET_ORDER)) {
+        foreach ($urls as $urlMatch) {
+            $host=strtolower(rtrim($urlMatch[1],"\"'.,);"));
+            $example=(str_contains($relative,'/tests/')||
+                preg_match('~(?:^|/)desktop-preview/[^/]*[.]test[.]cjs$~',$relative)) &&
+                preg_match('~(?:^|[.])example(?:[.](?:com|org|net))?$|[.](?:test|invalid)$|^localhost(?::[0-9]+)?$|^127[.]0[.]0[.]1(?::[0-9]+)?$~D',$host);
+            if (!$example) {
+                $errors[]=['path'=>$relative,'cause'=>'credential_url_in_source'];
+                break;
+            }
+        }
+    }
     foreach ($patterns as $pattern) {
         if (preg_match($pattern,$content)) {
             $errors[]=['path'=>$relative,'cause'=>'secret_like_content'];

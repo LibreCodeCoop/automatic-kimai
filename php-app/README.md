@@ -1,10 +1,14 @@
-# Automatic Kimai — PHP desktop
+# Automatic Kimai — PHP application
 
-Código PHP 8.4 + Laravel 12 + NativePHP 2/Electron. Este diretório é o núcleo da migração na branch `feat/php-migration`; a implantação definitiva depende da conclusão dos critérios de [PHP_MIGRATION.md](../PHP_MIGRATION.md).
+This directory contains the PHP 8.4+ application, local Laravel interface and
+NativePHP/Electron bridge. It does not include a deployed instance, a user
+profile, a production Kimai token, or a preconfigured desktop distribution.
 
-## Rodar localmente em desenvolvimento
+## Start development
 
-Requisitos: PHP 8.4+ com cURL, DOM, mbstring, PDO SQLite, SQLite3, ZIP e OpenSSL; Composer 2; Node 22+; ActivityWatch opcional no primeiro acesso. O Electron e os scripts de empacotamento precisam do Node, mas toda a lógica de negócio do novo aplicativo está em PHP.
+Requirements: PHP 8.4+, Composer 2, SQLite, cURL, DOM, mbstring, OpenSSL,
+fileinfo, XML and ZIP; Node 22+ for the Electron tooling. ActivityWatch is
+optional at first launch and normally runs on the local loopback interface.
 
 ```sh
 composer install --no-interaction
@@ -16,443 +20,76 @@ php vendor/bin/phpunit
 php artisan serve --host=127.0.0.1 --port=6817
 ```
 
-Abra `http://127.0.0.1:6817`. Não exponha a porta na rede. Configure o seu próprio Kimai e selecione os projetos pelo nome; o modo de revisão é o padrão. A coleta ActivityWatch usa `http://127.0.0.1:5600` e um banco local de evidências. Não coloque dados particulares em fixtures de testes.
+Connect **your own** Kimai account and enable individual sources in the local
+interface. Never bind the application to a publicly accessible host. The example
+environment disables debug output and mail logging and does not contain an
+`APP_KEY`. Always generate a fresh key for each installation.
 
-Para desenvolvimento do aplicativo desktop, após preparar o PHP:
+## Desktop development
+
 ```sh
 php artisan native:install --force --publish
 php artisan native:run
 ```
 
-A estrutura Electron publicada está em `nativephp/electron` e é um **runtime de interface**, não o núcleo de negócio. Os executáveis devem incluir um PHP próprio; não exigir instalação manual de PHP para o usuário final. A assinatura, atualização e binários multiplataforma ainda precisam de testes reais.
+The Linux preview launcher under `desktop-preview/` requires a local PHP
+backend; it is **not** an independently audited self-contained installer.
+Cross-platform packaging requires isolated build directories, checked
+dependency licenses, a production-safe embedded runtime and keyring validation.
+The bundled NativePHP PHP runtime must support required extensions; Telegram
+MTProto performs best with GMP.
 
-**Empacotamento bloqueado por segurança:** `native:build` é recusado se houver perfil, sessão ou chave `APP_KEY` de uma instalação em uso. O empacotador NativePHP não respeita automaticamente o `.gitignore`, por isso credenciais criptografadas e a chave de descriptografia poderiam acabar dentro do instalador. Os binários de prova gerados durante a avaliação foram eliminados; o código PHP continua intacto. Antes de qualquer release, implementar chave única no primeiro acesso e validar o isolamento dos segredos no instalador.
-
-## Abrir como aplicativo desktop Electron no Linux/KDE
-
-A interface também pode ser aberta como **aplicativo desktop independente do navegador**, com ícone no menu do KDE e atalho na área de trabalho. A janela é fornecida pelo Electron e mantém a aplicação Laravel PHP por trás, sem incluir segredos no binário.
-
-No computador de avaliação já configurado:
-
-```sh
-./desktop-preview/launch.sh --check
-./desktop-preview/install-desktop.sh
-```
-
-Depois, abra **Automatic Kimai** pelo menu de aplicativos ou pelo ícone da área de trabalho. Não é necessário abrir o navegador. Se o backend PHP local estiver parado, o lançador tenta reiniciar somente seu contêiner de avaliação; o piloto Python não é afetado. Consulte [desktop-preview/README.md](desktop-preview/README.md) para detalhes e limitações.
-
-**Não confundir com uma release instalável:** este é um inicializador Electron para o backend local PHP já instalado. Um instalador independente NativePHP/Electron, com PHP embutido e chaves individuais, ainda exige a auditoria de empacotamento. Não distribuir como release a outros cooperados.
-
-## Aparência: modo claro e escuro
-
-No canto superior direito da janela Electron ou da interface web local, use **Aparência**:
-
-- **Sistema**: segue automaticamente o tema atual do KDE/sistema operacional;
-- **Claro**: fixa a paleta clara;
-- **Escuro**: fixa a paleta escura com contrastes consistentes em campos, botões, avisos e tabelas.
-
-Sua escolha fica salva apenas no armazenamento local da interface (`localStorage`, chave `automatic-kimai:theme`) e é restaurada ao abrir novamente o aplicativo. A preferência de cor não altera credenciais, fontes autorizadas, períodos de trabalho nem os timers. A página CSS está em `public/css/automatic-kimai.css`, com tokens para as duas paletas; testes em `tests/Feature/ThemeUiTest.php` verificam contraste WCAG AA. A interface foi conferida com Chrome em modo headless, em ambos os temas, sem acessar dados privados.
-
-## Configurar Telegram pelo navegador (ambiente de avaliação)
-
-1. Abra **http://127.0.0.1:6817/#telegram-setup** **no mesmo computador** onde o aplicativo está rodando.
-2. Na seção **Telegram — autenticação MTProto**, verifique se as credenciais pessoais da API já estão configuradas. Se estiverem, não precisa informá-las de novo. Caso contrário, obtenha o API ID e o hash em `my.telegram.org` (sua própria conta).
-3. Informe os nomes exatos dos grupos/conversas profissionais que você autoriza consultar, separados por vírgula. Salve a configuração.
-4. Clique em **Gerar QR Code**. No Telegram do celular, abra **Configurações → Dispositivos → Conectar dispositivo** e escaneie o QR Code. Se expirar, gere outro.
-5. Se o Telegram solicitar a senha da verificação em duas etapas, digite-a **na página local**. Não envie essa senha a outra pessoa nem a este chat.
-6. Quando aparecer **Telegram autenticado**, clique em **Ativar coleta Telegram em modo de revisão**. Apenas então o conector poderá consultar as conversas autorizadas. Não há gravação de horas no Kimai por esta etapa.
-
-Este fluxo usa um **processo PHP separado** por até cinco minutos, mantém tokens de QR Code em arquivos privados (`0600`) e transmite a senha de duas etapas para esse processo usando armazenamento local criptografado temporário; o arquivo é eliminado assim que o comando é consumido. O mesmo login é conferido por uma segunda abertura da sessão antes de ser considerado válido.
-
-**Validação realizada:** QR Code produzido por requisição HTTP real, reconsulta da sessão e testes de autenticação não iniciada/rotas externas. **Pendente:** conclusão real do login com 2FA pelo titular e verificação da leitura MTProto autenticada. A autenticação do Python anterior não foi invalidada. O modo de avaliação PHP permanece somente leitura e a publicação de horas continua no sistema existente.
-
-## Comandos CLI
+## Activities and approval
 
 ```sh
-php artisan automatic-kimai:sync --status
-php artisan automatic-kimai:sync --capture-only
 php artisan automatic-kimai:sync
+php artisan automatic-kimai:sync --status
+php artisan automatic-kimai:publish-approved
+php artisan automatic-kimai:publish-approved --reconcile-unknown
+php scripts/check-publication.php
 ```
 
-Os comandos sem `--apply` fazem somente leitura e mantêm caches sanitizados.
-O comando `--apply` só pode publicar após um cutover supervisionado,
-verificado por identidade, opt-in de gravação e ledger reconciliado.
-Enquanto os agendadores Python permanecerem ativos, essa autorização
-não é emitida; não há dois escritores simultâneos.
-
-## Privacidade
-
-A página PHP aceita conexões somente do loopback, usa CSRF nos formulários e não mostra tokens existentes. Os segredos são criptografados com a chave local da instalação e arquivos privados são restringidos a seu proprietário. O segredo de criptografia **não deve ser reutilizado entre instaladores distribuídos**; é necessário validá-lo em chaveiro por sistema operacional antes da publicação de aplicativos assinados.
-
-Lembre-se: um agendamento ou um processo de IA rodando sozinho não equivale a horas humanas trabalhadas. A plataforma não aprova remuneração nem faturas automaticamente.
-
-## Status da migração
-
-Algoritmos de segmentação, lacunas, GET Kimai, proteção de escrita, ActivityWatch, Nextcloud Calendar/Talk, GitHub, Ollama e frontend Laravel têm implementação e testes. Telegram MTProto já oferece QR/2FA pela interface local, mas a coleta real depende da autenticação/ativação explícitas; o histórico de revisão foi importado, e o publicador de sessões aprovadas foi implementado e validado em transportes simulados. Ainda faltam homologação real com Kimai descartável, telemetria operacional, empacotamento multiplataforma e corte controlado antes de substituir o runtime antigo.
-
-Este código é um **candidato de implementação** — não uma release e não uma autorização para remover os serviços Python ainda ativos.
-
-
-## Interface de configuração por tarefa
-
-O painel local divide o fluxo em telas separadas: **Visão geral**, **Revisar horas**, **Trabalho presencial**, **Informar horas**, **Conta Kimai**, **Fontes de dados**, **Contas conectadas**, **Nextcloud**, **Telegram**, **GitHub** e **Migração e segurança**. O menu lateral vira menu recolhível no celular, sem apresentar todos os formulários de uma vez.
-
-Para conectar Nextcloud, abra **Conexões → Nextcloud**, informe o endereço HTTPS e clique em **Conectar pelo navegador**. Autorize no próprio Nextcloud usando sua sessão de navegador (quando já estiver conectada). O servidor gera uma **senha de aplicativo individual e revogável** via Login Flow v2. Ative separadamente **Agenda** e/ou **Talk** somente após a conexão. Em servidores sem Login Flow v2, há configuração manual com senha de aplicativo e validação OCS. Nenhuma senha principal, cookie de navegador ou credencial de outro aplicativo é importada.
-
-Quando o cliente Nextcloud Desktop está instalado na mesma conta local, o aplicativo pode sugerir somente a URL conhecida no arquivo de configuração. Em contêiner isolado, esse arquivo não fica automaticamente acessível; nesse caso, informe a URL manualmente. O usuário sempre precisa confirmar o acesso.
-
-O código do registro automático PHP está disponível com proteção de
-corte e outbox idempotente; a ativação em produção permanece bloqueada
-até que os estados Python sejam congelados, importados e conciliados.
-A exclusão seguida da restauração de um registro temporário foi
-comprovada na API Kimai real sem deixar resíduos.
-Consulte ../PHP_MIGRATION.md.
-
-
-### Navegação, permissões e ícones (15/11/2026)
-
-O menu lateral tem hierarquia com recuos: Trabalho → páginas de revisão; Fontes de dados → Conexões habilitadas → serviços; Preferências → Conta Kimai e Migração. Em telas largas o botão recolhe para uma barra de ícones; em telas pequenas abre/fecha o menu. A escolha de recolher fica somente no armazenamento local do aplicativo/navegador.
-
-A tela **Fontes de dados** controla a visibilidade e a leitura:
-- Nextcloud só aparece quando Agenda ou Talk estiver marcado. Selecionar a fonte não basta para coletar: é preciso autorizar a conta no navegador.
-- GitHub só aparece quando sua fonte estiver marcada. A leitura exige a chave apropriada.
-- Telegram tem a opção **Exibir conexão** separada da autorização efetiva do scanner: o checkbox não substitui QR/2FA, nem inicia leitura de conversas automaticamente.
-- Desativar uma fonte oculta a conexão, bloqueia novas autenticações por essa interface e impede sua coleta; credenciais existentes são preservadas localmente, não são revogadas no serviço remoto. Para revogar senha de aplicativo Nextcloud, acesse Segurança no próprio Nextcloud.
-
-Os ícones são um subconjunto do **Lucide Static 1.72.0** (licença ISC), servido localmente em public/icons/lucide.svg, com licença em public/icons/LUCIDE-LICENSE. Nenhum CDN ou pacote de fontes é necessário em runtime. O conjunto contém apenas os ícones utilizados pela interface, não todo o catálogo Lucide.
-
-A interface continua **somente leitura** para publicação no Kimai. Ocultar a conexão não apaga credenciais; a prevenção de coleta é aplicada também no coletor e nos endpoints de autorização.
-
-
-### Telegram: conexão primeiro, grupos depois
-
-Em **Fontes de dados**, habilite Telegram e salve. A página **Conexões → Telegram** inicia com o fluxo principal para conectar a conta; configurações MTProto ficam recolhidas até serem necessárias. Após o QR Code (e 2FA se solicitada), o aplicativo apresenta apenas grupos e supergrupos da conta autenticada. Contatos individuais e canais de transmissão são excluídos.
-
-A tela oferece busca e seleção múltipla de grupos (máximo de 100). A lista é obtida do Telegram **sem ler histórico de mensagens** e é mostrada apenas na sessão local autorizada. Ao salvar, o programa persiste IDs exatos dos grupos na área privada e suspende a coleta anterior. Só o botão separado **Ativar análise dos grupos** habilita a leitura de metadados dos grupos escolhidos. Não ativa publicação de horas no Kimai. Nomes repetidos não autorizam outros grupos porque a coleta passa a usar identificadores de diálogos, não correspondência aproximada de títulos.
-
-Perfis anteriores com aprovação explícita apenas por nome continuam compatíveis até passarem pelo seletor. Chaves e sessões Telegram ficam restritas ao armazenamento local criptografado ou à sessão privada MadelineProto. A versão PHP segue em **modo de revisão sem publicação de horas**, embora a autenticação e as escolhas locais sejam gravadas normalmente.
-
-Os símbolos de **Nextcloud, Telegram e GitHub** são agora suas marcas, obtidas do projeto Simple Icons (versão 16.37.0), separadas dos pictogramas de interface Lucide. Estão embutidos em public/icons/brands.svg, com licença e observações sobre marcas comerciais nos dois arquivos de licença em public/icons. Não dependem de CDN.
-
-### Isolamento de testes e inicialização do desktop (15/11/2026)
-
-Os testes HTTP que usam Tests\TestCase agora recebem um LocalStore
-temporário e exclusivo e um cache de templates Blade igualmente isolado,
-injetados antes da primeira requisição. Nunca escreva em
-storage/app/private/automatic-kimai/ ou storage/framework/views/
-ao executar PHPUnit: esses diretórios pertencem ao runtime real do
-aplicativo desktop. Executar PHPUnit como root em um contêiner com a aplicação
-montada pode deixar arquivos 0600 pertencentes a root, tornando-os
-ilegíveis ao processo da interface (UID normal) e causando HTTP 500.
-
-A suíte de regressão deve preservar o hash, proprietário e permissões de
-sources.json no ambiente hospedeiro. Para um diagnóstico somente leitura
-do aplicativo desktop instalado, execute
-~/.local/bin/automatic-kimai-desktop --check. Esse comando exige resposta
-válida do servidor PHP em 127.0.0.1:6817 e a presença do runtime Electron;
-não inicia uma janela nem publica horas no Kimai. Em caso de erro HTTP 500,
-investigue os logs locais de Laravel e as permissões do armazenamento privado.
-Não torne os arquivos públicos (chmod 644) e não execute o servidor desktop
-como root para contornar o problema.
-
-### Segurança das credenciais Telegram e dos pacotes distribuídos (15/11/2026)
-
-O ID/hash da API Telegram identificam o **aplicativo**, não a conta conectada.
-Um mesmo aplicativo MTProto pode autenticar várias contas separadas, mas
-compartilhar livremente o hash permitiria que terceiros utilizassem a identidade
-de desenvolvedor da aplicação. O Automatic Kimai não distribui nem embute um
-ID/hash pessoais em seu código: a configuração é local e por instalação.
-
-Os valores TELEGRAM_API_ID e TELEGRAM_API_HASH são persistidos no arquivo
-storage/app/private/automatic-kimai/secrets.enc, criptografado com a chave
-local e protegido pelo sistema de arquivos. A sessão MTProto autenticada é
-um **segredo distinto, muito mais sensível**, armazenado sob uma pasta privada
-do usuário, nunca publicada no Git. Arquivos .env, sessão, banco SQLite,
-cache, logs privados e credenciais têm exclusões de versão e de empacotamento.
-A sessão MadelineProto é protegida por permissões do sistema operacional e
-não deve ser confundida com o arquivo Laravel criptografado.
-
-No servidor PHP, erros de validação não reutilizam nem gravam telegram_api_hash
-ou demais campos de credenciais como dados temporários de formulário.
-Os logs Laravel single/daily são criados com modo 0600. O pacote NativePHP
-passa por limpeza de chaves e diretórios privados; uma verificação adicional
-em nativephp/electron/build/privacy-guard.mjs impede gerar um instalador
-quando a aplicação preparada ainda contém chave, tokens, sessões ou logs
-persistentes. Essa proteção é testada com dados fictícios no CI, sem copiar
-credenciais reais.
-
-Auditoria local: os segredos efetivamente configurados não foram encontrados
-nos objetos Git e nos logs inspecionados; isso não substitui uma revisão de
-todos os instaladores antigos, backups ou sistemas externos.
-
-**Importante:** a segurança de uma conta Telegram depende da sessão MTProto,
-2FA, dispositivos conectados e segurança do computador. Uma eventual
-suspeita de comprometimento da sessão deve ser tratada no aplicativo oficial
-Telegram, em Configurações - Dispositivos, encerrando a sessão envolvida.
-
-### Catálogo Telegram incremental e sugestões iniciais
-
-A seleção dos grupos deixou de chamar getFullDialogs() antes de mostrar a
-tela. O cliente solicita messages.getDialogs em lotes de até 30 diálogos
-brutos por consulta e filtra os metadados de grupos/supergrupos localmente,
-sem abrir histórico de mensagens. A lista avança por rolagem até o fim ou
-pelo botão Carregar mais grupos. O campo de busca filtra apenas os grupos
-já carregados, sem anunciar buscas no catálogo inteiro.
-
-Os cursores são criptografados pela chave privada da instalação, limitados a
-20 minutos e associados ao identificador da conta. Tentativas de reutilizar
-um cursor de outra conta ou repetir o mesmo cursor são recusadas. A seleção
-se mantém entre páginas e é validada por IDs exatos ao salvar, sem varrer o
-catálogo inteiro novamente.
-
-As comunidades públicas @LibreCodeCoop e @LibreSign são consultadas de forma
-pontual na primeira página. Elas só são pré-marcadas se os metadados do
-Telegram confirmarem supergrupo e participação da conta, com nome de usuário
-público exato. Essa seleção editável não significa consentimento efetivo:
-apenas Salvar grupos autorizados e depois Ativar análise dos grupos habilitam
-a coleta. Uma lista salva anteriormente nunca recebe novos itens
-automaticamente.
-
-Essa paginação foi testada com respostas Telegram simuladas. A velocidade e
-a compatibilidade com uma conta real muito grande ainda precisam de
-homologação autorizada; nenhum teste desta mudança fez login ou leu mensagens.
-
-
-### Correção do catálogo de grupos Telegram no aplicativo local (15/11/2026)
-
-MadelineProto 8 normaliza identificadores de chats, diálogos e mensagens para
-IDs numéricos do Bot API, incluindo IDs negativos de grupos. Além disso, a
-primeira resposta de `messages.getDialogs` pode conter diálogos fixados
-**além** dos 30 itens ordinários solicitados. O seletor agora interpreta ambos
-os formatos (construtores TL e IDs numéricos já normalizados), tolera uma
-quantidade limitada de itens fixados e avança pelo último diálogo não fixado.
-
-A UI mostra a falha na própria lista, habilita **Tentar novamente** e interrompe
-a espera após 15 segundos. Ela não permanece em uma mensagem permanente de
-carregamento quando o backend retorna HTTP 503.
-
-**Validação local real, somente metadados:** primeira página HTTP 200 em
-aproximadamente 0,47 s, 32 diálogos recebidos (incluindo fixados) e 28
-grupos válidos; segunda página com mais 16 grupos sem duplicações na seleção.
-A inspeção não consultou o conteúdo de mensagens nem habilitou a coleta.
-Regressões PHPUnit usam somente identificadores e nomes fictícios.
-
-### Telegram: seleção prioritária e filtro de arquivamento
-
-A tela Telegram abre com **Não arquivados** (messages.getDialogs folder_id=0),
-oferece **Arquivados** (folder_id=1) e mantém cursores criptografados
-independentes por pasta. A lista é paginada; pesquisa e ordenação por atividade
-recente ou nome abrangem **somente os grupos já carregados**. O componente
-mostra os itens marcados numa área fixa acima do catálogo, mesmo ao mudar
-de pasta, sem perder alterações ainda não salvas. Os grupos arquivados são
-identificados visualmente quando seus metadados forem carregados.
-
-Uma conta que participa de @LibreCodeCoop e @LibreSign recebe essas
-comunidades **pré-marcadas no formulário**, verificadas por ID e nome de
-usuário públicos exatos. Mesmo quando já existiam grupos aprovados num perfil
-antigo, as sugestões ficam disponíveis até a **primeira confirmação de uma
-seleção nesta interface**. Não há aprovação implícita: é preciso clicar em
-**Salvar seleção de grupos** e, em seguida, ativar a coleta separadamente.
-Após salvar, o perfil registra que as sugestões foram analisadas, impedindo
-que um grupo deliberadamente desmarcado volte a aparecer marcado. É possível
-salvar uma seleção vazia, o que suspende a coleta.
-
-Os nomes dos grupos efetivamente aprovados são armazenados numa área local
-privada apenas para tornar a lista de selecionados útil sem consultar
-individualmente o Telegram a cada visita. Perfis legados sem esses nomes
-usam consultas pontuais limitadas e não fazem nova enumeração integral.
-O cursor de página contém o identificador da pasta, impedindo seu
-reaproveitamento para navegar por outro escopo.
-
-
-### Grupos Telegram sem limite fixo e sem marcação de leitura (15/11/2026)
-
-O seletor não impõe mais o limite arbitrário de 100 grupos. É possível
-autorizar todos os grupos profissionais escolhidos, inclusive acima de 250
-(já cobertos por testes de regressão). A validação dos novos grupos é feita
-pelos IDs exatos, em blocos, sem repetir a validação dos já aprovados.
-
-**A ausência de limite de grupos não significa varredura sem limites.**
-O coletor consulta no máximo 24 grupos e 4.800 mensagens somadas por ciclo,
-persistindo um cursor privado. Ele continua em ciclos posteriores e preserva
-o último snapshot em caso de falha. Grupos removidos do consentimento não
-continuam no novo snapshot; a revogação durante a coleta cancela o lote.
-
-Na leitura de histórico, o conector usa apenas **getHistory** e a consulta
-de estado **getPeerDialogs**. Não executa métodos que marcam mensagens como
-lidas. A verificação de uma sessão Telegram real, restrita a 3 grupos
-previamente selecionados, obteve 15 mensagens e demonstrou que o marcador
-de leitura e o contador de mensagens não lidas ficaram inalterados.
-Nenhuma mensagem foi gravada no cache durante a verificação. A coleta
-automática permaneceu desativada até a ativação explícita pelo usuário.
-A seleção autorizada também fica vinculada ao identificador da conta
-Telegram. Após uma troca de conta ou na primeira ativação de um perfil
-anterior à vinculação, é necessário salvar novamente a seleção antes
-de ativar a coleta. Isso impede aproveitar permissões de outra conta.
-
-Ainda é necessário melhorar a paginação profunda quando um grupo contém
-mais mensagens que o orçamento da sua página: o resultado é parcial e não
-pode ser confundido com ausência de trabalho.
-
-### Entrega simples dos instaladores (sob demanda)
-
-A configuração NativePHP/Electron existente prevê:
-- **Linux:** AppImage, executável de instalação simples; também há .deb.
-- **Windows:** executável setup.exe via NSIS.
-- **macOS:** imagem .dmg com aplicativo .app.
-
-O PHP será distribuído dentro do pacote NativePHP, sem exigir instalação
-manual de PHP, Composer ou Node pelo usuário final. Isso é uma **meta
-de distribuição**, ainda não a prova de um pacote autocontido válido.
-Builds devem partir de cópia limpa e não conter APP_KEY, secrets.enc,
-perfil, sessões Telegram, bancos, logs ou credenciais individuais.
-Os testes reais de instalação de cada sistema são sob demanda, não
-bloqueiam o merge deste PR, mas continuam necessários antes de anunciar
-oficialmente suporte a esses sistemas.
-
-### Busca de grupos Telegram sem falsos "zero resultados"
-
-Ao pesquisar dois ou mais caracteres, a aplicação apresenta imediatamente
-os grupos já carregados e continua consultando o catálogo progressivamente,
-inclusive arquivados. Os grupos selecionados aparecem em coluna separada:
-a busca informa quantos estão disponíveis e quantos já foram selecionados.
-A consulta continua para novas palavras, sem parar arbitrariamente na
-12ª página; acentos podem ser omitidos. O indicador de progresso e a
-contagem de diálogos ajudam a diferenciar **consulta incompleta** de
-**nenhum grupo encontrado**. Para respeitar a API, o aplicativo consulta
-até 18 páginas/minuto e mostra o tempo de pausa quando necessário.
-
-A consulta mais pesada de comunidades é opcional e só começa quando
-essa seção for aberta. Nenhuma dessas consultas busca conteúdo de
-mensagens ou altera seus marcadores de leitura.
-
-Teste de interface isolado, com resposta Telegram simulada (Puppeteer opcional):
-PUPPETEER_MODULE=/caminho/para/puppeteer PUPPETEER_EXECUTABLE=/usr/bin/google-chrome AUTOMATIC_KIMAI_PREVIEW_URL=http://127.0.0.1:6817/?view=telegram node tests/Browser/telegram-search.cjs.
-
-### Observador de metadados Telegram com PHP nativo (Linux)
-
-O aplicativo dispõe de um serviço de usuário que consulta apenas os
-metadados PipeWire, sem capturar áudio, textos ou contatos. A coleta só
-ocorre após ativação explícita da fonte Telegram. O runtime PHP é
-fornecido pelo pacote NativePHP e não precisa estar instalado globalmente.
-
-Instalação do monitor local, a partir da raiz do projeto:
-
-    bash php-app/scripts/install-linux-audio-timer.sh
-    systemctl --user status automatic-kimai-php-audio.timer
-
-Opcionalmente, AUTOMATIC_KIMAI_PHP_BINARY seleciona um executável
-nativo já existente. O timer não concede permissão para publicar horas
-em Kimai; o corte do escritor continua sujeito à auditoria do histórico.
-O comando php artisan automatic-kimai:audio-sample --status informa
-somente a contagem local. A auditoria requer amostras PHP recentes e
-consecutivas e não considera a simples importação de dados Python como
-prova de um runtime funcional. Para interromper o monitor:
-
-    systemctl --user disable --now automatic-kimai-php-audio.timer
-
-O serviço Python anterior deve ser mantido até o corte coordenado das
-demais rotinas para não criar lacunas no produto ainda ativo.
-
-### Serviço de sincronização PHP e coletor Telegram independentes
-
-No Linux, o runtime CLI do NativePHP pode executar a análise de horas
-diretamente, sem PHP global. A coleta MTProto fica em outro comando para
-não interromper o cálculo quando o Telegram demora ou aplica limites.
-
-    bash php-app/scripts/install-linux-core-timers.sh
-
-O comando acima instala e habilita o timer da análise **somente leitura**,
-sem afetar os serviços Python. O coletor Telegram deve ser habilitado
-apenas quando o runtime PHP suportar GMP; alguns pacotes NativePHP
-atualmente não incluem a extensão. O instalador identifica essa
-situação e não ativa um scanner potencialmente muito lento.
-
-Para homologação local com um contêiner PHP/GMP de desenvolvimento
-explicitamente selecionado e já instalado, use:
-
-    AUTOMATIC_KIMAI_TELEGRAM_DOCKER_IMAGE=automatic-kimai-native-dev:local \
-      bash php-app/scripts/install-linux-core-timers.sh --enable-telegram
-
-O contêiner é um recurso do **ambiente de homologação**, não é um
-requisito da distribuição desktop. A versão NativePHP distribuível
-precisará incorporar GMP em seu runtime estático. A autorização
-automática de escrita permanece independente do agendamento:
-somente depois do corte verificado, executa-se o instalador com --apply,
-que continua sujeito às proteções de conta, outbox e escritor único.
-
-O PHP usa somente snapshots Telegram recentes e vinculados à seleção
-confirmada; dados ausentes ou inválidos não impedem outros coletores.
-A cada ciclo da varredura independente, são consultados apenas grupos
-explicitamente autorizados, e nunca são emitidos recibos de leitura.
-
-### Horas já registradas e lacunas
-
-Em **Revisar minhas horas**, o aplicativo compara as propostas com as
-timesheets do usuário autenticado no Kimai. Coberturas completas não geram
-novos lançamentos; coberturas parciais são automaticamente separadas em
-`reconciled_partial` e novas propostas `gap-*` sem sobreposição.
-Intervalos residuais pequenos permanecem documentados, mas não são
-arredondados ou aprovados automaticamente. A revisão humana confirma
-apenas trabalho efetivo, pausas e projeto; a aprovação valida novamente
-os dados remotos. Uma lacuna não equivale a trabalho comprovado.
-
-A reconciliação também revisita conflitos históricos fora dos dias da
-coleta periódica. O comando padrão `automatic-kimai:sync` continua
-somente leitura e não autoriza o corte do publicador Python.
-
-### Migração supervisionada do escritor
-
-O perfil de cada usuário distingue grupos autorizados para coleta
-(`work_messenger_dialog_ids`) de contextos explicitamente autorizados
-para classificação de trabalho (`work_messenger_classification_labels`).
-Escolher grupos na interface não aumenta automaticamente as horas
-profissionais; a classificação precisa de autorização separada.
-
-`php artisan automatic-kimai:inherit-legacy-policy
---legacy-profile=/caminho/privado/cooperator_agent_profile.json --apply-policy`
-transfere o opt-in e os contextos do perfil Python sem habilitar POST/PATCH.
-`php artisan automatic-kimai:verify-writer --legacy-cache=/estado/congelado`
-faz uma verificação de **leitura** da identidade Kimai, consentimento,
-autorização de corte e paridade de histórico. Falha fechada quando qualquer
-condição não está satisfeita.
-
-O instalador `scripts/install-linux-core-timers.sh` instala também
-`automatic-kimai-php-approved-publisher.timer`, **desabilitado por padrão**.
-A opção `--apply --enable-approved-publisher` só pode ser usada depois
-da parada/desabilitação de TODOS os timers Python e de um corte auditado.
-`AUTOMATIC_KIMAI_LEGACY_CACHE` deve apontar para os dados Python congelados.
-Com legados ativos ou habilitados, o instalador se recusa a criar um
-segundo escritor. O app PHP em modo de avaliação mantém GET-only.
-
-O PHP embarcado pelo NativePHP usado nesta instalação não inclui GMP;
-atualmente o scanner MTProto usa o PHP de um contêiner de
-desenvolvimento. Não tratar esse fallback como uma release desktop
-autônoma nem interromper o Python antes da homologação de toda a coleta.
-
-Na interface **Telegram**, a opção recolhível **Quais grupos também são
-contexto profissional?** permite definir separadamente os grupos que
-podem servir como *pista* de trabalho. Esses grupos precisam estar na
-seleção já autorizada para coleta. Nenhuma seleção autoriza automaticamente
-publicação de horas ou comprova jornada. A retirada de um grupo ou o
-logout revogam sua autorização de classificação. Grupos com o mesmo
-título devem permanecer fora da classificação por título ambíguo.
-
-### Conciliação automática sem fila manual obrigatória
-
-A tela **Conciliação de horas** classifica propostas anteriores como horas
-já registradas no Kimai ou observações sem duração humana verificada.
-Observações são mantidas como `auto_observed` no banco privado, com métricas
-restritas ao próprio trecho e comparação recorrente com a API Kimai.
-Não são descartadas como tempo não trabalhado, não são aprovadas ou
-publicadas e não abrem tarefas de confirmação manual por padrão. Um
-lançamento futuro confirmado pelo Kimai encerra a observação como coberta.
-
-O número de **revisões manuais pendentes** na visão geral corresponde às
-decisões operacionais ainda pendentes, não a eventos de navegador ou
-reuniões previstas. O histórico recolhido preserva dúvidas e eventuais
-lacunas. **Zero pendências manuais não significa zero horas não registradas.**
-
-Lacunas de janelas ainda em andamento são extraídas somente depois de
-estabilizado o fim do intervalo, para evitar múltiplas propostas efêmeras
-entre as sincronizações.
+Without an authorized supervised cutover, commands do not POST work entries.
+Local ActivityWatch evidence and optional Nextcloud, GitHub, Telegram or Ollama
+context do not independently prove the duration of human work or its billing
+category. The review engine compares proposals with authenticated Kimai
+timesheets, avoids duplication and preserves uncertain observations for
+rechecking without inventing approvals.
+
+Telegram only scans groups explicitly selected by the current user. The
+application **does not recommend a fixed organization's groups**, and it
+does not classify chat messages according to hard-coded project/customer brand
+names. Desktop work-context classification uses the user's separately
+confirmed profile preferences. Any group may be removed without losing control
+of the remaining selected sources.
+
+## Privacy and testing
+
+- Runtime state is stored in the user's private application directory, not Git.
+- Encrypted credentials and the associated encryption key must **never** be
+  included in any installer, build archive, test fixture or CI artifact.
+- App output excludes raw browsing URLs, Telegram message bodies and tokens.
+  Do not copy crash reports, logs, credentials or real project names to issues.
+- Test fixtures must be synthetic. Run the tracked-source and Git history
+  security scans before releasing code to a public audience.
+- API credentials, mobile identities and real user metadata remain local to
+  the person's deployment; GitHub Actions uses dummy keys and fake endpoints.
+
+Additional requirements: `../PHP_MIGRATION.md`, `../PRIVACY.md`,
+`../SECURITY.md`, and `../RELEASE_CHECKLIST.md`.
+
+## Development checks
+
+```sh
+php vendor/bin/phpunit --colors=never
+php scripts/check-publication.php
+node --test desktop-preview/*.test.cjs
+cd nativephp/electron
+npm ci --ignore-scripts --no-audit --no-fund
+npm run plugin:build
+npm run build
+```
+
+Do not test against a real worker's timesheets unless explicitly performing
+a supervised operator exercise. The default test environment uses disposable
+SQLite databases and local fake HTTP transports.
