@@ -85,11 +85,15 @@ final class TelegramController extends Controller
         if (($login->status()['status']??null)!=='authorized') {
             return self::noCache(['status'=>'error','message'=>'Conecte sua conta antes de listar grupos'],403);
         }
-        $request->validate(['cursor'=>'sometimes|string|max:2048']);
+        $request->validate([
+            'cursor'=>'sometimes|string|max:2048',
+            'folder'=>'sometimes|in:0,1',
+        ]);
         try {
             return self::noCache(array_replace(
                 ['status'=>'ok'],
-                $selection->page($request->query('cursor')),
+                $selection->page($request->query('cursor'),null,
+                    (int)$request->query('folder',0)),
             ));
         } catch(\InvalidArgumentException) {
             return self::noCache(['status'=>'error','message'=>'Lista expirada. Atualize para começar novamente.'],422);
@@ -107,7 +111,7 @@ final class TelegramController extends Controller
             return self::noCache(['status'=>'error','message'=>'Conecte sua conta antes de escolher grupos'],403);
         }
         $input=$request->validate([
-            'groups'=>'required|array|min:1|max:40',
+            'groups'=>'present|array|max:40',
             'groups.*'=>'required|string|regex:/^-?[1-9][0-9]*$/D',
         ]);
         try {

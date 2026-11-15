@@ -47,14 +47,16 @@ final class TelegramGroupSelectionTest extends TestCase
 
             public function selfId(): int {return 103456;}
 
-            public function groupsPage(?array $offset=null): array
+            public array $queriedFolders=[];
+            public function groupsPage(?array $offset=null,int $folder=0): array
             {
                 $this->catalogReads++;
+                $this->queriedFolders[]=$folder;
                 return [
                     'groups'=>[
-                        ['id'=>-1001234567,'title'=>'Equipe de trabalho','recommended'=>false],
-                        ['id'=>-1009876543,'title'=>'Equipe de trabalho','recommended'=>false],
-                        ['id'=>-1005551234,'title'=>'Projeto cliente','recommended'=>false],
+                        ['id'=>-1001234567,'title'=>'Equipe de trabalho','recommended'=>false,'archived'=>$folder===1],
+                        ['id'=>-1009876543,'title'=>'Equipe de trabalho','recommended'=>false,'archived'=>$folder===1],
+                        ['id'=>-1005551234,'title'=>'Projeto cliente','recommended'=>false,'archived'=>$folder===1],
                     ],
                     'next_offset'=>null,'scanned_dialog_count'=>4,
                 ];
@@ -106,9 +108,10 @@ final class TelegramGroupSelectionTest extends TestCase
         self::assertSame(1,$client->catalogReads);
         self::assertCount(3,$data['groups']);
         self::assertSame([], $data['selected_ids']);
-        self::assertSame(['id','title','recommended'],array_keys($data['groups'][0]));
+        self::assertSame(['id','title','recommended','archived'],array_keys($data['groups'][0]));
         self::assertNull($data['next_cursor']);
         self::assertSame(4,$data['scanned_dialog_count']);
+        self::assertSame(0,$data['folder']);
         self::assertTrue($data['suggestions_allowed']);
         self::assertFalse($this->store->sources()['telegram']);
     }
@@ -124,11 +127,18 @@ final class TelegramGroupSelectionTest extends TestCase
             $this->store->profile()->get('work_messenger_dialog_ids'));
         self::assertSame(['Equipe de trabalho','Projeto cliente'],
             $this->store->profile()->get('work_messenger_labels'));
+        self::assertTrue($this->store->profile()->get('work_messenger_recommendations_reviewed'));
+        self::assertSame([
+            '-1009876543'=>'Equipe de trabalho',
+            '-1005551234'=>'Projeto cliente',
+        ],$this->store->profile()->get('work_messenger_group_titles'));
         self::assertFalse($this->store->sources()['telegram']);
         self::assertSame(0,fileperms($this->dir.'/profile.json')&0077);
         self::assertSame([-1009876543,-1005551234],
             (new TelegramGroupSelection($this->store))->page(null,$client)['selected_ids']);
         self::assertSame(2,$client->validatedGroups);
+        self::assertSame([-1009876543,-1005551234],
+            array_column((new TelegramGroupSelection($this->store))->page(null,$client)['selected_groups'],'id'));
     }
 
     public function test_unknown_groups_are_rejected_without_changes(): void
@@ -167,7 +177,7 @@ final class TelegramGroupSelectionTest extends TestCase
         $allowed=MadelineTelegramAdapter::verifiedRecommendation(
             $info,'LibreCodeCoop',$resolve);
         self::assertSame([
-            'id'=>-1000000000015,'title'=>'Comunidade Livre','recommended'=>true,
+            'id'=>-1000000000015,'title'=>'Comunidade Livre','recommended'=>true,'archived'=>null,
         ],$allowed);
         // A copied name, an unrelated username, broadcast channels and
         // public groups the user has NOT joined are all excluded.
@@ -242,6 +252,7 @@ final class TelegramGroupSelectionTest extends TestCase
         // Once a group was explicitly chosen, no other group is suggested.
         $settings=$this->store->profile()->toArray();
         $settings['work_messenger_dialog_ids']=[-10033];
+        $settings['work_messenger_recommendations_reviewed']=true;
         $this->store->saveProfile(new Profile($settings));
         $existing=$selection->page(null,$fake);
         self::assertFalse($existing['suggestions_allowed']);
@@ -294,6 +305,32 @@ final class TelegramGroupSelectionTest extends TestCase
         // The cursor must use the last ordinary dialog, never a pinned item.
     }
 
+    public function test_pinned_items_within_limit_do_not_truncate_an_incomplete_folder(): void
+    {
+        $dialogs=[];
+        $messages=[];
+        for($i=0;$i<30;$i++){
+            $peer=-1000000000500-$i;
+            $dialogs[]=[
+                '_'=>'dialog','peer'=>$peer,'top_message'=>800+$i,
+                'pinned'=>$i<2,
+            ];
+            $messages[]=['_'=>'message','id'=>800+$i,
+                'peer_id'=>$peer,'date'=>1794000800+$i];
+        }
+        $raw=[
+            '_'=>'messages.dialogsSlice','count'=>3388,
+            'dialogs'=>$dialogs,'messages'=>$messages,'chats'=>[],
+        ];
+        $result=MadelineTelegramAdapter::filterDialogPage(
+            $raw,static fn(array $peer): never=>throw new \LogicException('IDs already normalized'),
+        );
+        self::assertSame(30,$result['scanned_dialog_count']);
+        self::assertSame([
+            'date'=>1794000829,'id'=>829,'peer'=>-1000000000529,
+        ],$result['next_offset']);
+    }
+
     public function test_parser_rejects_more_than_a_bounded_number_of_dialogs(): void
     {
         $oversized=array_fill(0,30+MadelineTelegramAdapter::MAX_PINNED+1,[
@@ -343,7 +380,7 @@ final class TelegramGroupSelectionTest extends TestCase
             $page['next_offset']
         );
         foreach($page['groups'] as $group){
-            self::assertSame(['id','title','recommended'],array_keys($group));
+            self::assertSame(['id','title','recommended','archived'],array_keys($group));
         }
     }
 
@@ -439,7 +476,7 @@ final class TelegramGroupSelectionTest extends TestCase
         }catch(InvalidArgumentException){}
         $fake->account=90210;
         $expired=\Illuminate\Support\Facades\Crypt::encryptString(json_encode([
-            'v'=>1,'account'=>90210,'issued'=>time()-3600,
+            'v'=>1,'account'=>90210,'folder'=>0,'issued'=>time()-3600,
             'offset'=>['date'=>1794000000,'id'=>12,'peer'=>-100123],
         ],JSON_THROW_ON_ERROR));
         $this->expectException(InvalidArgumentException::class);
@@ -454,7 +491,76 @@ final class TelegramGroupSelectionTest extends TestCase
         $this->store->saveProfile(new Profile($profile));
         $page=(new TelegramGroupSelection($this->store))->page(null,$fake);
         self::assertSame([-1001234567],$page['selected_ids']);
+        self::assertTrue($page['suggestions_allowed'],
+            'Older profiles can still receive one-time suggestions');
+        $profile['work_messenger_recommendations_reviewed']=true;
+        $this->store->saveProfile(new Profile($profile));
+        $page=(new TelegramGroupSelection($this->store))->page(null,$fake);
         self::assertFalse($page['suggestions_allowed']);
+    }
+
+    public function test_folders_are_independently_paged_and_a_cursor_cannot_cross_archives(): void
+    {
+        $client=new class {
+            public array $folderCalls=[];
+            public function selfId(): int{return 112233;}
+            public function groupsPage(?array $offset=null,int $folder=0): array
+            {
+                $this->folderCalls[]=$folder;
+                return [
+                    'groups'=>[['id'=>-100123,'title'=>'Projeto',
+                        'recommended'=>false,'archived'=>$folder===1]],
+                    'scanned_dialog_count'=>30,
+                    'next_offset'=>['date'=>1794000000,
+                        'id'=>(int)($offset['id']??0)+1,'peer'=>-100123],
+                ];
+            }
+        };
+        $picker=new TelegramGroupSelection($this->store);
+        $active=$picker->page(null,$client,0);
+        $archived=$picker->page(null,$client,1);
+        self::assertSame([0,1],$client->folderCalls);
+        self::assertFalse($active['groups'][0]['archived']);
+        self::assertTrue($archived['groups'][0]['archived']);
+        self::assertNotSame($active['next_cursor'],$archived['next_cursor']);
+        self::assertSame(1,$archived['folder']);
+        try {
+            $picker->page($active['next_cursor'],$client,1);
+            self::fail('A cursor for active chats must not browse archived chats');
+        } catch (InvalidArgumentException) {
+            self::assertSame([0,1],$client->folderCalls);
+        }
+    }
+
+    public function test_explicit_empty_selection_disables_scanning_and_dismisses_suggestions(): void
+    {
+        $client=$this->groupClient();
+        $this->store->setSources(['telegram'=>true]);
+        $this->store->saveProfile(new Profile([
+            'profile_id'=>'worker_1','timezone'=>'America/Sao_Paulo',
+            'customer_id'=>2,'project_id'=>4,'activity_id'=>6,
+            'work_messenger_dialog_ids'=>[-1001234567],
+            'work_messenger_group_titles'=>['-1001234567'=>'Equipe de trabalho'],
+        ]));
+        $saved=(new TelegramGroupSelection($this->store))->select([],$client);
+        self::assertSame(0,$saved['selected_count']);
+        self::assertFalse($this->store->sources()['telegram']);
+        self::assertSame([],$this->store->profile()->get('work_messenger_dialog_ids'));
+        self::assertSame([],$this->store->profile()->get('work_messenger_group_titles'));
+        self::assertTrue($this->store->profile()->get('work_messenger_recommendations_reviewed'));
+        $page=(new TelegramGroupSelection($this->store))->page(null,$client);
+        self::assertFalse($page['suggestions_allowed']);
+    }
+
+    public function test_profile_group_title_cache_is_restricted_to_selected_ids(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        new Profile([
+            'profile_id'=>'worker_1','timezone'=>'America/Sao_Paulo',
+            'customer_id'=>2,'project_id'=>4,'activity_id'=>6,
+            'work_messenger_dialog_ids'=>[-1001234567],
+            'work_messenger_group_titles'=>['-1009999999'=>'Name from another chat'],
+        ]);
     }
 
     public function test_scanner_matches_only_selected_id_even_when_titles_are_identical(): void

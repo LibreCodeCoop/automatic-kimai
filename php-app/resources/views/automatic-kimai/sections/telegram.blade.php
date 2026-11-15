@@ -44,22 +44,42 @@
 <div class="onboarding-step">
 <div class="step-heading"><span class="step-number">2</span><div><h3>Escolher grupos profissionais</h3><p class="muted">Apenas grupos e supergrupos são exibidos. Contatos individuais e canais de transmissão não entram na lista.</p></div></div>
 <p class="muted">Marque os grupos que podem contribuir para a análise das horas. Os nomes são exibidos aqui somente após sua autenticação; selecionar grupos não consulta mensagens nem publica horas.</p>
+<form id="tg-groups-form">
+<div id="tg-selected-area" class="telegram-selected-area" hidden>
+<div class="telegram-selected-heading">
+<strong>Grupos selecionados <span id="tg-selected-count">0</span></strong>
+<button type="button" id="tg-clear-selected" class="secondary">Desmarcar todos</button>
+</div>
+<div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados"></div>
+<p class="muted">Os grupos selecionados permanecem nesta área, mesmo ao alternar entre arquivados e não arquivados.</p>
+<p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram pré-selecionados como sugestões. Confira os grupos antes de salvar; nenhuma nova coleta começa automaticamente.</p>
+</div>
 <div class="group-selection-toolbar">
-<label for="tg-search">Filtrar grupos carregados</label>
-<input type="search" id="tg-search" placeholder="Busque pelo nome dos grupos já carregados" autocomplete="off">
+<label for="tg-search">Buscar entre os grupos carregados</label>
+<input type="search" id="tg-search" placeholder="Nome do grupo" autocomplete="off">
+<div class="telegram-folder-switch" role="group" aria-label="Exibir conversas Telegram">
+<button type="button" id="tg-folder-active" class="secondary" aria-pressed="true">Não arquivados</button>
+<button type="button" id="tg-folder-archived" class="secondary" aria-pressed="false">Arquivados</button>
+</div>
+<div class="telegram-sort">
+<label for="tg-sort">Ordenar grupos carregados</label>
+<select id="tg-sort">
+<option value="recent">Atividade mais recente</option>
+<option value="name">Nome (A–Z)</option>
+</select>
+</div>
 <button type="button" class="secondary" id="tg-reload-groups">Atualizar lista</button>
 </div>
-<form id="tg-groups-form">
 <div id="tg-group-list" class="telegram-group-list" role="group" aria-label="Grupos disponíveis para autorização">
-<p class="muted">Carregando a primeira página de grupos…</p>
+<p class="muted">Carregando a primeira página de grupos não arquivados…</p>
 </div>
 <div class="group-pagination">
 <button type="button" id="tg-load-more" class="secondary" hidden>Carregar mais grupos</button>
 <span id="tg-page-status" class="muted" role="status" aria-live="polite"></span>
 </div>
-<p class="muted">Apenas uma página é consultada por vez. Para encontrar um grupo que ainda não apareceu, carregue mais páginas.</p>
+<p class="muted">Inicialmente aparecem apenas conversas não arquivadas. A busca e a ordenação abrangem os grupos já carregados; as demais páginas são buscadas sob demanda.</p>
 <p id="tg-group-count" class="muted">Nenhum grupo selecionado.</p>
-<button id="tg-save-groups" type="submit" disabled>Salvar grupos autorizados</button>
+<button id="tg-save-groups" type="submit" disabled>Salvar seleção de grupos</button>
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>
 </form>
 </div>

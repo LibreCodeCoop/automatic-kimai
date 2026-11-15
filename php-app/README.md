@@ -227,3 +227,30 @@ aproximadamente 0,47 s, 32 diálogos recebidos (incluindo fixados) e 28
 grupos válidos; segunda página com mais 16 grupos sem duplicações na seleção.
 A inspeção não consultou o conteúdo de mensagens nem habilitou a coleta.
 Regressões PHPUnit usam somente identificadores e nomes fictícios.
+
+### Telegram: seleção prioritária e filtro de arquivamento
+
+A tela Telegram abre com **Não arquivados** (messages.getDialogs folder_id=0),
+oferece **Arquivados** (folder_id=1) e mantém cursores criptografados
+independentes por pasta. A lista é paginada; pesquisa e ordenação por atividade
+recente ou nome abrangem **somente os grupos já carregados**. O componente
+mostra os itens marcados numa área fixa acima do catálogo, mesmo ao mudar
+de pasta, sem perder alterações ainda não salvas. Os grupos arquivados são
+identificados visualmente quando seus metadados forem carregados.
+
+Uma conta que participa de @LibreCodeCoop e @LibreSign recebe essas
+comunidades **pré-marcadas no formulário**, verificadas por ID e nome de
+usuário públicos exatos. Mesmo quando já existiam grupos aprovados num perfil
+antigo, as sugestões ficam disponíveis até a **primeira confirmação de uma
+seleção nesta interface**. Não há aprovação implícita: é preciso clicar em
+**Salvar seleção de grupos** e, em seguida, ativar a coleta separadamente.
+Após salvar, o perfil registra que as sugestões foram analisadas, impedindo
+que um grupo deliberadamente desmarcado volte a aparecer marcado. É possível
+salvar uma seleção vazia, o que suspende a coleta.
+
+Os nomes dos grupos efetivamente aprovados são armazenados numa área local
+privada apenas para tornar a lista de selecionados útil sem consultar
+individualmente o Telegram a cada visita. Perfis legados sem esses nomes
+usam consultas pontuais limitadas e não fazem nova enumeração integral.
+O cursor de página contém o identificador da pasta, impedindo seu
+reaproveitamento para navegar por outro escopo.

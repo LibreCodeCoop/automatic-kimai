@@ -110,10 +110,14 @@ final class MadelineTelegramAdapter
     // on the first page. Never reject valid responses because of this.
     public const MAX_PINNED=100;
 
-    public function groupsPage(?array $offset=null): array
+    public function groupsPage(?array $offset=null,int $folder=0): array
     {
+        if (!in_array($folder,[0,1],true)) {
+            throw new RuntimeException('Invalid Telegram archive folder');
+        }
         $raw=$this->api->messages->getDialogs(
             exclude_pinned:$offset!==null,
+            folder_id:$folder,
             offset_date:(int)($offset['date']??0),
             offset_id:(int)($offset['id']??0),
             offset_peer:$offset['peer']??['_'=>'inputPeerEmpty'],
@@ -123,7 +127,7 @@ final class MadelineTelegramAdapter
         return self::filterDialogPage(
             $raw,
             fn(array $peer): int=>$this->api->getId($peer),
-            self::PAGE_SIZE,
+            self::PAGE_SIZE,$folder,
         );
     }
 
@@ -134,7 +138,8 @@ final class MadelineTelegramAdapter
      * @param callable(array):int $peerId
      */
     public static function filterDialogPage(array $response,callable $peerId,
-                                             int $limit=self::PAGE_SIZE): array
+                                             int $limit=self::PAGE_SIZE,
+                                             int $folder=0): array
     {
         $dialogs=$response['dialogs']??null;
         $chats=$response['chats']??null;
@@ -187,12 +192,22 @@ final class MadelineTelegramAdapter
                 'id'=>$id,
                 'title'=>$title,
                 'recommended'=>in_array(strtolower($username??''),['librecodecoop','libresign'],true),
+                'archived'=>$folder===1,
             ];
         }
         // Pinned dialogs must NOT provide the offset: the next page uses
         // exclude_pinned=true, so continuation tracks the last ordinary one.
         $next=null;
-        if ($ordinary===$limit) {
+        // Telegram inconsistently counts pinned dialogs toward the requested
+        // page limit, depending on folder/response. A dialogsSlice response
+        // can contain 28 regular + 2 pinned while 3,000+ dialogs remain.
+        // Do not use `ordinary===limit` as an end-of-list test.
+        $isSlice=($response['_']??null)==='messages.dialogsSlice';
+        $mayContinue=$ordinary>0 && (
+            count($dialogs)>=$limit ||
+            ($isSlice && (int)($response['count']??0)>count($dialogs))
+        );
+        if ($mayContinue) {
             foreach (array_reverse($dialogs) as $last) {
                 if (!is_array($last)||($last['pinned']??false)===true)continue;
                 $rawPeer=$last['peer']??null;
@@ -287,7 +302,7 @@ final class MadelineTelegramAdapter
         // MadelineProto may already expose Bot API's negative dialog ID.
         $id=$channelId<0?$channelId:$peerId(['_'=>'peerChannel','channel_id'=>$channelId]);
         if (!is_int($id)||$id===0||!DialogId::isSupergroupOrChannel($id))return null;
-        return ['id'=>$id,'title'=>$title,'recommended'=>true];
+        return ['id'=>$id,'title'=>$title,'recommended'=>true,'archived'=>null];
     }
 
     /** Validate only explicitly selected IDs, never re-enumerate all dialogs. */

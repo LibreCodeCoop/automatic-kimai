@@ -246,3 +246,25 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   Python, não igualdade byte a byte de toda saída intermediária. Mudanças que
   corrijam defeitos de performance, cobertura ou segurança são desejadas
   quando preservam o resultado funcional necessário e têm testes.
+
+## UX dos grupos Telegram e pastas nativas (15/11/2026)
+
+- Seleção de grupos no topo, com movimentação imediata ao marcar/desmarcar,
+  busca local, ordenação por atividade recente ou nome e filtro entre pastas
+  Telegram não arquivadas (folder_id=0, padrão) e arquivadas (folder_id=1).
+- Seleção em memória preservada entre páginas e filtros, sem tocar nas
+  autorizações já salvas até que o usuário confirme explicitamente.
+- LibreCode e LibreSign sugeridos por identidade pública e participação
+  MTProto verificadas; aparecem pré-marcados inclusive em perfis antigos com
+  outros grupos já aprovados. A preferência de sugestões revisadas impede
+  reautorização silenciosa após salvar ou desmarcar. Não ativa coleta nem
+  publicação de horas.
+- Cache privado dos nomes por ID exato de grupo para compor a área superior
+  sem percorrer todos os diálogos a cada abertura. Migração compatível com
+  perfis antigos e opção de salvar seleção vazia para desabilitar coleta.
+- Cursores criptografados agora vinculados também à pasta; regressões de
+  grupos ativos/arquivados, retorno de itens fixados e IDs preexistentes.
+- Teste de interface isolado confirmou seleção, ordenação, busca, troca de
+  pasta, lazy loading, descarte de uma sugestão e salvamento fictício sem
+  iniciar coleta. Teste read-only em sessão Telegram real confirmou duas
+  comunidades oficiais marcadas e pastas separadas.

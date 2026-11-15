@@ -17,6 +17,8 @@ final class Profile
         'settle_minutes' => 12, 'capture_freshness_minutes' => 30,
         'work_topic_hints' => [], 'work_domains' => [], 'work_messenger_labels' => [],
         'work_messenger_dialog_ids' => [],
+        'work_messenger_group_titles' => [],
+        'work_messenger_recommendations_reviewed' => false,
         'allow_snapshots' => false, 'alert_on_unrecorded_weekdays' => false,
         'sync_mode' => 'review_only', 'allow_auto_nonbillable_preview' => false,
         'auto_min_work_minutes' => 8, 'auto_max_unknown_fraction' => 0.55,
@@ -72,18 +74,21 @@ final class Profile
         if ($settings['sync_mode'] === 'preview_nonbillable' && $settings['allow_auto_nonbillable_preview'] !== true) {
             throw new InvalidArgumentException('Auto preview requires explicit worker opt-in');
         }
-        foreach (['allow_snapshots','alert_on_unrecorded_weekdays','allow_auto_nonbillable_preview'] as $key) {
+        foreach (['allow_snapshots','alert_on_unrecorded_weekdays','allow_auto_nonbillable_preview',
+                 'work_messenger_recommendations_reviewed'] as $key) {
             if (!is_bool($settings[$key])) {
                 throw new InvalidArgumentException('Invalid '.$key);
             }
         }
         if (!is_array($settings['work_topic_hints']) || !is_array($settings['work_domains']) ||
             !is_array($settings['work_messenger_labels']) ||
-            !is_array($settings['work_messenger_dialog_ids'])) {
+            !is_array($settings['work_messenger_dialog_ids']) ||
+            !is_array($settings['work_messenger_group_titles'])) {
             throw new InvalidArgumentException('Invalid approved source lists');
         }
         if (count($settings['work_domains']) > 40 || count($settings['work_messenger_labels']) > 40 ||
-            count($settings['work_messenger_dialog_ids']) > 40) {
+            count($settings['work_messenger_dialog_ids']) > 40 ||
+            count($settings['work_messenger_group_titles']) > 40) {
             throw new InvalidArgumentException('Too many work-source approvals');
         }
         foreach ($settings['work_domains'] as $host) {
@@ -110,6 +115,14 @@ final class Profile
         if (count(array_unique($settings['work_messenger_dialog_ids'])) !==
             count($settings['work_messenger_dialog_ids'])) {
             throw new InvalidArgumentException('Duplicate approved Telegram groups');
+        }
+        foreach ($settings['work_messenger_group_titles'] as $id=>$title) {
+            if (!is_string($title) || mb_strlen($title)>150 || mb_strlen($title)<1 ||
+                !preg_match('/^-?[1-9][0-9]*$/D',(string)$id) ||
+                filter_var((string)$id,FILTER_VALIDATE_INT)===false ||
+                !in_array((int)$id,$settings['work_messenger_dialog_ids'],true)) {
+                throw new InvalidArgumentException('Invalid cached Telegram group titles');
+            }
         }
         $this->settings = $settings;
     }
