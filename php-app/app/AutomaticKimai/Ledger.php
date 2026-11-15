@@ -73,6 +73,15 @@ final class Ledger
         ] : null;
     }
 
+    public function restorationAttempted(string $sessionId): bool
+    {
+        $stmt=$this->db->prepare("SELECT 1 FROM intents
+            WHERE session_id=? AND action='restore'
+            AND state IN ('sending','unknown','confirmed') LIMIT 1");
+        $stmt->execute([$sessionId]);
+        return $stmt->fetchColumn()!==false;
+    }
+
     public function intent(string $key): ?array
     {
         $stmt=$this->db->prepare('SELECT state,remote_id FROM intents WHERE intent_id=?');

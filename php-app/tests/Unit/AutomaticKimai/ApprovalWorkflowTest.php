@@ -53,10 +53,8 @@ final class ApprovalWorkflowTest extends TestCase
             'start'=>'2026-11-12T09:01:00-03:00',
             'end'=>'2026-11-12T09:59:00-03:00',
             'customer_id'=>2,'project_id'=>41,'activity_id'=>25,
-            'billable'=>false,
             'human_duration_confirmed'=>true,
             'project_confirmed'=>true,
-            'billing_confirmed'=>true,
             'description'=>'Review of application services and issues.',
         ];
     }
@@ -65,11 +63,11 @@ final class ApprovalWorkflowTest extends TestCase
     {
         $id=$this->candidate['id'];
         $selection=$this->choice();
-        $selection['billing_confirmed']=false;
+        $selection['human_duration_confirmed']=false;
         try {
             $this->queue->approve($id,$selection,$this->profile,1,
                 new DateTimeImmutable('2026-11-13T12:00:00-03:00'));
-            self::fail('Approval without billing decision must fail');
+            self::fail('Approval without confirmation of worked duration must fail');
         } catch (RuntimeException) {
             self::assertSame('draft',$this->queue->rows()[0]['status']);
         }
@@ -82,6 +80,7 @@ final class ApprovalWorkflowTest extends TestCase
         self::assertCount(1,$rows);
         $raw=json_decode($rows[0]['approval_json'],true,512,JSON_THROW_ON_ERROR);
         self::assertFalse($raw['billable']);
+        self::assertFalse($raw['billing_confirmed']);
         self::assertSame('explicit_worker_review',$raw['approved_by']);
         self::assertTrue($raw['human_duration_confirmed']);
         self::assertNotEmpty($raw['approval_digest']);

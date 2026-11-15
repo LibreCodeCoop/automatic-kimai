@@ -213,7 +213,7 @@ final class ReviewQueue
             !is_string($choice['source_digest']??null)) {
             throw new RuntimeException('Review identity missing');
         }
-        foreach (['human_duration_confirmed','project_confirmed','billing_confirmed'] as $key) {
+        foreach (['human_duration_confirmed','project_confirmed'] as $key) {
             if (($choice[$key]??null)!==true) {
                 throw new RuntimeException('Explicit human, project and billing confirmations required');
             }
@@ -222,9 +222,6 @@ final class ReviewQueue
             if (!is_int($choice[$key]??null)||$choice[$key]<1) {
                 throw new RuntimeException('Explicit project and customer IDs required');
             }
-        }
-        if (!is_bool($choice['billable']??null)) {
-            throw new RuntimeException('Billable or nonbillable must be chosen explicitly');
         }
         $description=trim((string)($choice['description']??''));
         if (mb_strlen($description)<10||mb_strlen($description)>500||
@@ -272,9 +269,9 @@ final class ReviewQueue
                 'customer_id'=>$choice['customer_id'],
                 'project_id'=>$choice['project_id'],
                 'activity_id'=>$choice['activity_id'],
-                'billable'=>$choice['billable'],
+                'billable'=>false,
                 'human_duration_confirmed'=>true,'project_confirmed'=>true,
-                'billing_confirmed'=>true,
+                'billing_confirmed'=>false,
                 'description'=>$description,
                 'action'=>'new','existing_timesheet_id'=>null,
                 'approved_for_payroll'=>false,

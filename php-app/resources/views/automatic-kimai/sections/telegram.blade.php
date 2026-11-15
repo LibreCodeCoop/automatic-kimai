@@ -124,7 +124,7 @@
 
 <details class="advanced-settings">
 <summary>Privacidade e controle da conexão</summary>
-<p class="muted">A autenticação cria uma sessão Telegram local. Quando autorizada, a análise consulta mensagens recentes apenas dos grupos selecionados e processa o conteúdo transitoriamente para extrair metadados, sem guardar textos ou nomes de contatos pessoais no histórico do coletor. O modo somente leitura refere-se à publicação de horas no Kimai: a configuração e a sessão local continuam funcionando.</p>
+<p class="muted">A autenticação cria uma sessão Telegram local. Quando autorizada, a análise consulta mensagens recentes apenas dos grupos selecionados e processa o conteúdo transitoriamente para extrair metadados, sem guardar textos ou nomes de contatos pessoais no histórico do coletor. Consultar mensagens não marca conversas como lidas. As observações servem como contexto: apenas períodos elegíveis e autorizados pela política de publicação podem gerar horas internas não faturáveis.</p>
 <form method="post" action="{{route('kimai.telegram.disable')}}">@csrf
 <button type="submit" class="secondary">Desativar análise do Telegram (preservar login)</button>
 </form>

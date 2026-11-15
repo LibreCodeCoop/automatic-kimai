@@ -61,7 +61,8 @@ final class Reconciler
     /**
      * Never changes the server; pure decision based on one authenticated user.
      */
-    public function plan(array $window,Profile $profile,array $remote,?array $known,int $userId): array
+    public function plan(array $window,Profile $profile,array $remote,?array $known,int $userId,
+                         bool $allowRestore=false,bool $restoredBefore=false): array
     {
         $a=TimeMath::parse($window['start'],$profile->zone);
         $b=TimeMath::parse($window['end'],$profile->zone);
@@ -81,7 +82,32 @@ final class Reconciler
         $id=(int)$known['remote_id'];
         $row=null;
         foreach ($remote as $entry)if (($entry['id']??null)===$id)$row=$entry;
-        if ($row===null)return self::decision('review',$window,$id,'previously_managed_timesheet_missing');
+        if ($row===null) {
+            // Only a specifically authorized repair may reissue a former,
+            // nonbillable/nonexported preview. An absent entry may otherwise
+            // represent an intentional human deletion.
+            $old=$known['remote_snapshot']??[];
+            if (!$allowRestore||$restoredBefore||!is_array($old)||
+                ($old['id']??null)!==$id||
+                !is_bool($old['billable']??null)||($old['exported']??null)!==false||
+                ($old['project']??null)!==$profile->get('project_id')||
+                ($old['activity']??null)!==$profile->get('activity_id')||
+                !in_array($old['user']??null,[null,$userId],true)||
+                !is_string($old['description']??null)||trim($old['description'])===''||
+                self::overlaps($remote,$a,$b)!==[]) {
+                return self::decision('review',$window,$id,'previously_managed_timesheet_missing');
+            }
+            try {
+                if (TimeMath::ts(TimeMath::parse((string)$old['begin']))!==TimeMath::ts($a)||
+                    TimeMath::ts(TimeMath::parse((string)$old['end']))!==TimeMath::ts($b)) {
+                    return self::decision('review',$window,$id,'restoration_requires_identical_evidence');
+                }
+            } catch (\Throwable) {
+                return self::decision('review',$window,$id,'invalid_saved_timesheet_snapshot');
+            }
+            return self::decision('restore',$window,$id,
+                'previously_managed_preview_missing_explicit_repair');
+        }
         $current=self::snapshot($row);
         if ($current!=$known['remote_snapshot']) {
             return self::decision('review',$window,$id,'remote_was_edited_outside_agent');
@@ -89,7 +115,7 @@ final class Reconciler
         if (!in_array($current['user'],[null,$userId],true)||
             $current['project']!==$profile->get('project_id') ||
             $current['activity']!==$profile->get('activity_id') ||
-            $current['billable']!==false||$current['exported']!==false) {
+            !is_bool($current['billable']??null)||$current['exported']!==false) {
             return self::decision('review',$window,$id,'contract_or_export_guard');
         }
         $oldStart=TimeMath::parse($row['begin']);$oldEnd=TimeMath::parse($row['end']);
@@ -145,7 +171,8 @@ final class Reconciler
                 in_array(self::linkedId($row['user']??null),[null,$userId],true)&&
                 self::linkedId($row['project']??null)===$profile->get('project_id') &&
                 self::linkedId($row['activity']??null)===$profile->get('activity_id')&&
-                ($row['billable']??null)===false&&($row['exported']??null)===false&&
+                ($row['billable']??null)===($expected['billable']??null)&&
+                ($row['exported']??null)===false&&
                 ($row['description']??null)===$expected['description'];
         } catch (\Throwable) {return false;}
     }
@@ -182,9 +209,10 @@ final class Reconciler
      * a durable reserved intent and a fresh preflight GET.
      */
     public function execute(array $decision,array $window,KimaiClient $api,
-                            Profile $profile,int $userId,Ledger $ledger): array
+                            Profile $profile,int $userId,Ledger $ledger,
+                            bool $allowRestore=false): array
     {
-        if (!in_array($decision['action'],['post','patch'],true)) {
+        if (!in_array($decision['action'],['post','patch','restore'],true)) {
             return ['status'=>'skipped','reason'=>$decision['reason']];
         }
         if (!$profile->allowsAutomaticPublication()) {
@@ -192,38 +220,54 @@ final class Reconciler
         }
         $days=[$window['date']];
         $remote=$api->timesheets($userId,$days,$profile->zone);
-        $current=$this->plan($window,$profile,$remote,$ledger->known($window['id']),$userId);
+        $known=$ledger->known($window['id']);
+        $current=$this->plan($window,$profile,$remote,$known,$userId,
+            $allowRestore,$ledger->restorationAttempted($window['id']));
         if ($current['action']!==$decision['action']||
             $current['remote_id']!==$decision['remote_id']) {
             throw new RuntimeException('Remote changed after planning; abort');
         }
         $proposed=self::payload($window,$profile);
-        $key=CanonicalJson::digest([
+        $intentIdentity=[
             'account'=>$userId,'profile'=>$profile->get('profile_id'),
             'session'=>$window['id'],'action'=>$decision['action'],
             'new_end'=>$proposed['end'],
-        ],false);
+        ];
+        if ($decision['action']==='restore') {
+            $intentIdentity['previous_remote_id']=$decision['remote_id'];
+        }
+        $key=CanonicalJson::digest($intentIdentity,false);
         if ($ledger->intent($key)!==null) {
             throw new RuntimeException('Existing outbox intent, no blind retry');
+        }
+        if ($decision['action']==='restore') {
+            if (!$allowRestore||$known===null) {
+                throw new RuntimeException('Repair must be specifically authorized');
+            }
+            // Preserve historical fields exactly: the Kimai billable flag is
+            // metadata, not evidence of work or production-cooperative pay.
+            $proposed['description']=$known['remote_snapshot']['description'];
+            $proposed['billable']=$known['remote_snapshot']['billable'];
         }
         if ($decision['action']==='patch') {
             foreach ($remote as $row) {
                 if (($row['id']??null)===$decision['remote_id']) {
                     $proposed['description']=$row['description'];
+                    $proposed['billable']=$row['billable'];
                     break;
                 }
             }
         }
         $ledger->reserve($key,$window,$decision['action'],$proposed);
         try {
-            if ($decision['action']==='post') {
+            if (in_array($decision['action'],['post','restore'],true)) {
                 $remoteId=$api->createTimesheet($proposed);
             } else {
                 $remoteId=$decision['remote_id'];
                 $api->extendTimesheet($remoteId,$proposed['end']);
             }
         } catch (\Throwable) {
-            $ledger->markUnknown($key,$decision['remote_id']);
+            $ledger->markUnknown($key,$decision['action']==='restore'?null:$decision['remote_id']);
             throw new RuntimeException('Remote result unknown; GET reconciliation required, NO retry');
         }
         try {

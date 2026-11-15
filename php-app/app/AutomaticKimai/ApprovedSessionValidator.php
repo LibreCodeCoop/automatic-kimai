@@ -26,7 +26,6 @@ final class ApprovedSessionValidator
             ($raw['action']??null)!=='new'||($raw['existing_timesheet_id']??null)!==null||
             ($raw['human_duration_confirmed']??null)!==true||
             ($raw['project_confirmed']??null)!==true||
-            ($raw['billing_confirmed']??null)!==true||
             !is_bool($raw['billable']??null)) {
             throw new RuntimeException('Stale, unsupported or nonhuman approval');
         }

@@ -112,6 +112,90 @@ final class ReconcilerTest extends TestCase
         }
     }
 
+    public function test_explicit_restore_recreates_deleted_preview_once_and_rebinds_ledger(): void
+    {
+        $p=$this->profile(true);$w=$this->window();$engine=new Reconciler();
+        $dir=sys_get_temp_dir().'/kimai-restore-'.bin2hex(random_bytes(6));
+        $ledger=new Ledger($dir.'/ledger.db',1,'worker-one');
+        $payload=Reconciler::payload($w,$p);
+        $old=$this->remote($payload,555);
+        $ledger->reserve('historical-post',$w,'post',$payload);
+        $ledger->confirm('historical-post',$w,$old);
+        // A worker manually deletes the already-confirmed nonbillable preview.
+        $rows=[];$posts=0;
+        $api=new KimaiClient('https://kimai.example.test','fake-token',
+            static function($method,$path,$params,$data)use(&$rows,&$posts,$payload){
+                if($method==='GET')return [
+                    'status'=>200,'body'=>$rows,'headers'=>['x-total-pages'=>1]];
+                if($method==='POST'&&$path==='/timesheets'){
+                    $posts++;
+                    $rows[]=[
+                        'id'=>556,'user'=>1,'begin'=>$data['begin'].'-03:00',
+                        'end'=>$data['end'].'-03:00','duration'=>3600,
+                        'project'=>41,'activity'=>25,'billable'=>false,
+                        'exported'=>false,'description'=>$data['description'],
+                    ];
+                    return ['status'=>201,'body'=>['id'=>556]];
+                }
+                throw new RuntimeException('Unexpected method');
+            });
+        try {
+            $known=$ledger->known($w['id']);
+            self::assertSame('review',$engine->plan($w,$p,[],$known,1)['action']);
+            $repair=$engine->plan($w,$p,[],$known,1,true);
+            self::assertSame('restore',$repair['action']);
+            $done=$engine->execute($repair,$w,$api,$p,1,$ledger,true);
+            self::assertSame('reconciled',$done['status']);
+            self::assertSame(556,$done['remote_id']);
+            self::assertSame(1,$posts);
+            self::assertSame(556,$ledger->known($w['id'])['remote_id']);
+            self::assertSame('unchanged',$engine->plan(
+                $w,$p,$rows,$ledger->known($w['id']),1,true)['action']);
+            // A second deletion is never silently retried after one
+            // confirmed restoration; require a fresh human decision.
+            $rows=[];
+            self::assertTrue($ledger->restorationAttempted($w['id']));
+            $again=$engine->plan($w,$p,$rows,$ledger->known($w['id']),1,
+                true,$ledger->restorationAttempted($w['id']));
+            self::assertSame('review',$again['action']);
+            self::assertSame(1,$posts);
+        } finally {
+            $ledger->close();@unlink($dir.'/ledger.db');@rmdir($dir);
+        }
+    }
+
+    public function test_restore_rejects_unsafe_snapshots_and_overlaps(): void
+    {
+        $p=$this->profile(true);$w=$this->window();$e=new Reconciler();
+        $old=$this->remote(Reconciler::payload($w,$p),555);
+        $known=['remote_id'=>555,'remote_snapshot'=>Reconciler::snapshot($old)];
+        self::assertSame('restore',$e->plan($w,$p,[],$known,1,true)['action']);
+        $old['billable']=true;
+        // Billing metadata is not evidence that a cooperado did/didn't work.
+        self::assertSame('restore',$e->plan($w,$p,[],
+            ['remote_id'=>555,'remote_snapshot'=>Reconciler::snapshot($old)],
+            1,true)['action']);
+        $old['exported']=true;
+        self::assertSame('review',$e->plan($w,$p,[],
+            ['remote_id'=>555,'remote_snapshot'=>Reconciler::snapshot($old)],
+            1,true)['action']);
+        self::assertSame('review',$e->plan($w,$p,
+            [$this->remote(Reconciler::payload($w,$p),999)],$known,1,true)['action']);
+        $shifted=$w;$shifted['end']='2026-11-06T10:01:00-03:00';
+        self::assertSame('review',$e->plan($shifted,$p,[],$known,1,true)['action']);
+    }
+
+    public function test_known_billable_flag_is_not_an_attendance_filter(): void
+    {
+        $p=$this->profile(true);$w=$this->window();$r=new Reconciler();
+        $row=$this->remote(Reconciler::payload($w,$p));$row['billable']=true;
+        $known=['remote_id'=>$row['id'],'remote_snapshot'=>Reconciler::snapshot($row)];
+        self::assertSame('unchanged',$r->plan($w,$p,[$row],$known,1)['action']);
+        $row['end']='2026-11-06T09:59:00-03:00';$row['duration']=3540;
+        $known=['remote_id'=>$row['id'],'remote_snapshot'=>Reconciler::snapshot($row)];
+        self::assertSame('patch',$r->plan($w,$p,[$row],$known,1)['action']);
+    }
+
     public function test_known_nonbillable_record_can_be_extended_same_id(): void
     {
         $p=$this->profile(true);$w=$this->window();

@@ -57,7 +57,7 @@
 <div class="section-heading">
 <div>
 <h2>Fila de revisão com decisão humana</h2>
-<p class="muted">Rejeitar ou aprovar altera apenas a fila local. Mesmo após a aprovação, nenhuma hora é publicada no Kimai nesta etapa de migração.</p>
+<p class="muted">A revisão registra sua decisão na fila local. O publicador envia apenas sessões aprovadas e verificadas, quando a política de publicação estiver ativa.</p>
 </div>
 </div>
 @forelse(($reviewRows ?? []) as $candidate)
@@ -67,7 +67,7 @@
 <span class="day-subtitle">Situação: {{ $candidate['status'] ?? 'revisar' }}</span>
 </summary>
 <div class="day-body">
-<p class="muted">Contexto observado não comprova duração de trabalho. Revise pausas, atividade, cliente e cobrança antes de decidir.</p>
+<p class="muted">Contexto observado não comprova duração de trabalho. Revise pausas, atividade e projeto antes de decidir. O faturamento não é controlado por esta tela.</p>
 @if(!empty($candidate['hold_reason']))<p class="warn">{{ $candidate['hold_reason'] }}</p>@endif
 @if(in_array($candidate['status'] ?? '',['draft','needs_reapproval'],true))
 @if(($candidate['ongoing'] ?? true)===false && ($candidate['end_stable'] ?? false)===true &&
@@ -92,18 +92,12 @@
 <select name="activity_id" data-default="{{ $profile->get('activity_id') }}" required disabled>
 <option value="">Carregando atividades...</option>
 </select></label>
-<label>Cobrança
-<select name="billable" required>
-<option value="no" selected>Não faturável</option>
-<option value="yes">Faturável (após confirmação explícita)</option>
-</select></label>
 <label>Descrição concreta da atividade
 <textarea name="description" rows="2" maxlength="500" minlength="10" required placeholder="O que foi realizado neste período?"></textarea>
 </label>
 </div>
 <p><label><input type="checkbox" name="confirm_duration" value="1" required/> Confirmo que trabalhei durante o intervalo informado, descontadas as pausas.</label></p>
 <p><label><input type="checkbox" name="confirm_project" value="1" required/> Confirmei o projeto e a atividade de destino.</label></p>
-<p><label><input type="checkbox" name="confirm_billing" value="1" required/> Confirmei a decisão de cobrança.</label></p>
 <button type="submit" data-catalog-submit disabled>Aprovar somente na fila local</button>
 </form>
 @else

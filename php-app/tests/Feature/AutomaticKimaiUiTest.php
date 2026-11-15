@@ -11,7 +11,7 @@ class AutomaticKimaiUiTest extends TestCase
         $response=$this->get('http://localhost/');
         $response->assertOk();
         $response->assertSee('Automatic Kimai');
-        $response->assertSee('sincronizador Python');
+        $response->assertDontSee('sincronizador Python');
         $response->assertDontSee('sk-test-token');
     }
 
@@ -35,7 +35,6 @@ class AutomaticKimaiUiTest extends TestCase
             'nextcloud'=>['Conectar pelo navegador','id="tg-api-id"'],
             'telegram'=>['Conectar pelo QR Code','id="kimai-token"'],
             'github'=>['Chave pessoal de acesso GitHub','id="tg-api-id"'],
-            'about'=>['Migração e segurança','name="nextcloud_password"'],
         ];
         foreach ($expectations as $view=>[$visible,$absent]) {
             $response=$this->get('http://localhost/?view='.$view)->assertOk();
@@ -45,6 +44,8 @@ class AutomaticKimaiUiTest extends TestCase
         }
         // Existing saved bookmarks remain functional.
         $this->get('http://localhost/?view=settings')->assertOk()->assertSee('Buscar meus projetos');
+        $this->get('http://localhost/?view=about')->assertOk()
+            ->assertSee('Resumo do trabalho')->assertDontSee('Migração e segurança');
         foreach (glob($path.'/*')?:[] as $file)if(is_file($file))@unlink($file);
         @rmdir($path);
     }

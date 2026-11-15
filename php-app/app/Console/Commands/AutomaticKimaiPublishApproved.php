@@ -35,32 +35,17 @@ final class AutomaticKimaiPublishApproved extends Command
                 throw new \RuntimeException('Kimai account is not configured');
             }
             $apply=(bool)$this->option('post-approved');
-            if ($apply) {
-                $cutover=$store->read('cutover.json');
-                if (($creds['KIMAI_WRITE_ENABLED']??'')!=='true' ||
-                    ($cutover['supervised_cutover_completed']??null)!==true||
-                    ($cutover['legacy_publisher_stopped']??null)!==true||
-                    ($cutover['history_caught_up']??null)!==true||
-                    !is_int($cutover['verified_user_id']??null)||
-                    !is_string($cutover['verified_at_utc']??null)||
-                    !preg_match('/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\+\d\d:\d\d|Z)$/D',
-                        $cutover['verified_at_utc'])) {
-                    throw new \RuntimeException('Supervised cutover and write opt-in not verified');
-                }
-                // A stale local authorization is not a permanent permission.
-                $at=new \DateTimeImmutable($cutover['verified_at_utc']);
-                if (abs(time()-$at->getTimestamp())>86400) {
-                    throw new \RuntimeException('Cutover verification expired');
-                }
-            }
-
             $api=new KimaiClient($creds['KIMAI_BASE_URL'],$creds['KIMAI_API_TOKEN']);
             if ($apply) {
                 $me=$api->me();
-                if (($me['id']??null)!==$cutover['verified_user_id']||
-                    ($me['timezone']??null)!==$profile->get('timezone')) {
+                if (!is_int($me['id']??null)||($me['timezone']??null)!==$profile->get('timezone')) {
                     throw new \RuntimeException('Cutover authorization belongs to another worker');
                 }
+                // Automatic and manually-approved publication share one
+                // stable, identity-bound cutover gate. The original 24-hour
+                // expiry would break approved submissions on day two.
+                \App\AutomaticKimai\PublicationGate::assertManualReady(
+                    $store,$profile,$creds,$me['id']);
             }
             $publisher=new ApprovedSessionPublisher($api,$profile,
                 $store->reviewQueueFile(),$store->ledgerFile());

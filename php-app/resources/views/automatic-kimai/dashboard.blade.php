@@ -74,9 +74,6 @@ try {
 @if($view==='github')
 @include('automatic-kimai.sections.github')
 @endif
-@if($view==='about')
-@include('automatic-kimai.sections.about')
-@endif
 <footer class="muted">Automatic Kimai · dados locais e privados · informações não equivalem a aprovação financeira.</footer>
 </main>
 </div>

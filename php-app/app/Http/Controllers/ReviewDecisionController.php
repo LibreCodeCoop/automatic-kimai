@@ -41,10 +41,8 @@ final class ReviewDecisionController extends Controller
             'end'=>'required|date_format:H:i',
             'project_id'=>'required|integer|min:1',
             'activity_id'=>'required|integer|min:1',
-            'billable'=>'required|in:no,yes',
             'description'=>'required|string|min:10|max:500',
             'confirm_duration'=>'accepted','confirm_project'=>'accepted',
-            'confirm_billing'=>'accepted',
         ]);
         $profile=$this->store->profile();
         if (!$profile)return back()->withErrors(['review'=>'Configure sua conta Kimai primeiro.']);
@@ -77,10 +75,12 @@ final class ReviewDecisionController extends Controller
                 'start'=>TimeMath::iso($start),'end'=>TimeMath::iso($end),
                 'customer_id'=>$project['customer_id'],
                 'project_id'=>$projectId,'activity_id'=>$activityId,
-                'billable'=>$input['billable']==='yes',
+                // Legacy Kimai compatibility flag; it is not a measure of
+                // cooperative production or customer billing in Akaunting.
+                'billable'=>false,
                 'description'=>$input['description'],
                 'human_duration_confirmed'=>true,
-                'project_confirmed'=>true,'billing_confirmed'=>true,
+                'project_confirmed'=>true,'billing_confirmed'=>false,
             ];
             $queue=new ReviewQueue($this->store->reviewQueueFile());
             try {

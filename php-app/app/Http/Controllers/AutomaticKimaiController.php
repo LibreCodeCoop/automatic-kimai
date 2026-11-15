@@ -38,6 +38,7 @@ final class AutomaticKimaiController extends Controller
         $this->local($request);
         $view=(string)$request->query('view','overview');
         if ($view==='settings')$view='kimai'; // Existing bookmarks.
+        if ($view==='about')$view='overview'; // Old migration-page links.
         $titles=[
             'overview'=>'Visão geral',
             'review'=>'Revisar minhas horas',
@@ -49,7 +50,6 @@ final class AutomaticKimaiController extends Controller
             'nextcloud'=>'Nextcloud',
             'telegram'=>'Telegram',
             'github'=>'GitHub',
-            'about'=>'Migração e segurança',
         ];
         $hints=[
             'overview'=>'Acompanhe seu monitoramento e veja o que precisa de atenção.',
@@ -62,7 +62,6 @@ final class AutomaticKimaiController extends Controller
             'nextcloud'=>'Autorize o acesso no navegador sem usar sua senha principal.',
             'telegram'=>'Escolha as conversas profissionais que deseja autorizar.',
             'github'=>'Metadados de atividades técnicas, sem presumir horas.',
-            'about'=>'O que já funciona e o que falta validar para migrar com segurança.',
         ];
         if (!array_key_exists($view,$titles))$view='overview';
         $sources=$this->store->sources();
@@ -267,7 +266,7 @@ final class AutomaticKimaiController extends Controller
         }
     }
 
-    public function attendancePreview(Request $request): RedirectResponse
+    public function attendanceSubmit(Request $request): RedirectResponse
     {
         $this->local($request);
         $input=$request->validate([
@@ -300,8 +299,25 @@ final class AutomaticKimaiController extends Controller
                 'schedule_source'=>$input['schedule_source'],
                 'attendance_attested'=>true,
             ],new DateTimeImmutable('now',$profile->zone));
-            $lines=array_map(static fn($s)=>implode('–',$s),$sections);
-            return back()->with('ok','Prévia interna, sem gravação no Kimai: '.implode('; ',$lines));
+            $creds=$this->store->credentials();
+            $api=new KimaiClient($creds['KIMAI_BASE_URL'],$creds['KIMAI_API_TOKEN']);
+            $user=$api->me()['id']??null;
+            if (!is_int($user)||$user<1)throw new RuntimeException('Kimai account unavailable');
+            \App\AutomaticKimai\PublicationGate::assertManualReady(
+                $this->store,$profile,$creds,$user);
+            $created=[];$manual=new ManualTime();
+            foreach ($sections as [$start,$end]) {
+                // Each subinterval is independently idempotent. If a later
+                // segment fails, an explicit retry does not double-post
+                // those already confirmed.
+                $result=$manual->submit($profile,$api,$this->store->ledgerFile(),
+                    true,$input['day'],$start,$end,$input['label'],true,
+                    new DateTimeImmutable('now',$profile->zone),
+                    'reported_attendance_scheduled_bounds');
+                $created[]=(int)$result['remote_id'];
+            }
+            return back()->with('ok','Presença registrada no Kimai. IDs: '.
+                implode(', ',$created));
         } catch(Throwable $e) {
             return back()->withErrors(['attendance'=>$e->getMessage()]);
         }
@@ -351,18 +367,16 @@ final class AutomaticKimaiController extends Controller
         if (!$profile)return back()->withErrors(['manual'=>'Configure Kimai first']);
         $creds=$this->store->credentials();
         try {
-            // Keep manual writes disabled while the Python pilot is active.
-            // An explicit opt-in is not sufficient to bypass an active other
-            // runtime's outbox; a supervised cutover is required first.
-            if (($creds['PHP_CUTOVER_APPROVED']??'')!=='true') {
-                throw new RuntimeException('PHP manual publication is disabled until the Python pilot is stopped and the ledger is reconciled');
-            }
             $api=new KimaiClient($creds['KIMAI_BASE_URL'],$creds['KIMAI_API_TOKEN']);
+            $user=$api->me()['id']??null;
+            if (!is_int($user)||$user<1)throw new RuntimeException('Kimai account unavailable');
+            \App\AutomaticKimai\PublicationGate::assertManualReady(
+                $this->store,$profile,$creds,$user);
             $result=(new ManualTime())->submit($profile,$api,$this->store->ledgerFile(),
-                ($creds['KIMAI_MANUAL_PREVIEW_ENABLED']??'')==='true',
+                true,
                 $data['day'],$data['start'],$data['end'],$data['task'],true,
                 new DateTimeImmutable('now',$profile->zone));
-            return back()->with('ok','Internal non-billable Kimai entry #'.$result['remote_id'].' verified.');
+            return back()->with('ok','Kimai worklog entry #'.$result['remote_id'].' verified.');
         } catch(Throwable $e) {
             return back()->withErrors(['manual'=>$e->getMessage()]);
         }

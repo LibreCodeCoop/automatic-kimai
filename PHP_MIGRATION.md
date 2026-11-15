@@ -709,3 +709,76 @@ asserções, sem warnings. O replay semântico aprofundado, a paginação de
 histórico de grupos com mais mensagens que uma página, o POST contra
 Kimai oficial descartável e o cutover operacional ainda não estão
 homologados. Os instaladores OS continuam fora do gate de merge.
+
+## 15/11/2026 — Carga da tela de revisão, publicação real e regra de produção cooperativista
+
+### Desempenho da tela "Revisar minhas horas"
+
+A página solicitava o catálogo remoto completo do Kimai em toda navegação.
+Medi em produção local: visão geral 32 ms, revisão 3.181 e 3.145 ms.
+Separação da leitura local e do catálogo externo: revisão 23 e 22 ms.
+O catálogo é carregado apenas quando a pessoa expande uma proposta
+aprovável; em Chrome headless a página ficou interativa em 136 ms,
+sem GET ao catálogo antes da expansão. Uma expansão fez exatamente
+um GET e carregou 21 projetos e 14 atividades compatíveis; não ocorreu
+POST ou PATCH. Cobertura: feature tests e suíte PHP local.
+Commit: `c441680` (já publicado no PR #1).
+
+### Faturamento não determina produção trabalhada
+
+Confirmação do requisito: Kimai contém **todas as horas efetivamente
+trabalhadas**, consideradas no `producao-cooperativista` independentemente
+do campo técnico `billable`. Faturamento de clientes é responsabilidade
+separada do fluxo financeiro Akaunting; não solicitar confirmação de
+cobrança como pré-condição para revisar/aprovar horas de trabalho.
+A interface de revisão removeu o seletor de cobrança e sua confirmação.
+O valor legado `billable=false` continua em determinados payloads por
+compatibilidade com o Python; **não é prova de trabalho não realizado
+nem de exclusão do rateio**. A reconciliação aceita um campo booleano
+de faturamento no histórico confirmado e preserva exatamente seu valor,
+sem usá-lo como filtro de presença ou produção. Mudanças no registro
+remoto continuam exigindo revisão por integridade, independentemente
+do campo de faturamento.
+
+### Homologação real de API Kimai com restauração
+
+Foi executado um teste temporário usando a conta Kimai de produção,
+com um apontamento fictício de 01/2012, descrição única `QA-AK-*`
+e dados isolados em ledger descartável. Não foi excluída nenhuma
+jornada legítima e nenhum serviço Python foi interrompido.
+
+Verificações passaram: POST no Kimai real, GET com comparação de
+usuário/projeto/atividade/duração, DELETE e GET comprovando ausência,
+recriação pelo `Reconciler::execute` após o ledger reconhecer o
+registro excluído, GET exato do novo ID, idempotência do ledger,
+DELETE final e GET de limpeza comprovando **zero registros de teste**.
+A primeira tentativa de preparar o ledger da fixture falhou porque
+o teste não incluía `evidence_digest`; uma consulta independente
+mostrou limpeza completa. A segunda execução passou de ponta a ponta.
+Não há registros temporários remanescentes no Kimai.
+
+**Limite do resultado:** a verificação comprova a operação de restauração
+via PHP e a API real, não a equivalência de todos os intervalos nem a
+troca do escritor Python. A última execução PHP em leitura real teve
+Nextcloud Calendar/Talk/Activity/Mail, GitHub e Telegram `status=ok`,
+e identificou um novo intervalo hoje que o plano Python ainda não
+havia classificado da mesma forma; horários e evidência evoluem entre
+os ciclos. A publicação contínua segue protegida por cutover explícito,
+identidade verificada e histórico reconciliado.
+
+### Navegação de produção e segurança do corte
+
+A seção transitória `Migração e segurança` foi removida do menu e o
+bookmark antigo redireciona à visão geral. O formulário presencial
+e a revisão têm controles de uso final; enviar horas pela interface
+só é possível quando o escritor PHP estiver autorizado pelo gate.
+`PublicationGate` verifica a identidade, writer=php, encerramento do
+escritor Python, histórico sincronizado, opt-in e hash do snapshot.
+O publicador de sessões aprovadas usa o mesmo gate: eliminado o vencimento
+de 24 horas que bloquearia aprovações em operação permanente.
+
+O código da escrita automática está implementado e com testes, mas
+**o corte real permanece pendente**: congelar fontes Python, importar
+o último ledger/outbox, resolver divergências e operações pendentes,
+habilitar um único writer PHP, monitorar e comprovar rollback.
+O PR deve permanecer draft até essas verificações finais e revisão.

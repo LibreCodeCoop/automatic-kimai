@@ -41,9 +41,6 @@
 <div class="nav-group">
 <p class="nav-caption">Preferências</p>
 <a href="{{route('kimai.home',['view'=>'kimai'])}}" aria-label="Conta Kimai" title="Conta Kimai" class="nav-item nav-root @if($view==='kimai') is-current @endif" @if($view==='kimai') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'settings-2'])<span class="nav-label">Conta Kimai</span></a>
-<div class="nav-children">
-<a href="{{route('kimai.home',['view'=>'about'])}}" aria-label="Migração e segurança" title="Migração e segurança" class="nav-item @if($view==='about') is-current @endif" @if($view==='about') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'shield-check'])<span class="nav-label">Migração e segurança</span></a>
-</div>
 </div>
 </nav>
 </div>

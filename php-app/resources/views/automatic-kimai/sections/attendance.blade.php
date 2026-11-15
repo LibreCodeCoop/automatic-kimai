@@ -1,6 +1,6 @@
 <section><h2>Trabalho presencial</h2>
-<p>Informe o que aconteceu presencialmente. O aplicativo desconta pausas e calcula uma prévia, sem criar horas no Kimai.</p>
-<form method="post" action="{{route('kimai.attendance-preview')}}">@csrf
+<p>Registre sua participação presencial com horários reais. As pausas informadas serão descontadas e os períodos confirmados serão registrados como prévias internas não faturáveis no Kimai.</p>
+<form method="post" action="{{route('kimai.attendance-submit')}}">@csrf
 <div class="grid">
 <div><label>Dia</label><input type="date" name="day" required></div>
 <div><label>Atividade</label><input name="label" maxlength="64" required placeholder="Reunião presencial"></div>
@@ -17,6 +17,6 @@
 </div>
 </details>
 <label><input type="checkbox" name="attended" value="1" required> Confirmo que participei e realizei trabalho humano neste compromisso.</label>
-<button type="submit" class="secondary">Conferir períodos (não grava no Kimai)</button>
+<button type="submit">Registrar presença no Kimai</button>
 </form>
 </section>

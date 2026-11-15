@@ -74,7 +74,11 @@ php artisan automatic-kimai:sync --capture-only
 php artisan automatic-kimai:sync
 ```
 
-Esses comandos usam o perfil local, fazem apenas leitura e mantêm caches sanitizados. `--apply` está bloqueado enquanto não existir paridade de telemetria/agentes e migração segura do ledger. Os agendadores antigos Python continuam operando na instalação já existente.
+Os comandos sem `--apply` fazem somente leitura e mantêm caches sanitizados.
+O comando `--apply` só pode publicar após um cutover supervisionado,
+verificado por identidade, opt-in de gravação e ledger reconciliado.
+Enquanto os agendadores Python permanecerem ativos, essa autorização
+não é emitida; não há dois escritores simultâneos.
 
 ## Privacidade
 
@@ -97,7 +101,12 @@ Para conectar Nextcloud, abra **Conexões → Nextcloud**, informe o endereço H
 
 Quando o cliente Nextcloud Desktop está instalado na mesma conta local, o aplicativo pode sugerir somente a URL conhecida no arquivo de configuração. Em contêiner isolado, esse arquivo não fica automaticamente acessível; nesse caso, informe a URL manualmente. O usuário sempre precisa confirmar o acesso.
 
-Durante a migração, o registro automático pelo PHP permanece bloqueado. O serviço Python ativo não pode ser desligado até que todos os coletores, a fila de aprovações, o publicador, o ledger e a retomada após falhas tenham comprovado paridade. Consulte ../PHP_MIGRATION.md.
+O código do registro automático PHP está disponível com proteção de
+corte e outbox idempotente; a ativação em produção permanece bloqueada
+até que os estados Python sejam congelados, importados e conciliados.
+A exclusão seguida da restauração de um registro temporário foi
+comprovada na API Kimai real sem deixar resíduos.
+Consulte ../PHP_MIGRATION.md.
 
 
 ### Navegação, permissões e ícones (15/11/2026)

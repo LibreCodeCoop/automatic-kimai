@@ -259,7 +259,8 @@ final class SyncEngine
         $status=[
             'profile_id'=>$profile->get('profile_id'),'at_local'=>TimeMath::iso($clock),
             'sync_interval_minutes'=>30,'lookback_days'=>$lookback,
-            'attempted_publication'=>false,'remote_writes'=>0,
+            'attempted_publication'=>$apply,'remote_writes'=>0,
+            'remote_write_attempts'=>0,'remote_write_outcome_uncertain'=>false,
             'result'=>'started','last_successful_utc'=>$previous['last_successful_utc']??null,
         ];
         try {
@@ -269,13 +270,11 @@ final class SyncEngine
                 return $status;
             }
             $creds=$this->store->credentials();
-            $applyAllowed=$apply && $profile->allowsAutomaticPublication() &&
-                ($creds['KIMAI_WRITE_ENABLED']??'')==='true' &&
-                ($creds['KIMAI_AUTO_PREVIEW_OPT_IN']??'')==='true';
-            if ($apply&&!$applyAllowed)throw new RuntimeException('Unattended write opt-in missing');
-            // Until parity with independently attested AI agent telemetry,
-            // autonomous posting MUST stay off. Reviews still run fully.
-            if ($apply)throw new RuntimeException('PHP unattended publication disabled until full agent/MTProto parity');
+            // Even explicit --apply cannot write without the supervised
+            // production handoff, bound to this account and an imported ledger.
+            if ($apply && !$profile->allowsAutomaticPublication()) {
+                throw new RuntimeException('Automatic preview is not enabled for this profile');
+            }
             if (empty($creds['KIMAI_BASE_URL'])||empty($creds['KIMAI_API_TOKEN'])) {
                 throw new RuntimeException('Kimai URL or individual API token missing');
             }
@@ -285,6 +284,13 @@ final class SyncEngine
             $userId=$me['id']??null;
             if (!is_int($userId)||$userId<1||($me['timezone']??'')!==$profile->get('timezone')) {
                 throw new RuntimeException('Kimai profile or timezone does not match');
+            }
+            if ($apply) {
+                PublicationGate::assertReady($this->store,$profile,$creds,$userId);
+                if ($sourceOpts['nextcloud_calendar'] &&
+                    ($sources['nextcloud_calendar']['status']??null)!=='ok') {
+                    throw new RuntimeException('Calendar unavailable; automatic write blocked');
+                }
             }
             $api->validateCatalog($profile);
             $days=[];
@@ -306,9 +312,14 @@ final class SyncEngine
                 try {
                     $engine=new Reconciler();
                     $pending=$engine->recover($api,$profile,$userId,$ledger,$days);
+                    if ($apply && $pending['unresolved']!==[]) {
+                        throw new RuntimeException('Unresolved old outbox; no automatic writes');
+                    }
                     $calendar=(($sources['nextcloud_calendar']['status']??'')==='ok')?
                         ($this->store->read('calendar_work_context.json')['events']??[]):[];
                     $anchors=$this->actionAnchors($profile,$sources);
+                    $restoreMissing=$apply &&
+                        ($this->store->read('cutover.json')['restore_missing_nonbillable_previews']??false)===true;
                     $coverage=new Coverage();$segmenter=new Segmenter();
                     $candidateBuilder=new ReviewCandidateBuilder();
                     $reviewCandidates=[];
@@ -328,7 +339,7 @@ final class SyncEngine
                         'created_at'=>TimeMath::iso($clock),
                         'profile_id'=>$profile->get('profile_id'),'user_id'=>$userId,
                         'timezone'=>$profile->get('timezone'),
-                        'mode'=>$profile->get('sync_mode'),'writes_enabled_for_this_run'=>false,
+                        'mode'=>$profile->get('sync_mode'),'writes_enabled_for_this_run'=>$apply,
                         'pending_reconciliation'=>$pending,'sources'=>$sources,'days'=>[],
                         'billing_approved'=>false,'payroll_approved'=>false,
                         'agent_telemetry_status'=>$agentConnected?
@@ -347,20 +358,38 @@ final class SyncEngine
                             $reviewCandidates=array_merge($reviewCandidates,
                                 $candidateBuilder->build($day,$events,$calendar,$remote,$profile,$clock));
                             foreach ($segmenter->segment($day,$events,$calendar,$profile,$clock) as $window) {
-                                $decision=$engine->plan($window,$profile,$remote,$ledger->known($window['id']),$userId);
-                                // Explicit agent execution is context only.
-                                // Neither agent time nor a focused desktop
-                                // window authorizes posting human work.
-                                if (in_array($decision['action'],['post','patch'],true)) {
-                                    $decision['action']='review';
-                                    $decision['reason']=self::minimumEvidence($window,$profile)?
-                                        'agent_execution_attribution_requires_human_review':
-                                        'insufficient_independent_desktop_evidence';
+                                $decision=$engine->plan($window,$profile,$remote,
+                                    $ledger->known($window['id']),$userId,$restoreMissing,
+                                    $ledger->restorationAttempted($window['id']));
+                                $overlap=AgentRuns::overlappingSeconds($window,$agentIntervals);
+                                if (in_array($decision['action'],['post','patch','restore'],true)) {
+                                    if ($overlap>=60) {
+                                        $decision['action']='review';
+                                        $decision['reason']='agent_execution_overlap_needs_human_attribution';
+                                    } elseif (!self::minimumEvidence($window,$profile)) {
+                                        $decision['action']='review';
+                                        $decision['reason']='insufficient_independent_desktop_evidence';
+                                    }
+                                }
+                                $result=['status'=>'dry_run'];
+                                if ($apply && in_array($decision['action'],['post','patch','restore'],true)) {
+                                    // Reconciler re-fetches from Kimai and reserves a
+                                    // durable intent before every POST/PATCH.
+                                    $status['remote_write_attempts']++;
+                                    try {
+                                        $result=$engine->execute($decision,$window,$api,
+                                            $profile,$userId,$ledger,$restoreMissing);
+                                    } catch (Throwable $error) {
+                                        // A lost response can mean POST committed
+                                        // even if the local cycle reports an error.
+                                        $status['remote_write_outcome_uncertain']=true;
+                                        throw $error;
+                                    }
+                                    if ($result['status']==='reconciled')$status['remote_writes']++;
                                 }
                                 $sessions[]=array_replace($window,$decision,[
-                                    'result'=>['status'=>'dry_run'],
-                                    'agent_overlap_seconds'=>$agentConnected?
-                                        AgentRuns::overlappingSeconds($window,$agentIntervals):null,
+                                    'result'=>$result,
+                                    'agent_overlap_seconds'=>$overlap,
                                 ]);
                             }
                         }
@@ -371,6 +400,25 @@ final class SyncEngine
                             'calendar_gap_alerts'=>$coverage->calendarGaps($day,$calendar,$remote,$profile,$clock),
                             'missing_workday_alerts'=>$coverage->missingWorkday($day,$remote,$profile,$clock),
                         ];
+                    }
+                    if ($apply && $status['remote_writes']>0) {
+                        // Recalculate missing-work alerts with a fresh GET
+                        // after remote changes, mirroring the Python runtime.
+                        $updated=$api->timesheets($userId,$days,$profile->zone);
+                        foreach ($report['days'] as &$currentDay) {
+                            [$events,$warning]=$this->readEvidence($currentDay['day']);
+                            if (!$warning) {
+                                $currentDay['coverage_gaps']=$coverage->observedGaps(
+                                    $currentDay['day'],$events,$updated,$profile,$clock,$calendar,$anchors);
+                                $currentDay['review_intervals']=$coverage->reviewable(
+                                    $currentDay['day'],$events,$updated,$profile,$clock,$calendar,$anchors);
+                            }
+                            $currentDay['calendar_gap_alerts']=$coverage->calendarGaps(
+                                $currentDay['day'],$calendar,$updated,$profile,$clock);
+                            $currentDay['missing_workday_alerts']=$coverage->missingWorkday(
+                                $currentDay['day'],$updated,$profile,$clock);
+                        }
+                        unset($currentDay);
                     }
                     $queue=new ReviewQueue($this->store->reviewQueueFile());
                     try {

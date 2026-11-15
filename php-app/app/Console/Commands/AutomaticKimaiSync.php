@@ -7,15 +7,15 @@ use App\AutomaticKimai\SyncEngine;
 use Illuminate\Console\Command;
 use Throwable;
 
-/** One bounded, read-only PHP cycle for OS-native scheduling. */
+/** One bounded PHP cycle; --apply requires an independently verified writer cutover. */
 final class AutomaticKimaiSync extends Command
 {
     protected $signature='automatic-kimai:sync
         {--capture-only : Only refresh sanitized local ActivityWatch evidence}
         {--status : Return the last private status without a network request}
-        {--apply : Reserved for a future validated, explicitly opted-in cutover}';
+        {--apply : Publish eligible worked-time records after verified cutover}';
 
-    protected $description='Run one local Automatic Kimai cycle (safe read-only default)';
+    protected $description='Run a bounded Automatic Kimai cycle; default is read-only';
 
     public function handle(LocalStore $store): int
     {
@@ -25,13 +25,14 @@ final class AutomaticKimaiSync extends Command
             $this->line(json_encode($status,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
             return self::SUCCESS;
         }
-        if ($this->option('apply')) {
-            $this->error('Unattended PHP writes are blocked until production parity and outbox migration are verified.');
-            return self::FAILURE;
-        }
-        try {
-            $result=(new SyncEngine($store))->run(false,(bool)$this->option('capture-only'));
-            $this->info('PHP_CYCLE '.$result['result'].' remote_writes=0 reviews='.($result['review_count']??0));
+         try {
+            $apply=(bool)$this->option('apply');
+            if ($apply && (bool)$this->option('capture-only')) {
+                throw new \RuntimeException('--apply cannot be combined with --capture-only');
+            }
+            $result=(new SyncEngine($store))->run($apply,(bool)$this->option('capture-only'));
+            $this->info('PHP_CYCLE '.$result['result'].' remote_writes='.
+                ($result['remote_writes']??0).' reviews='.($result['review_count']??0));
             return self::SUCCESS;
         } catch (Throwable $e) {
             // Exception type only. Do not echo provider URLs, responses or tokens.

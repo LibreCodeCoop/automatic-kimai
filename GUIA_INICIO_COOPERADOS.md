@@ -72,7 +72,7 @@ por lançamentos, conflitos e estados incertos. Cada proposta contém início,
 fim e evidências observadas, sem comprovar por si só horas de trabalho.
 
 Para uma proposta elegível, confira começo, término, pausas, **projeto,
-atividade, decisão de cobrança e descrição concreta**. Marque as três
+atividade e descrição concreta**. Marque as duas
 confirmações somente depois de verificar pessoalmente o trabalho realizado
 e clique em **Aprovar somente na fila local**. Caso a hipótese seja pessoal,
 incorreta ou não seja trabalho, use **Rejeitar esta proposta**.
@@ -89,8 +89,9 @@ independentes depois de interromper o escritor antigo.
 
 Use **Trabalho presencial** para informar data, atividade, horário real,
 pausas e fonte de confirmação. Não trate um evento na agenda como presença
-comprovada. O formulário atual **mostra uma prévia**; ainda não publica o
-registro remoto na migração PHP.
+comprovada. O formulário registra os períodos no Kimai **apenas após** a conclusão do
+corte controlado do escritor PHP. Enquanto o runtime Python estiver ativo,
+a publicação pelo PHP permanece bloqueada para evitar duplicações.
 
 Se o trabalho cruzar a meia-noite, revise os intervalos de cada data.
 Não altere artificialmente horários nem deixe uma pausa computada como

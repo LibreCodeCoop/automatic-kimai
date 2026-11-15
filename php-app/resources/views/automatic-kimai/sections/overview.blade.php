@@ -1,7 +1,3 @@
-<details class="runtime-note">
-<summary>Como seus registros estão sendo protegidos durante a migração</summary>
-<p>O sincronizador Python continua ativo para registrar o tempo trabalhado. Esta interface PHP permite analisar e revisar dados, mas ainda não publica novos apontamentos. Essa separação evita duplicidade enquanto a equivalência entre os programas é validada.</p>
-</details>
 @if(($sources['nextcloud_calendar'] || $sources['nextcloud_talk'] ||
     $sources['nextcloud_activity'] || $sources['nextcloud_mail']) &&
     (empty($creds['NEXTCLOUD_URL']) || empty($creds['NEXTCLOUD_APP_PASSWORD'])))
