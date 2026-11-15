@@ -45,7 +45,7 @@ final class TelegramUiTest extends TestCase
     public function test_panel_exposes_telegram_onboarding_but_no_credentials(): void
     {
         $this->get('http://localhost/?view=telegram')->assertOk()
-            ->assertSee('Conecte sua conta no celular')
+            ->assertSee('Conecte sua conta pelo QR Code')
             ->assertSee('id="tg-groups-step" hidden',false)
             ->assertDontSee('name="telegram_labels"',false)
             ->assertSee('Conectar pelo QR Code')
@@ -160,9 +160,22 @@ final class TelegramUiTest extends TestCase
 
     public function test_telegram_endpoints_block_nonlocal_requests(): void
     {
+        // Exercise the local-only guard independently of the rate limiter state.
+        $this->withoutMiddleware(\Illuminate\Routing\Middleware\ThrottleRequests::class);
         $this->get('http://public.example/telegram/status')->assertForbidden();
         $this->post('http://public.example/telegram/configure')->assertForbidden();
         $this->postJson('http://public.example/telegram/qr')->assertForbidden();
         $this->get('http://public.example/telegram/groups')->assertForbidden();
+        $this->postJson('http://public.example/telegram/search',['q'=>'LibreCode'])->assertForbidden();
+        $this->get('http://public.example/telegram/communities')->assertForbidden();
+        $this->get('http://public.example/telegram/avatar')->assertForbidden();
+        $this->postJson('http://public.example/telegram/disconnect')->assertForbidden();
+    }
+
+    public function test_discovery_does_not_read_groups_without_telegram_authorization(): void
+    {
+        $this->postJson('http://localhost/telegram/search',['q'=>'LibreCode'])->assertForbidden();
+        $this->get('http://localhost/telegram/communities')->assertForbidden();
+        $this->get('http://localhost/telegram/avatar')->assertNotFound();
     }
 }

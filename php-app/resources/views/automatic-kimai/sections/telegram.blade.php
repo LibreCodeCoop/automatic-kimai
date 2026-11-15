@@ -1,9 +1,23 @@
 <section id="telegram-setup" aria-labelledby="telegram-heading">
 <h2 id="telegram-heading">Conectar Telegram</h2>
-<p class="muted">Conecte sua conta no celular usando o QR Code. Depois escolha os grupos de trabalho que o aplicativo poderá consultar.</p>
-<div id="tg-connected-banner" class="connection-summary" hidden>
-<div class="connected-icon">@include('automatic-kimai.components.icon',['name'=>'circle-check'])</div>
-<div><strong>Telegram conectado</strong><p class="muted">Escolha abaixo os grupos profissionais. Nenhuma conversa privada é selecionada automaticamente.</p></div>
+<p class="muted">Conecte sua conta pelo QR Code e selecione os grupos de trabalho que podem ser analisados.</p>
+<div id="tg-connected-banner" class="nextcloud-account-card" hidden>
+<div class="nextcloud-account-header">
+<div class="nextcloud-avatar-wrap">
+<img id="tg-avatar" class="nextcloud-avatar" width="68" height="68" alt="Avatar da conta Telegram" referrerpolicy="no-referrer" hidden>
+<div id="tg-avatar-fallback" class="nextcloud-avatar-fallback" aria-hidden="true">T</div>
+</div>
+<div class="nextcloud-account-identity">
+<p class="eyebrow">Conta Telegram</p>
+<h2 id="tg-account-name">Conta conectada</h2>
+<p id="tg-account-username" class="muted"></p>
+</div>
+<div class="nextcloud-account-status">@include('automatic-kimai.components.icon',['name'=>'circle-check']) Conta autenticada</div>
+</div>
+<div class="nextcloud-account-actions">
+<button type="button" id="tg-disconnect" class="secondary">Desconectar conta Telegram</button>
+</div>
+<p id="tg-disconnect-status" class="muted" role="status" aria-live="polite"></p>
 </div>
 
 <div id="tg-login-step">
@@ -43,7 +57,13 @@
 <div id="tg-groups-step" hidden>
 <div class="onboarding-step">
 <div class="step-heading"><span class="step-number">2</span><div><h3>Escolher grupos profissionais</h3><p class="muted">Apenas grupos e supergrupos são exibidos. Contatos individuais e canais de transmissão não entram na lista.</p></div></div>
-<p class="muted">Marque os grupos que podem contribuir para a análise das horas. Os nomes são exibidos aqui somente após sua autenticação; selecionar grupos não consulta mensagens nem publica horas.</p>
+<p class="muted">Você pode selecionar grupos individualmente ou expandir uma comunidade para selecionar os grupos vinculados dos quais participa. Comunidades são agrupadores; canais e bots não são fontes de mensagens de trabalho.</p>
+<div id="tg-communities-area" class="telegram-communities-area" hidden>
+<h3>Suas comunidades</h3>
+<p class="muted">Abra uma comunidade para escolher seus grupos. Nada é ativado sem salvar e confirmar a análise.</p>
+<div id="tg-communities-list" class="telegram-communities-list"></div>
+<p id="tg-communities-status" class="muted" role="status" aria-live="polite"></p>
+</div>
 <form id="tg-groups-form">
 <div id="tg-selected-area" class="telegram-selected-area" hidden>
 <div class="telegram-selected-heading">
@@ -55,8 +75,9 @@
 <p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram pré-selecionados como sugestões. Confira os grupos antes de salvar; nenhuma nova coleta começa automaticamente.</p>
 </div>
 <div class="group-selection-toolbar">
-<label for="tg-search">Buscar entre os grupos carregados</label>
-<input type="search" id="tg-search" placeholder="Nome do grupo" autocomplete="off">
+<label for="tg-search">Buscar em todos os grupos do Telegram</label>
+<input type="search" id="tg-search" placeholder="Ex.: LibreCode (inclui arquivados)" autocomplete="off" minlength="2" maxlength="80" aria-describedby="tg-search-status">
+<p id="tg-search-status" class="muted" role="status" aria-live="polite">Digite pelo menos 2 caracteres para pesquisar em todas as páginas.</p>
 <div class="telegram-folder-switch" role="group" aria-label="Exibir conversas Telegram">
 <button type="button" id="tg-folder-active" class="secondary" aria-pressed="true">Não arquivados</button>
 <button type="button" id="tg-folder-archived" class="secondary" aria-pressed="false">Arquivados</button>
@@ -77,7 +98,7 @@
 <button type="button" id="tg-load-more" class="secondary" hidden>Carregar mais grupos</button>
 <span id="tg-page-status" class="muted" role="status" aria-live="polite"></span>
 </div>
-<p class="muted">Inicialmente aparecem apenas conversas não arquivadas. A busca e a ordenação abrangem os grupos já carregados; as demais páginas são buscadas sob demanda.</p>
+<p class="muted">Na navegação, mais conversas são carregadas conforme você avança. A busca consulta as demais páginas automaticamente, incluindo arquivadas; o progresso e eventuais limites aparecem acima.</p>
 <p id="tg-group-count" class="muted">Nenhum grupo selecionado.</p>
 <button id="tg-save-groups" type="submit" disabled>Salvar seleção de grupos</button>
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>

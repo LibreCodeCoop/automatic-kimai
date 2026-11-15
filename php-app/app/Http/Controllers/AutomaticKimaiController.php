@@ -251,7 +251,7 @@ final class AutomaticKimaiController extends Controller
             }
             if ($credentials===[])return back()->with('ok','Nenhuma conexão foi alterada.');
             $this->store->saveCredentials($credentials);
-            return back()->with('ok','Conexões verificadas e salvas localmente.');
+            return back()->with('ok','Credenciais salvas localmente. Confira a identidade e o estado da conta na página da conexão.');
         } catch(Throwable $e) {
             return back()->withErrors(['connectors'=>$e->getMessage()]);
         }

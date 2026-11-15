@@ -125,18 +125,15 @@ final class LocalStore
         chmod($path,0600);
     }
 
-    /** Discard only this device's Nextcloud app password, preserving all other integrations. */
-    public function disconnectNextcloud(): void
+    /** Discard only the named secrets, using the same atomic encrypted store. */
+    private function forgetCredentials(array $keys): void
     {
         $credentials=$this->credentials();
-        foreach (['NEXTCLOUD_URL','NEXTCLOUD_USERNAME','NEXTCLOUD_LOGIN_NAME',
-            'NEXTCLOUD_APP_PASSWORD'] as $key) {
-            unset($credentials[$key]);
-        }
+        foreach ($keys as $key)unset($credentials[$key]);
         $path=$this->path('secrets.enc');
         $tmp=$path.'.'.bin2hex(random_bytes(6)).'.tmp';
         $file=fopen($tmp,'x');
-        if (!$file)throw new RuntimeException('Cannot clear Nextcloud credentials');
+        if (!$file)throw new RuntimeException('Cannot clear selected credentials');
         chmod($tmp,0600);
         try {
             fwrite($file,Crypt::encryptString(json_encode($credentials,JSON_THROW_ON_ERROR)));
@@ -144,6 +141,20 @@ final class LocalStore
         } finally {fclose($file);}
         if (!rename($tmp,$path))throw new RuntimeException('Cannot publish cleared credentials');
         chmod($path,0600);
+    }
+
+    /** Local disconnect; remote GitHub token revocation is managed on GitHub. */
+    public function disconnectGitHub(): void
+    {
+        $this->forgetCredentials(['GITHUB_TOKEN']);
+    }
+
+    /** Discard only this device's Nextcloud app password, preserving all other integrations. */
+    public function disconnectNextcloud(): void
+    {
+        $this->forgetCredentials([
+            'NEXTCLOUD_URL','NEXTCLOUD_USERNAME','NEXTCLOUD_LOGIN_NAME','NEXTCLOUD_APP_PASSWORD'
+        ]);
         $this->write('nextcloud-login.json',[]);
     }
 

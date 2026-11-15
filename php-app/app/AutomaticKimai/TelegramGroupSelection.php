@@ -32,7 +32,7 @@ final class TelegramGroupSelection
         );
     }
 
-    private static function parseCursor(string $token,int $account,int $folder): array
+    private static function parseCursor(string $token,int $account,int $folder,?string $query=null): array
     {
         if ($token==='' || strlen($token)>2048) {
             throw new InvalidArgumentException('Cursor de paginação inválido');
@@ -45,6 +45,7 @@ final class TelegramGroupSelection
         if (!is_array($value)||($value['v']??null)!==1||
             ($value['account']??null)!==$account ||
             ($value['folder']??null)!==$folder ||
+            ($value['q']??null)!==($query===null ? null : hash('sha256',$query)) ||
             !is_int($value['issued']??null)||
             $value['issued']>time()+30||
             $value['issued']<time()-self::CURSOR_TTL) {
@@ -60,12 +61,13 @@ final class TelegramGroupSelection
         return $offset;
     }
 
-    private static function nextCursor(?array $offset,int $account,int $folder): ?string
+    private static function nextCursor(?array $offset,int $account,int $folder,?string $query=null): ?string
     {
         if ($offset===null)return null;
         return Crypt::encryptString(json_encode([
             'v'=>1, 'account'=>$account, 'folder'=>$folder,
             'issued'=>time(), 'offset'=>$offset,
+            'q'=>$query===null?null:hash('sha256',$query),
         ],JSON_THROW_ON_ERROR));
     }
 
@@ -151,6 +153,75 @@ final class TelegramGroupSelection
             'suggestions_allowed'=>$suggestionsAllowed,
             'scanned_dialog_count'=>$result['scanned_dialog_count'],
         ];
+    }
+
+    /**
+     * Explicit account-wide search, not a filter over the first loaded page.
+     * Scans at most 5 x 100 dialog headers per request (no history); callers
+     * continue with a query-bound encrypted cursor until both folders end.
+     */
+    public function search(string $query,?string $cursor=null,?object $client=null,int $folder=0): array
+    {
+        $query=trim($query);
+        if (mb_strlen($query)<2||mb_strlen($query)>80||
+            preg_match('/[\\x00-\\x1F\\x7F]/u',$query)===1||
+            !in_array($folder,[0,1],true)) {
+            throw new InvalidArgumentException('Informe pelo menos dois caracteres para buscar grupos.');
+        }
+        $normalized=mb_strtolower($query,'UTF-8');
+        $own=$client===null;
+        $client??=$this->adapter();
+        try {
+            $account=$client->selfId();
+            if (!is_int($account)||$account<=0)throw new RuntimeException('Conta inválida');
+            $offset=$cursor===null?null:self::parseCursor($cursor,$account,$folder,$normalized);
+            $matched=[];$scanned=0;$next=null;
+            for ($i=0;$i<5;$i++) {
+                $result=$client->groupsPage($offset,$folder,100);
+                if (!is_array($result)||!is_array($result['groups']??null)||
+                    !is_int($result['scanned_dialog_count']??null)||
+                    count($result['groups'])>200||
+                    $result['scanned_dialog_count']>200) {
+                    throw new RuntimeException('Resposta Telegram inválida');
+                }
+                $scanned+=$result['scanned_dialog_count'];
+                foreach ($result['groups'] as $group) {
+                    if (!is_array($group)||!is_int($group['id']??null)||
+                        !is_string($group['title']??null))continue;
+                    if (mb_stripos($group['title'],$query,0,'UTF-8')!==false) {
+                        $matched[$group['id']]=$group;
+                    }
+                }
+                $next=$result['next_offset']??null;
+                if ($next===null)break;
+                if (!is_array($next)||$next===$offset) {
+                    throw new RuntimeException('Busca Telegram sem avanço');
+                }
+                $offset=$next;
+            }
+        } finally {
+            if ($own && method_exists($client,'close'))$client->close();
+        }
+        return [
+            'status'=>'ok','groups'=>array_values($matched),
+            'folder'=>$folder,'next_cursor'=>self::nextCursor($next,$account,$folder,$normalized),
+            'scanned_dialog_count'=>$scanned,
+        ];
+    }
+
+    /** Native community containers, including only joined selectable child groups. */
+    public function communities(?object $client=null): array
+    {
+        $own=$client===null;
+        $client??=$this->adapter();
+        try {
+            $items=method_exists($client,'communitiesCatalog') ?
+                $client->communitiesCatalog():[];
+            if (!is_array($items)||count($items)>15)throw new RuntimeException('Comunidades inválidas');
+            return $items;
+        } finally {
+            if ($own && method_exists($client,'close'))$client->close();
+        }
     }
 
     /**

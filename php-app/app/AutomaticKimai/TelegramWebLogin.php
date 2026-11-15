@@ -62,12 +62,29 @@ final class TelegramWebLogin
         return $pid>0 && function_exists('posix_kill') && @posix_kill($pid,0);
     }
 
+    /** Authorized profile information, without phone, contacts or API secrets. */
+    public static function publicAccount(array $self): ?array
+    {
+        if (!is_int($self['id']??null)||$self['id']<1||($self['bot']??false)===true) {
+            return null;
+        }
+        $name=trim((string)($self['first_name']??'').' '.(string)($self['last_name']??''));
+        $username=(string)($self['username']??'');
+        if (mb_strlen($username)>64||preg_match('/^[a-zA-Z0-9_]*$/D',$username)!==1)$username='';
+        return [
+            'id'=>(string)$self['id'],
+            'display_name'=>mb_substr($name!==''?$name:'Usuário Telegram',0,120),
+            'username'=>$username,
+        ];
+    }
+
     /** Only an already verified private MTProto session can enable collection. */
-    private function verifySession(): bool
+    private function verifiedAccount(): ?array
     {
         $secrets=$this->store->credentials();
         $session=$this->store->root().'/telegram-user.session';
-        if (!is_dir($session)||is_link($session))return false;
+        if (!is_dir($session)||is_link($session)||
+            empty($secrets['TELEGRAM_API_ID'])||empty($secrets['TELEGRAM_API_HASH']))return null;
         $old=umask(0077);
         try {
             $api=new API($session,MadelineTelegramAdapter::settings(
@@ -77,12 +94,11 @@ final class TelegramWebLogin
             ));
             $me=$api->getSelf();
             $valid=$api->getAuthorization()===API::LOGGED_IN &&
-                is_array($me) && is_int($me['id']??null) &&
-                ($me['bot']??false)===false;
+                is_array($me)?self::publicAccount($me):null;
             unset($api);
             return $valid;
         } catch (\Throwable) {
-            return false;
+            return null;
         } finally {umask($old);}
     }
 
@@ -92,14 +108,16 @@ final class TelegramWebLogin
         $state=$this->readWorkerState();
         if ($state!==null) {
             if (($state['status']??null)==='authorized') {
-                return $this->verifySession()?['status'=>'authorized']:['status'=>'ready_for_qr'];
+                $account=$this->verifiedAccount();
+                return $account ? ['status'=>'authorized','account'=>$account] : ['status'=>'ready_for_qr'];
             }
             if (self::activeWorker($state))return $this->publicState($state);
             if (in_array($state['status']??'', ['expired','error'],true)) {
                 return $this->publicState($state);
             }
         }
-        return $this->verifySession()?['status'=>'authorized']:['status'=>'ready_for_qr'];
+        $account=$this->verifiedAccount();
+        return $account ? ['status'=>'authorized','account'=>$account] : ['status'=>'ready_for_qr'];
     }
 
     public function startQr(): array
@@ -135,6 +153,110 @@ final class TelegramWebLogin
         return ['status'=>'pending'];
     }
 
+    /**
+     * Download only this account's small profile picture. No file is persisted,
+     * and SVG/unknown image formats are never proxied into the desktop UI.
+     */
+    public function avatar(?object $client=null): ?array
+    {
+        if (!$this->configured())return null;
+        $session=$this->store->root().'/telegram-user.session';
+        if ((!is_dir($session)&&$client===null)||is_link($session))return null;
+        $credentials=$this->store->credentials();
+        $own=$client===null;
+        $old=umask(0077);
+        try {
+            $client??=new API($session,MadelineTelegramAdapter::settings(
+                (int)$credentials['TELEGRAM_API_ID'],(string)$credentials['TELEGRAM_API_HASH'],
+                $this->store->root().'/telegram-user.log'
+            ));
+            $self=$client->getSelf();
+            if (!is_array($self)||self::publicAccount($self)===null) return null;
+            $list=$client->photos->getUserPhotos(
+                user_id:'me',offset:0,max_id:0,limit:1
+            );
+            $photo=$list['photos'][0]??null;
+            if (!is_array($photo)||($photo['_']??null)!=='photo')return null;
+            $small=[];
+            foreach ($photo['sizes']??[] as $size) {
+                if (!is_array($size)||!is_int($size['w']??null)||
+                    !is_int($size['h']??null)||
+                    $size['w']<1||$size['h']<1||
+                    $size['w']>320||$size['h']>320)continue;
+                if ($small===[]||$size['w']*$size['h']>$small['w']*$small['h'])$small=$size;
+            }
+            if ($small===[])return null;
+            $photo['sizes']=[$small];
+            $bytes='';
+            $client->downloadToCallable($photo,static function(string $chunk,int $offset)use(&$bytes) {
+                if ($offset!==strlen($bytes)||strlen($bytes)+strlen($chunk)>262144) {
+                    throw new RuntimeException('Telegram avatar exceeds safe download bounds');
+                }
+                $bytes.=$chunk;
+            },null,false,0,262144);
+            return self::safeAvatar($bytes);
+        } catch (\Throwable) {
+            return null;
+        } finally {
+            if ($own)unset($client);
+            umask($old);
+        }
+    }
+
+    public static function safeAvatar(string $content): ?array
+    {
+        if ($content===''||strlen($content)>262144)return null;
+        $size=@getimagesizefromstring($content);
+        if ($size===false||($size[0]??0)>512||($size[1]??0)>512)return null;
+        $mime=$size['mime']??null;
+        if (!in_array($mime,['image/jpeg','image/png','image/webp'],true))return null;
+        return ['mime'=>$mime,'body'=>$content];
+    }
+
+    /**
+     * Explicit local logout and remote session revocation. The Telegram app
+     * ID/hash are kept for future QR login; group selections are account-bound
+     * and must not carry over to another Telegram identity.
+     */
+    public function disconnect(?object $client=null): array
+    {
+        $this->store->setSources(['telegram'=>false]);
+        $worker=$this->readWorkerState();
+        if ($client===null && $worker!==null && self::activeWorker($worker)) {
+            throw new RuntimeException('Há uma autenticação Telegram em andamento');
+        }
+        $session=$this->store->root().'/telegram-user.session';
+        if (is_link($session))throw new RuntimeException('Sessão Telegram insegura');
+        if (is_dir($session)||$client!==null) {
+            $creds=$this->store->credentials();
+            $own=$client===null;
+            $old=umask(0077);
+            try {
+                $client??=new API($session,MadelineTelegramAdapter::settings(
+                    (int)$creds['TELEGRAM_API_ID'],(string)$creds['TELEGRAM_API_HASH'],
+                    $this->store->root().'/telegram-user.log'
+                ));
+                $client->logout();
+            } finally {
+                if ($own)unset($client);
+                umask($old);
+            }
+        }
+        $this->store->write('telegram-login-state.json',[]);
+        $profile=$this->store->profile();
+        if ($profile!==null) {
+            $settings=$profile->toArray();
+            $settings['work_messenger_dialog_ids']=[];
+            $settings['work_messenger_group_titles']=[];
+            $settings['work_messenger_labels']=[];
+            $settings['work_messenger_recommendations_reviewed']=false;
+            $this->store->saveProfile(new Profile($settings));
+        }
+        $this->store->write('telegram_scoped_history.json',[]);
+        $this->store->write('telegram_read_progress.json',[]);
+        return ['status'=>'disconnected','enabled'=>false];
+    }
+
     /** Only the worker decrypts this; the web process never handles Telegram RPC. */
     public function complete2fa(#[\SensitiveParameter] string $password): array
     {
@@ -163,7 +285,7 @@ final class TelegramWebLogin
 
     public function verifyAndActivate(bool $activate=true): array
     {
-        if ($this->status()['status']!=='authorized' || !$this->verifySession()) {
+        if ($this->status()['status']!=='authorized') {
             throw new RuntimeException('Telegram ainda não autenticado neste dispositivo');
         }
         if ($activate) {

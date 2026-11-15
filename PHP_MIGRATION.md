@@ -325,3 +325,50 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   foi verificada em Chromium headless em quatro larguras; o perfil e o avatar
   da conta já vinculada responderam HTTP 200 no servidor autorizado, mas as
   novas coletas Activity/Mail não foram executadas contra dados reais.
+
+## Identidade e busca Telegram, comunidades nativas e conta GitHub (15/11/2026)
+
+- **Telegram:** a tela conectada apresenta nome, username e avatar (imagem
+  pequena JPEG/PNG/WebP, sem foto ou telefone persistidos). Em sua ausência,
+  exibe a inicial. O botão **Desconectar conta Telegram** requer confirmação,
+  desativa imediatamente a coleta, executa a revogação MTProto e só após seu
+  sucesso limpa a seleção de grupos e os metadados locais da conta. Mantém
+  ID/hash do aplicativo (não identificam o usuário) e outras integrações.
+  A revogação é uma ação do usuário: não é acionada no carregamento da tela.
+- A antiga busca no cliente filtrava apenas os títulos já paginados.
+  Agora é feita uma **busca explícita** no catálogo MTProto da conta,
+  incluindo diálogos não arquivados e arquivados. O servidor busca em lotes
+  de até 5 páginas × 100 diálogos por requisição, com cursores criptografados
+  vinculados a conta, consulta e pasta. A interface percorre até dez lotes
+  por pasta, permite cancelar uma consulta antiga e exibe o progresso e
+  resultados parciais. As buscas usam POST com CSRF, sem nomes de grupos
+  em URLs ou logs de acesso. A busca não lê históricos nem textos de mensagens.
+  Em contas extremamente grandes, a interface informa o limite em vez de
+  afirmar que listou todos os grupos.
+- **Comunidades Telegram nativas** são distintas de pastas de conversas
+  e de grupos com tópicos. Com base no Telegram Desktop upstream e no TL
+  da versão instalada do MadelineProto, a interface lê comunidades vinculadas
+  e seus pares communityFull.linked_peers, com visualização expansível e seleção
+  individual dos grupos elegíveis. **Selecionar os grupos da comunidade**
+  seleciona somente chats/grupos a que a conta tem acesso, jamais bots,
+  canais de transmissão, membros ausentes ou a comunidade como um histórico
+  fictício. Salvar uma seleção ainda suspende a coleta até a ativação
+  explícita, como antes.
+- **GitHub:** com token salvo, a interface consulta o endpoint autenticado
+  /user para exibir nome e login da conta. O avatar é servido pelo proxy
+  local a partir de avatars.githubusercontent.com/u/ID, validado e sem
+  enviar a chave ao CDN. Quando indisponível, exibe a inicial e marca
+  identidade não verificada. **Desconectar deste computador** apaga apenas
+  o token local do GitHub, preservando outras integrações; revogar o token
+  no servidor exige ação na conta GitHub.
+- As novas chamadas de descoberta e imagem são restritas ao localhost,
+  GET somente leitura e limites de requisição, inclusive por quantidade
+  de páginas, grupos e tamanho de imagem. Não há importação de credenciais
+  pessoais para código ou builds de distribuição.
+- Testes com fakes cobrem resultados de busca em páginas profundas e
+  arquivadas, escopo de cursores, comunidades elegíveis, identidade
+  sanitizada, avatar e falha/revogação. Chromium headless validou seleção
+  de comunidade e busca em dois tamanhos de tela com APIs simuladas.
+  **Ainda pendente homologar com uma comunidade Telegram real.**
+  Nenhuma sessão Telegram real foi desconectada durante o desenvolvimento.
+  O PHP segue em modo shadow somente leitura, sem publicação de horas.

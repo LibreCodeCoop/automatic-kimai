@@ -9,6 +9,10 @@
     activate:@json(route('kimai.telegram.activate')),
     groups:@json(route('kimai.telegram.groups')),
     saveGroups:@json(route('kimai.telegram.groups.save')),
+    search:@json(route('kimai.telegram.search')),
+    communities:@json(route('kimai.telegram.communities')),
+    avatar:@json(route('kimai.telegram.avatar')),
+    disconnect:@json(route('kimai.telegram.disconnect')),
   };
   const csrf=@json(csrf_token());
   let poll=null;
@@ -22,6 +26,15 @@
   let selectedSelection=new Set();
   const manuallyExcludedSuggestions=new Set();
   const loadedGroups=new Map();
+  const searchMatches=new Set();
+  const nativeCommunities=[];
+  let searchGeneration=0;
+  let searchTimer=null;
+  let searchController=null;
+  let searchBusy=false;
+  let searchCompleted=false;
+  let communitiesLoaded=false;
+  let avatarRequested=false;
   const pages={
     0:{cursor:null,loaded:false,scanned:0,seen:0,loading:false,error:false,errorMessage:''},
     1:{cursor:null,loaded:false,scanned:0,seen:0,loading:false,error:false,errorMessage:''},
@@ -30,11 +43,11 @@
 
   const message=value=>{status.textContent=value;};
   const stopPoll=()=>{if(poll!==null)clearInterval(poll);poll=null;};
-  const post=async (url,payload={})=>{
+  const post=async (url,payload={},signal=null)=>{
     const response=await fetch(url,{
       method:'POST',credentials:'same-origin',cache:'no-store',
       headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},
-      body:JSON.stringify(payload),
+      body:JSON.stringify(payload),signal,
     });
     const data=await response.json();
     if(!response.ok)throw new Error(data.message||'Operação não concluída. Tente novamente.');
@@ -59,9 +72,11 @@
     $('tg-selected-area').hidden=selectedSelection.size===0;
     $('tg-selected-count').textContent=String(selectedSelection.size);
 
+    const searching=search.length>=2;
     const others=[...loadedGroups.values()].filter(group=>
       !selectedSelection.has(group.id) &&
-      (group.folders.has(activeFolder) || group.recommended));
+      (searching ? searchMatches.has(group.id) :
+        (group.folders.has(activeFolder) || group.recommended)));
     others.sort((a,b)=>alphabetically?
       collator.compare(a.title,b.title):
       (a.orders[activeFolder]??Number.MAX_SAFE_INTEGER)-
@@ -70,7 +85,7 @@
     let visible=0;
     for(const group of others){
       group.checkbox.checked=false;
-      group.element.hidden=search!==''&&!group.title.toLocaleLowerCase().includes(search);
+      group.element.hidden=!searching&&search!==''&&!group.title.toLocaleLowerCase().includes(search);
       if(!group.element.hidden)visible++;
       fragment.appendChild(group.element);
     }
@@ -78,22 +93,24 @@
       const note=document.createElement('p');
       note.className='muted';
       if(current.error)note.setAttribute('role','alert');
-      note.textContent=current.error?
-        current.errorMessage:
-        current.loading?
-          'Carregando a primeira página…':
-        current.loaded?
-          (current.cursor===null?'Nenhum outro grupo nesta categoria.':
-            'Nenhum outro grupo nesta página. Carregue mais para continuar.'):
-          'Escolha uma categoria para carregar seus grupos.';
+      note.textContent=searching ?
+        (searchBusy?'Consultando as páginas do Telegram…':
+          searchCompleted?'Nenhum grupo correspondente nesta conta.':
+            'Digite para buscar nos grupos da conta.') :
+        current.error?current.errorMessage:
+        current.loading?'Carregando a primeira página…':
+        current.loaded?(current.cursor===null?'Nenhum outro grupo nesta categoria.':
+          'Nenhum outro grupo nesta página. Carregue mais para continuar.'):
+        'Escolha uma categoria para carregar seus grupos.';
       fragment.appendChild(note);
     }
     $('tg-group-list').replaceChildren(fragment);
     $('tg-group-list').scrollTop=previousScroll;
-    $('tg-page-status').textContent=current.seen+' grupos carregados'+
-      (search?' · '+visible+' correspondem à busca':'')+
+    $('tg-page-status').textContent=searching ?
+      visible+' grupos encontrados na busca'+(searchBusy?' · buscando…':'') :
+      current.seen+' grupos carregados'+
       (current.cursor!==null?' · há mais páginas':current.loaded?' · fim da lista':'');
-    $('tg-load-more').hidden=!(current.error || (current.loaded&&current.cursor!==null));
+    $('tg-load-more').hidden=searching||!(current.error || (current.loaded&&current.cursor!==null));
     $('tg-load-more').disabled=fetchingGroups;
     $('tg-reload-groups').disabled=fetchingGroups;
     $('tg-load-more').textContent=current.error?
@@ -109,6 +126,10 @@
     $('tg-enabled-area').hidden=!enabled;
     $('tg-suggestion-note').hidden=!(hasChanges && suggestionsAllowed &&
       selected.some(group=>group.recommended));
+    // Group checkboxes are duplicated in native community views; keep them in sync.
+    for (const control of $('tg-communities-list').querySelectorAll('[data-community-group]')) {
+      control.checked=selectedSelection.has(control.dataset.communityGroup);
+    }
   };
   const upsertGroup=(source,folder=null)=>{
     if(!source||!Number.isSafeInteger(source.id)||
@@ -154,6 +175,12 @@
       group.title=source.title;
       group.labelTitle.textContent=group.title;
     }
+    if(source.archived===true && group.archiveBadge===undefined){
+      group.archiveBadge=document.createElement('span');
+      group.archiveBadge.className='group-recommendation';
+      group.archiveBadge.textContent='Arquivado';
+      group.element.appendChild(group.archiveBadge);
+    }
     if(folder!==null){
       group.folders.add(folder);
       if(group.orders[folder]===undefined)group.orders[folder]=pages[folder].seen++;
@@ -179,7 +206,211 @@
          selectedSelection.size<40)selectedSelection.add(id);
     }
   };
+  const requestJson=async (url,signal) => {
+    const response=await fetch(url,{
+      credentials:'same-origin',cache:'no-store',
+      headers:{Accept:'application/json'},signal,
+    });
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.message||'Consulta indisponível.');
+    return data;
+  };
+
+  const loadCommunities=async()=>{
+    if(communitiesLoaded)return;
+    communitiesLoaded=true;
+    $('tg-communities-status').textContent='Consultando comunidades vinculadas…';
+    try{
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),18000);
+      let data;
+      try{data=await requestJson(urls.communities,controller.signal);}
+      finally{clearTimeout(timer);}
+      if(data.status!=='ok'||!Array.isArray(data.communities)||data.communities.length>15) {
+        throw new Error('Formato inesperado das comunidades.');
+      }
+      const fragment=document.createDocumentFragment();
+      for(const item of data.communities) {
+        if(!item||!Number.isSafeInteger(item.id)||
+           typeof item.title!=='string'||!Array.isArray(item.groups))continue;
+        const children=item.groups.filter(g=>g&&Number.isSafeInteger(g.id)&&
+           typeof g.title==='string'&&g.title.trim()!=='');
+        if(children.length>120)continue;
+        const detail=document.createElement('details');
+        detail.className='telegram-community';
+        const summary=document.createElement('summary');
+        const name=document.createElement('strong');
+        name.textContent=item.title;
+        const count=document.createElement('small');
+        count.textContent=children.length+' grupo(s) disponíveis';
+        summary.append(name,count);
+        detail.append(summary);
+        const content=document.createElement('div');
+        content.className='telegram-community-content';
+        const info=document.createElement('p');
+        info.className='muted';
+        info.textContent='Somente grupos em que você participa; canais e bots ficam fora da análise.';
+        content.append(info);
+        if(children.length){
+          const selectAll=document.createElement('button');
+          selectAll.type='button';
+          selectAll.className='secondary';
+          selectAll.textContent='Selecionar grupos desta comunidade';
+          selectAll.addEventListener('click',()=>{
+            const ids=children.map(g=>String(g.id));
+            const fresh=ids.filter(id=>!selectedSelection.has(id));
+            if(selectedSelection.size+fresh.length>40){
+              $('tg-groups-status').textContent='O limite é 40 grupos. Desmarque alguns antes de selecionar esta comunidade.';
+              return;
+            }
+            for(const id of fresh)selectedSelection.add(id);
+            renderList();
+          });
+          content.append(selectAll);
+          const list=document.createElement('div');
+          list.className='telegram-community-members';
+          for(const child of children){
+            upsertGroup(child);
+            const label=document.createElement('label');
+            label.className='telegram-group-option';
+            const input=document.createElement('input');
+            input.type='checkbox';
+            input.dataset.communityGroup=String(child.id);
+            input.addEventListener('change',()=>{
+              const id=String(child.id);
+              if(input.checked){
+                if(selectedSelection.size>=40){
+                  input.checked=false;
+                  $('tg-groups-status').textContent='Selecione no máximo 40 grupos.';
+                  return;
+                }
+                selectedSelection.add(id);
+              }else selectedSelection.delete(id);
+              renderList();
+            });
+            const text=document.createElement('span');
+            text.textContent=child.title;
+            label.append(input,text);
+            list.append(label);
+          }
+          content.append(list);
+        } else {
+          const empty=document.createElement('p');
+          empty.className='muted';
+          empty.textContent='Nenhum grupo desta comunidade está disponível para coleta nesta conta.';
+          content.append(empty);
+        }
+        detail.append(content);
+        fragment.append(detail);
+        nativeCommunities.push({id:String(item.id),title:item.title,groups:children});
+      }
+      $('tg-communities-list').replaceChildren(fragment);
+      $('tg-communities-area').hidden=nativeCommunities.length===0;
+      $('tg-communities-status').textContent=nativeCommunities.length+
+        ' comunidades disponíveis; selecione apenas os grupos autorizados.';
+      const query=$('tg-search').value.trim().toLocaleLowerCase();
+      if(query.length>=2){
+        for(const community of nativeCommunities){
+          if(community.title.toLocaleLowerCase().includes(query)){
+            for(const group of community.groups)searchMatches.add(String(group.id));
+          }
+        }
+      }
+      renderList();
+    }catch(_error){
+      communitiesLoaded=false;
+      $('tg-communities-area').hidden=false;
+      $('tg-communities-status').textContent='Não foi possível listar as comunidades. Atualize a página para tentar novamente.';
+    }
+  };
+
+  const searchAll=async()=>{
+    const query=$('tg-search').value.trim();
+    const generation=++searchGeneration;
+    if(searchController)searchController.abort();
+    searchMatches.clear();
+    searchCompleted=false;
+    if(query.length<2) {
+      searchBusy=false;
+      $('tg-search-status').textContent='Digite pelo menos 2 caracteres para buscar em todas as páginas.';
+      renderList();
+      return;
+    }
+    searchBusy=true;
+    const controller=new AbortController();
+    searchController=controller;
+    const signal=controller.signal;
+    let scanned=0;
+    let partial=false;
+    const q=query.toLocaleLowerCase();
+    // Native community membership is indexed separately from dialog folders.
+    for(const community of nativeCommunities) {
+      if(community.title.toLocaleLowerCase().includes(q)) {
+        for(const child of community.groups)searchMatches.add(String(child.id));
+      }
+    }
+    renderList();
+    const progress=folder=>{
+      $('tg-search-status').textContent='Buscando "'+query+'" em '+
+        (folder===0?'conversas não arquivadas':'conversas arquivadas')+
+        ' · '+scanned+' diálogos verificados · '+searchMatches.size+' grupos encontrados.';
+    };
+    try {
+      for(const folder of [0,1]){
+        let cursor=null;
+        let batches=0;
+        do {
+          if(signal.aborted||generation!==searchGeneration)return;
+          progress(folder);
+          // POST keeps private group names out of URL, access and referrer logs.
+          const payload={q:query,folder:String(folder)};
+          if(cursor!==null)payload.cursor=cursor;
+          const timeout=setTimeout(()=>controller.abort(),20000);
+          let data;
+          try{data=await post(urls.search,payload,signal);}
+          finally{clearTimeout(timeout);}
+          if(data.status!=='ok'||data.folder!==folder||
+              !Array.isArray(data.groups)||data.groups.length>500||
+              !(data.next_cursor===null||typeof data.next_cursor==='string')) {
+            throw new Error('Resultado de busca inválido.');
+          }
+          scanned+=Number.isSafeInteger(data.scanned_dialog_count)?
+            data.scanned_dialog_count:0;
+          for(const group of data.groups){
+            upsertGroup(group);
+            if(Number.isSafeInteger(group.id))searchMatches.add(String(group.id));
+          }
+          cursor=data.next_cursor;
+          batches++;
+          renderList();
+          if(batches>=10 && cursor!==null){partial=true;break;}
+        }while(cursor!==null);
+      }
+      if(generation!==searchGeneration)return;
+      searchCompleted=true;
+      $('tg-search-status').textContent=searchMatches.size+
+        ' grupos encontrados em '+scanned+' diálogos.'+
+        (partial?' A busca atingiu o limite de segurança; refine o nome para continuar.':
+          ' Busca concluída nas conversas não arquivadas e arquivadas.');
+    }catch(error){
+      if(signal.aborted||generation!==searchGeneration)return;
+      $('tg-search-status').textContent='Busca parcial ('+searchMatches.size+
+        ' encontrados). '+(error.message||'Falha de comunicação')+
+        ' Tente novamente.';
+    }finally{
+      if(generation===searchGeneration){
+        searchBusy=false;
+        searchController=null;
+        renderList();
+      }
+    }
+  };
+
   const reloadCurrent=()=>{
+    if($('tg-search').value.trim().length>=2){
+      void searchAll();
+      return;
+    }
     const folder=activeFolder;
     const page=pages[folder];
     page.cursor=null;page.loaded=false;page.scanned=0;
@@ -264,6 +495,15 @@
     if(!pages[folder].loaded&&!fetchingGroups)loadGroups();
   };
 
+  const avatar=$('tg-avatar');
+  avatar.addEventListener('load',()=>{
+    avatar.hidden=false;
+    $('tg-avatar-fallback').hidden=true;
+  });
+  avatar.addEventListener('error',()=>{
+    avatar.hidden=true;
+    $('tg-avatar-fallback').hidden=false;
+  });
   const applyState=data=>{
     const state=data.status;
     const connected=state==='authorized';
@@ -275,6 +515,19 @@
     $('tg-login-step').hidden=connected;
     $('tg-connected-banner').hidden=!connected;
     $('tg-groups-step').hidden=!connected;
+    if(connected){
+      const account=data.account||{};
+      const name=typeof account.display_name==='string' ?
+        account.display_name:'Conta Telegram conectada';
+      $('tg-account-name').textContent=name;
+      $('tg-account-username').textContent=typeof account.username==='string'&&account.username?
+        '@'+account.username:'Identidade verificada no Telegram';
+      $('tg-avatar-fallback').textContent=(Array.from(name)[0]||'T').toLocaleUpperCase();
+      if(!avatarRequested){
+        avatarRequested=true;
+        avatar.src=urls.avatar;
+      }
+    }
     $('tg-advanced-settings').hidden=connected;
     $('tg-controls').hidden=connected;
     $('tg-2fa-form').hidden=state!=='password_required';
@@ -300,6 +553,7 @@
     if(connected) {
       stopPoll();
       if(!pages[activeFolder].loaded&&!fetchingGroups)loadGroups();
+      if(!communitiesLoaded)void loadCommunities();
       renderList();
     } else {
       $('tg-authorized-area').hidden=true;
@@ -362,11 +616,39 @@
     } catch(error){message(error.message);}
     finally{button.disabled=false;}
   });
-  $('tg-search').addEventListener('input',renderList);
+  $('tg-search').addEventListener('input',()=>{
+    if(searchTimer!==null)clearTimeout(searchTimer);
+    if(searchController)searchController.abort();
+    ++searchGeneration;
+    searchMatches.clear();
+    searchCompleted=false;
+    const q=$('tg-search').value.trim();
+    searchBusy=q.length>=2;
+    $('tg-search-status').textContent=q.length>=2 ?
+      'Preparando busca em todos os grupos…':
+      'Digite pelo menos 2 caracteres para buscar em todas as páginas.';
+    renderList();
+    if(searchBusy)searchTimer=setTimeout(()=>void searchAll(),420);
+  });
   $('tg-sort').addEventListener('change',renderList);
   $('tg-folder-active').addEventListener('click',()=>switchFolder(0));
   $('tg-folder-archived').addEventListener('click',()=>switchFolder(1));
   $('tg-reload-groups').addEventListener('click',reloadCurrent);
+  $('tg-disconnect').addEventListener('click',async()=>{
+    if(!window.confirm('Desconectar a conta Telegram deste dispositivo? Isso revoga a sessão e apaga a seleção e os metadados locais dos grupos. As horas no Kimai não serão alteradas.'))return;
+    const button=$('tg-disconnect');
+    button.disabled=true;
+    $('tg-disconnect-status').textContent='Encerrando sessão do Telegram…';
+    try{
+      const result=await post(urls.disconnect);
+      if(result.status!=='disconnected')throw new Error('Falha ao desconectar.');
+      $('tg-disconnect-status').textContent='Telegram desconectado. Atualizando a tela…';
+      window.location.reload();
+    }catch(error){
+      $('tg-disconnect-status').textContent=error.message;
+      button.disabled=false;
+    }
+  });
   $('tg-load-more').addEventListener('click',loadGroups);
   $('tg-clear-selected').addEventListener('click',()=>{
     for(const id of selectedSelection){
@@ -379,7 +661,8 @@
   $('tg-group-list').addEventListener('scroll',()=>{
     const list=$('tg-group-list');
     const page=pages[activeFolder];
-    if(page.loaded&&!fetchingGroups&&page.cursor!==null&&
+    if($('tg-search').value.trim().length<2&&
+       page.loaded&&!fetchingGroups&&page.cursor!==null&&
        list.scrollHeight>list.clientHeight &&
        list.scrollTop+list.clientHeight>=list.scrollHeight-85){
       loadGroups();

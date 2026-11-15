@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=12">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=13">
 </head>
 <body>
 <header class="app-header">
@@ -91,6 +91,9 @@ try {
 @endif
 @if($view==='nextcloud')
 @include('automatic-kimai.scripts.nextcloud')
+@endif
+@if($view==='github')
+@include('automatic-kimai.scripts.github')
 @endif
 </script>
 </body>

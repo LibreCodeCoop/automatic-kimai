@@ -102,6 +102,76 @@ final class TelegramController extends Controller
         }
     }
 
+    public function search(Request $request,TelegramWebLogin $login,
+                           TelegramGroupSelection $selection): JsonResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        if (($login->status()['status']??null)!=='authorized') {
+            return self::noCache(['status'=>'error','message'=>'Conecte o Telegram para buscar grupos'],403);
+        }
+        $input=$request->validate([
+            'q'=>'required|string|min:2|max:80',
+            'cursor'=>'sometimes|string|max:2048',
+            'folder'=>'sometimes|in:0,1',
+        ]);
+        try {
+            return self::noCache($selection->search(
+                $input['q'],$input['cursor']??null,null,
+                (int)($input['folder']??0)
+            ));
+        } catch (\InvalidArgumentException) {
+            return self::noCache(['status'=>'error',
+                'message'=>'Busca inválida ou expirada. Digite o nome novamente.'],422);
+        } catch (Throwable) {
+            return self::noCache(['status'=>'error',
+                'message'=>'Não foi possível concluir esta etapa da busca. Tente novamente.'],503);
+        }
+    }
+
+    public function communities(Request $request,TelegramWebLogin $login,
+                                TelegramGroupSelection $selection): JsonResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        if (($login->status()['status']??null)!=='authorized') {
+            return self::noCache(['status'=>'error','message'=>'Telegram não conectado'],403);
+        }
+        try {
+            return self::noCache([
+                'status'=>'ok','communities'=>$selection->communities()
+            ]);
+        } catch(Throwable) {
+            return self::noCache(['status'=>'error',
+                'message'=>'Não foi possível consultar as comunidades do Telegram.'],503);
+        }
+    }
+
+    public function avatar(Request $request,TelegramWebLogin $login): \Illuminate\Http\Response
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        $image=$login->avatar();
+        if ($image===null)return response('',404)->header('Cache-Control','no-store');
+        return response($image['body'],200)
+            ->header('Content-Type',$image['mime'])
+            ->header('Cache-Control','private, no-store, max-age=0')
+            ->header('X-Content-Type-Options','nosniff')
+            ->header('Content-Security-Policy',"default-src 'none'; sandbox");
+    }
+
+    public function disconnect(Request $request,TelegramWebLogin $login): JsonResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        try {
+            return self::noCache($login->disconnect());
+        } catch(Throwable) {
+            return self::noCache(['status'=>'error',
+                'message'=>'Não foi possível encerrar a sessão no Telegram. A análise local foi suspensa.'],503);
+        }
+    }
+
     public function selectGroups(Request $request,TelegramWebLogin $login,
                                  TelegramGroupSelection $selection): JsonResponse
     {

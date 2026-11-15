@@ -110,24 +110,25 @@ final class MadelineTelegramAdapter
     // on the first page. Never reject valid responses because of this.
     public const MAX_PINNED=100;
 
-    public function groupsPage(?array $offset=null,int $folder=0): array
+    public function groupsPage(?array $offset=null,int $folder=0,int $limit=self::PAGE_SIZE): array
     {
         if (!in_array($folder,[0,1],true)) {
             throw new RuntimeException('Invalid Telegram archive folder');
         }
+        if ($limit<1 || $limit>100)throw new RuntimeException('Invalid Telegram page size');
         $raw=$this->api->messages->getDialogs(
             exclude_pinned:$offset!==null,
             folder_id:$folder,
             offset_date:(int)($offset['date']??0),
             offset_id:(int)($offset['id']??0),
             offset_peer:$offset['peer']??['_'=>'inputPeerEmpty'],
-            limit:self::PAGE_SIZE,
+            limit:$limit,
             hash:0,
         );
         return self::filterDialogPage(
             $raw,
             fn(array $peer): int=>$this->api->getId($peer),
-            self::PAGE_SIZE,$folder,
+            $limit,$folder,
         );
     }
 
@@ -303,6 +304,74 @@ final class MadelineTelegramAdapter
         $id=$channelId<0?$channelId:$peerId(['_'=>'peerChannel','channel_id'=>$channelId]);
         if (!is_int($id)||$id===0||!DialogId::isSupergroupOrChannel($id))return null;
         return ['id'=>$id,'title'=>$title,'recommended'=>true,'archived'=>null];
+    }
+
+    /**
+     * Native Telegram Communities (not folders and not forum topics).
+     * Inspect linked-chat metadata; only joined basic groups/supergroups are
+     * selectable. Broadcast channels, bots, hidden and unjoined peers are not.
+     * No history, contacts or message-body RPC is made.
+     */
+    public function communitiesCatalog(): array
+    {
+        $joined=$this->api->communities->getJoinedCommunities();
+        if (!is_array($joined)||!is_array($joined['chats']??null)) {
+            throw new RuntimeException('Invalid Telegram communities response');
+        }
+        $result=[];
+        foreach (array_slice($joined['chats'],0,15) as $community) {
+            if (!is_array($community)||($community['_']??null)!=='community'||
+                ($community['left']??false)===true)continue;
+            try {
+                $id=$this->api->getId($community);
+                $full=$this->api->channels->getFullChannel(channel:$id);
+                $item=self::communityFromFull($community,$full,
+                    fn(array|int $peer): int=>$this->api->getId($peer));
+                if ($item!==null)$result[]=$item;
+            } catch (\Throwable) {
+                // One unavailable community does not hide the others.
+                continue;
+            }
+        }
+        return $result;
+    }
+
+    /** @param callable(array|int):int $peerId */
+    public static function communityFromFull(array $community,array $full,callable $peerId): ?array
+    {
+        if (($community['_']??null)!=='community'||($community['left']??false)===true||
+            ($full['full_chat']['_']??null)!=='communityFull' ||
+            !is_array($full['full_chat']['linked_peers']??null) ||
+            !is_array($full['chats']??null))return null;
+        $id=$peerId($community);
+        if (!is_int($id)||$id===0)return null;
+        $title=trim(mb_substr((string)($community['title']??''),0,150));
+        if ($title==='')return null;
+        $meta=[];
+        foreach ($full['chats'] as $chat) {
+            if (!is_array($chat))continue;
+            try {
+                $peer=$peerId($chat);
+                if (is_int($peer)&&$peer!==0)$meta[$peer]=$chat;
+            }catch(\Throwable){}
+        }
+        $groups=[];
+        foreach (array_slice($full['full_chat']['linked_peers'],0,120) as $linked) {
+            if (!is_array($linked)||($linked['_']??null)!=='communityPeer'||
+                ($linked['can_view_history']??false)!==true)continue;
+            $raw=$linked['peer']??null;
+            if (!is_array($raw)&&!is_int($raw))continue;
+            try {$childId=$peerId($raw);}catch(\Throwable){continue;}
+            $chat=$meta[$childId]??null;
+            if (!is_array($chat)||!self::isUsableGroupChat($chat))continue;
+            $name=trim(mb_substr((string)($chat['title']??''),0,150));
+            if ($name==='')continue;
+            $groups[$childId]=[
+                'id'=>$childId,'title'=>$name,'recommended'=>false,
+                'archived'=>null,'community_id'=>$id,
+            ];
+        }
+        return ['id'=>$id,'title'=>$title,'groups'=>array_values($groups)];
     }
 
     /** Validate only explicitly selected IDs, never re-enumerate all dialogs. */
