@@ -33,7 +33,8 @@
 | Classificação via Ollama local | `LocalOllama` | Testes, não determina faturamento |
 | Telemetria explícita de agente | `AgentRuns` | Testes, sem emissor automático integrado |
 | Interface Laravel (HTML/CSS/Blade) | `AutomaticKimaiController`, `routes/web.php` | HTTP local 200, CSRF, testada |
-| NativePHP/Electron | `php-app/nativephp/electron/` | Instalado; bundle Electron JavaScript compilado |
+| NativePHP/Electron | `php-app/nativephp/electron/` | Instalado; bundle Electron JavaScript compilado; empacotamento final pendente |
+| Ícone desktop de avaliação Linux/KDE | `php-app/desktop-preview/` | Janela Electron local e atalhos instalados; usa backend PHP existente, **não** é instalador autônomo |
 | Rotina PHP de avaliação | `automatic-kimai:sync`, `SyncEngine` | Leitura e relatório, publicação autônoma bloqueada |
 
 ### Comparação com o Python

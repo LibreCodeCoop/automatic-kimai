@@ -64,6 +64,13 @@ jobs:
           cache-dependency-path: php-app/nativephp/electron/package-lock.json
       - name: Install JavaScript build tooling (no app runtime)
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validate Linux desktop preview launcher (without GUI)
+        run: |
+          node --check ../../desktop-preview/main.cjs
+          node --test ../../desktop-preview/security.test.cjs
+          sh -n ../../desktop-preview/launch.sh
+          sh -n ../../desktop-preview/install-desktop.sh
+          test -s ../../desktop-preview/automatic-kimai.png
       - name: Compile NativePHP Electron plugin (required for #plugin import)
         run: npm run plugin:build
       - name: Bundle Electron bridge

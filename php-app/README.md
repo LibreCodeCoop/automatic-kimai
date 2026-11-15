@@ -28,6 +28,21 @@ A estrutura Electron publicada está em `nativephp/electron` e é um **runtime d
 
 **Empacotamento bloqueado por segurança:** `native:build` é recusado se houver perfil, sessão ou chave `APP_KEY` de uma instalação em uso. O empacotador NativePHP não respeita automaticamente o `.gitignore`, por isso credenciais criptografadas e a chave de descriptografia poderiam acabar dentro do instalador. Os binários de prova gerados durante a avaliação foram eliminados; o código PHP continua intacto. Antes de qualquer release, implementar chave única no primeiro acesso e validar o isolamento dos segredos no instalador.
 
+## Abrir como aplicativo desktop Electron no Linux/KDE
+
+A interface também pode ser aberta como **aplicativo desktop independente do navegador**, com ícone no menu do KDE e atalho na área de trabalho. A janela é fornecida pelo Electron e mantém a aplicação Laravel PHP por trás, sem incluir segredos no binário.
+
+No computador de avaliação já configurado:
+
+```sh
+./desktop-preview/launch.sh --check
+./desktop-preview/install-desktop.sh
+```
+
+Depois, abra **Automatic Kimai** pelo menu de aplicativos ou pelo ícone da área de trabalho. Não é necessário abrir o navegador. Se o backend PHP local estiver parado, o lançador tenta reiniciar somente seu contêiner de avaliação; o piloto Python não é afetado. Consulte [desktop-preview/README.md](desktop-preview/README.md) para detalhes e limitações.
+
+**Não confundir com uma release instalável:** este é um inicializador Electron para o backend local PHP já instalado. Um instalador independente NativePHP/Electron, com PHP embutido e chaves individuais, ainda exige a auditoria de empacotamento. Não distribuir como release a outros cooperados.
+
 ## Configurar Telegram pelo navegador (ambiente de avaliação)
 
 1. Abra **http://127.0.0.1:6817/#telegram-setup** **no mesmo computador** onde o aplicativo está rodando.
