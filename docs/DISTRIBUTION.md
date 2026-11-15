@@ -68,7 +68,7 @@ installation.
 
 1. Merge the tested PR, updating package and NativePHP version consistently.
 2. Create and push a version tag on the merged commit (for example
-   `v0.4.0-alpha.1`). The workflow builds all four targets.
+   `v0.4.0-alpha.2`). The workflow builds all four targets.
 3. Check the workflow result, the four assets, `SHA256SUMS.txt`, and
    the release notes. Never upload unsigned installers to a stable release.
 4. For a future stable version, configure signing and notarization credentials,
