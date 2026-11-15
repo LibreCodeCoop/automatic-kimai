@@ -400,3 +400,32 @@ os dados remotos. Uma lacuna não equivale a trabalho comprovado.
 A reconciliação também revisita conflitos históricos fora dos dias da
 coleta periódica. O comando padrão `automatic-kimai:sync` continua
 somente leitura e não autoriza o corte do publicador Python.
+
+### Migração supervisionada do escritor
+
+O perfil de cada usuário distingue grupos autorizados para coleta
+(`work_messenger_dialog_ids`) de contextos explicitamente autorizados
+para classificação de trabalho (`work_messenger_classification_labels`).
+Escolher grupos na interface não aumenta automaticamente as horas
+profissionais; a classificação precisa de autorização separada.
+
+`php artisan automatic-kimai:inherit-legacy-policy
+--legacy-profile=/caminho/privado/cooperator_agent_profile.json --apply-policy`
+transfere o opt-in e os contextos do perfil Python sem habilitar POST/PATCH.
+`php artisan automatic-kimai:verify-writer --legacy-cache=/estado/congelado`
+faz uma verificação de **leitura** da identidade Kimai, consentimento,
+autorização de corte e paridade de histórico. Falha fechada quando qualquer
+condição não está satisfeita.
+
+O instalador `scripts/install-linux-core-timers.sh` instala também
+`automatic-kimai-php-approved-publisher.timer`, **desabilitado por padrão**.
+A opção `--apply --enable-approved-publisher` só pode ser usada depois
+da parada/desabilitação de TODOS os timers Python e de um corte auditado.
+`AUTOMATIC_KIMAI_LEGACY_CACHE` deve apontar para os dados Python congelados.
+Com legados ativos ou habilitados, o instalador se recusa a criar um
+segundo escritor. O app PHP em modo de avaliação mantém GET-only.
+
+O PHP embarcado pelo NativePHP usado nesta instalação não inclui GMP;
+atualmente o scanner MTProto usa o PHP de um contêiner de
+desenvolvimento. Não tratar esse fallback como uma release desktop
+autônoma nem interromper o Python antes da homologação de toda a coleta.

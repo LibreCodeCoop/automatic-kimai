@@ -26,7 +26,7 @@ final class Segmenter
         }
         $hint = $event['messenger_hint'] ?? null;
         if (is_array($hint) && in_array($hint['client_hint'] ?? null,
-            $profile->get('work_messenger_labels'), true)) return 'work';
+            $profile->workEvidenceLabels(), true)) return 'work';
 
         if ($kind === 'chat' || !empty($event['chat_context'])) {
             $topics = $event['chat_context']['topic_hints'] ?? [];

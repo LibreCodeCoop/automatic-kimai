@@ -19,6 +19,9 @@ final class Profile
         'min_context_minutes' => 8, 'max_session_hours' => 8,
         'settle_minutes' => 12, 'capture_freshness_minutes' => 30,
         'work_topic_hints' => [], 'work_domains' => [], 'work_messenger_labels' => [],
+        // Selection for metadata access does not certify professional work.
+        // Preserve separately attested work-context labels during migration.
+        'work_messenger_classification_labels' => [],
         'work_messenger_dialog_ids' => [],
         'work_messenger_group_titles' => [],
         'work_messenger_recommendations_reviewed' => false,
@@ -85,6 +88,7 @@ final class Profile
         }
         if (!is_array($settings['work_topic_hints']) || !is_array($settings['work_domains']) ||
             !is_array($settings['work_messenger_labels']) ||
+            !is_array($settings['work_messenger_classification_labels']) ||
             !is_array($settings['work_messenger_dialog_ids']) ||
             !is_array($settings['work_messenger_group_titles'])) {
             throw new InvalidArgumentException('Invalid approved source lists');
@@ -107,6 +111,12 @@ final class Profile
             if (!is_string($label) || strlen($label) < 2 || strlen($label) > 80 ||
                 str_contains($label,"\r") || str_contains($label,"\n")) {
                 throw new InvalidArgumentException('Invalid messenger label');
+            }
+        }
+        foreach ($settings['work_messenger_classification_labels'] as $label) {
+            if (!is_string($label) || strlen($label)<2 || strlen($label)>80 ||
+                str_contains($label,"\r") || str_contains($label,"\n")) {
+                throw new InvalidArgumentException('Invalid work classification label');
             }
         }
         foreach ($settings['work_messenger_dialog_ids'] as $id) {
@@ -135,6 +145,18 @@ final class Profile
             throw new InvalidArgumentException('Unknown profile option');
         }
         return $this->settings[$key];
+    }
+
+    /**
+     * Reading the history of selected groups is a separate consent from
+     * treating their desktop foreground context as potential worked time.
+     * Older profiles without selected peer IDs retain their legacy whitelist.
+     */
+    public function workEvidenceLabels(): array
+    {
+        return $this->settings['work_messenger_dialog_ids']===[] ?
+            $this->settings['work_messenger_labels'] :
+            $this->settings['work_messenger_classification_labels'];
     }
 
     public function allowsAutomaticPublication(): bool

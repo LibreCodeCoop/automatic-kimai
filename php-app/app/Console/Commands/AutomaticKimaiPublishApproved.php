@@ -11,7 +11,8 @@ use Throwable;
 
 /**
  * Approved-only publication with a fail-closed cutover latch. The scheduler
- * never passes --post-approved; HTTP controllers expose no publishing route.
+ * can pass --post-approved only after a supervised, verified cutover.
+ * HTTP controllers expose no publishing route.
  */
 final class AutomaticKimaiPublishApproved extends Command
 {

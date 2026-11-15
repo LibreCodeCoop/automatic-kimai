@@ -976,3 +976,66 @@ continua com o opt-in de publicação automática, enquanto o perfil PHP local
 permanece em `review_only`. A paridade do escritor automático e o corte de
 serviços continuam bloqueados até testes operacionais, estado congelado
 após parada do Python, zero operação desconhecida e revisão/CI confiáveis.
+
+## 15/11/2026 — Política legada e proteção contra dois escritores
+
+**Permissões distintas.** A seleção de 98 grupos Telegram permite consultar
+somente esses grupos; não comprova que toda janela desses grupos corresponde
+a trabalho. Anteriormente a seleção gravava títulos em
+`work_messenger_labels`, também usada pelo segmentador como autorização
+de classificação profissional. Isso poderia ampliar indevidamente as
+horas calculadas no PHP em comparação com a política Python.
+
+O novo campo `work_messenger_classification_labels` é a lista separada de
+contextos de trabalho explicitamente permitidos quando há grupos selecionados
+por ID. A coleta continua restrita aos 98 IDs. Em perfis legados sem IDs,
+`work_messenger_labels` mantém o comportamento anterior por compatibilidade.
+Testes negativos comprovam que um grupo autorizado para coleta, mas não para
+classificação profissional, não vira evidência de trabalho.
+
+O comando `php artisan automatic-kimai:inherit-legacy-policy
+--legacy-profile=/caminho/privado/cooperator_agent_profile.json
+--apply-policy` compara identidade/conta/fuso e importa exclusivamente a
+lista legada de classificação profissional e o opt-in prévio
+`preview_nonbillable`. Não copia credenciais, não habilita
+`KIMAI_WRITE_ENABLED` e não cria `cutover.json`. Sem `--apply-policy`,
+apenas descreve a transformação. A operação real preservou uma lista
+profissional anterior e os 98 grupos selecionados, com **zero escritas
+remotas**. O Python segue ativo.
+
+**Agendamento de publicação PHP, ainda desativado.**
+`scripts/install-linux-core-timers.sh` passa a instalar os arquivos de unit
+do publicador aprovado; só pode ativar o timer com
+`--apply --enable-approved-publisher`. A execução de `--apply` exige:
+
+1. Nenhum dos timers/serviços Python relevantes ativo **nem habilitado**.
+2. `AUTOMATIC_KIMAI_LEGACY_CACHE` apontando para o estado congelado
+   (nunca para um caminho inventado ou para um dump incompleto).
+3. `php artisan automatic-kimai:verify-writer` aprovado: GET da conta
+   Kimai, identidade/fuso, opt-in de prévia, autorização privada
+   `cutover.json` e auditoria estrita das filas, intenções e publicações.
+
+Todas as verificações são executadas **antes** da escrita de qualquer unit
+do PHP com `--apply`. Se uma falha ocorrer, o serviço shadow existente
+permanece somente leitura. Um segundo controle verifica se timers Python
+foram reativados durante a instalação. A própria publicação continua
+protegida pelas verificações internas de `PublicationGate`.
+
+**Teste real negativo:** com timers Python ainda em execução, a tentativa
+`--apply --enable-approved-publisher` foi recusada com status 2 e o
+serviço PHP permaneceu sem a opção `--apply`. Um segundo teste bloqueou
+`--enable-approved-publisher` sem `--apply`. Testes PHPUnit adicionais
+confirmaram que a importação da política nunca cria a autorização de corte.
+
+**Não confundir preparação de units com migração concluída.** O runtime
+NativePHP atualmente instalado é PHP 8.4.27 estático, sem GMP e sem suporte
+a extensões dinâmicas. O scanner Telegram usa, temporariamente, um PHP
+GMP em contêiner de desenvolvimento. Isso não é um pacote desktop
+independente homologado em Linux, Windows e macOS. A equivalência dos
+serviços auxiliares Python `chat_semantic`, `enrich` e demais pontos de
+telemetria também precisa ser comprovada antes de desativá-los.
+
+O CI GitHub do commit `00994bd` ainda não iniciou nenhum dos três jobs:
+as anotações registram falha de pagamentos/limite da conta responsável.
+Não contornar a restrição desligando testes; tratar a regularização como
+dependência externa de validação final do PR.

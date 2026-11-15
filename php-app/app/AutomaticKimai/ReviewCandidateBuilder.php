@@ -33,7 +33,7 @@ final class ReviewCandidateBuilder
         if (($event['afk']??false)===true)return 'afk_unresolved';
         if (($event['url_kind']??null)==='github')return 'work_context_observed';
         $hint=$event['messenger_hint']['client_hint']??null;
-        if (is_string($hint)&&in_array($hint,$profile->get('work_messenger_labels'),true)) {
+        if (is_string($hint)&&in_array($hint,$profile->workEvidenceLabels(),true)) {
             return 'work_context_observed';
         }
         if (!empty($event['talk_context']['room_fingerprint']))return 'work_context_observed';

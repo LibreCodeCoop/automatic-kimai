@@ -69,6 +69,31 @@ final class SegmenterTest extends TestCase
         self::assertFalse($windows[0]['human_duration_verified']);
     }
 
+    public function test_telegram_collection_consent_does_not_classify_all_selected_groups_as_work(): void
+    {
+        $selected=self::profile([
+            'work_messenger_dialog_ids'=>[-10091,-10092],
+            'work_messenger_group_titles'=>[
+                '-10091'=>'Team A','-10092'=>'Team B'
+            ],
+            'work_messenger_labels'=>['Team A','Team B'],
+        ]);
+        $event=['url_kind'=>'telegram','idle_status_known'=>true,
+            'messenger_hint'=>['client_hint'=>'Team A']];
+        self::assertSame([], $selected->workEvidenceLabels());
+        self::assertSame('other', Segmenter::classify($event,$selected));
+
+        $explicit=self::profile(array_replace($selected->toArray(),[
+            'work_messenger_classification_labels'=>['Team A'],
+        ]));
+        self::assertSame('work',Segmenter::classify($event,$explicit));
+        $event['messenger_hint']['client_hint']='Team B';
+        self::assertSame('other',Segmenter::classify($event,$explicit));
+
+        $legacy=self::profile(['work_messenger_labels'=>['Team B']]);
+        self::assertSame('work',Segmenter::classify($event,$legacy));
+    }
+
     public function test_approved_exact_workplace_domain_only(): void
     {
         $profile=self::profile(['work_domains'=>['projects.example.net']]);
