@@ -26,3 +26,14 @@ Em distribuições Ubuntu com bloqueio de namespaces via AppArmor, o Electron pr
 ### Portabilidade
 
 `install-desktop.sh` funciona como conveniência da avaliação Linux. Não afirma suporte a macOS ou Windows nem produz binários para terceiros. Veja `../README.md` e `../../PHP_MIGRATION.md` para o estado real da migração.
+
+### Abrir o Nextcloud para autorizar
+
+O botão de LoginFlow v2 abre somente o URL HTTPS de autorização que
+coincidir exatamente com o fluxo pendente na API PHP local. O processo
+principal do Electron faz essa conferência e solicita ao sistema operacional
+que o abra no navegador padrão. A janela do Automatic Kimai continua
+restrita ao localhost, sem pop-ups externos nem acesso a credenciais.
+
+Testes de segurança usam um abridor fictício, sem abrir abas reais, e
+cobrem links inválidos, URLs trocadas e falhas de rede.

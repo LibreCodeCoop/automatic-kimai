@@ -1,8 +1,9 @@
 'use strict';
 
-const { app, BrowserWindow, Menu, session } = require('electron');
+const { app, BrowserWindow, Menu, session, shell } = require('electron');
 const path = require('node:path');
 const { LOCAL_ORIGIN, isAllowedNavigation } = require('./security.cjs');
+const { isCurrentNextcloudApproval, createExternalApprovalHandler } = require('./external-approval.cjs');
 
 const ENTRY_URL = LOCAL_ORIGIN + '/';
 const APP_ID = 'org.automatic-kimai.desktop';
@@ -58,7 +59,14 @@ if (!app.requestSingleInstanceLock()) {
       },
     });
 
-    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    // New renderer windows stay blocked. An active Nextcloud LoginFlow v2
+    // link is the sole exception to external browser launching, not to
+    // navigation inside Electron. Re-check the exact URL against the current
+    // PHP pending state before asking the OS to open it.
+    mainWindow.webContents.setWindowOpenHandler(createExternalApprovalHandler({
+      isApproved: isCurrentNextcloudApproval,
+      openExternal: url => shell.openExternal(url),
+    }));
     mainWindow.webContents.on('will-navigate', (event, url) => {
       if (!isAllowedNavigation(url)) event.preventDefault();
     });

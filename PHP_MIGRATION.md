@@ -268,3 +268,18 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   pasta, lazy loading, descarte de uma sugestão e salvamento fictício sem
   iniciar coleta. Teste read-only em sessão Telegram real confirmou duas
   comunidades oficiais marcadas e pastas separadas.
+
+## Autorização Nextcloud no desktop Electron (15/11/2026)
+
+- Corrigido o botão Abrir Nextcloud para autorizar na prévia desktop:
+  Electron negava todos os eventos target=_blank, inclusive a URL de
+  LoginFlow v2 validada e devolvida pelo backend PHP.
+- O processo principal continua impedindo janelas externas e navegação
+  fora do localhost, mas pode chamar o navegador padrão do sistema após
+  verificar o URL HTTPS exato contra a autorização pendente no PHP local.
+- A consulta de confirmação possui timeout, não abre URLs arbitrárias e
+  não registra tokens de LoginFlow. Nenhuma credencial foi reutilizada ou
+  concedida automaticamente durante a investigação.
+- Testes Node simulam a verificação e o abridor do SO (incluindo URLs
+  não autorizadas, erro de rede e múltiplos cliques), sem mexer no mouse
+  ou abrir abas reais do usuário.
