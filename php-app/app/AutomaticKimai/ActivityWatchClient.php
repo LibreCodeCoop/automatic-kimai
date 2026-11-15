@@ -229,19 +229,25 @@ final class ActivityWatchClient
             if ($merge)$out[$last]['end']=$event['end'];
             else $out[]=$event;
         }
-        foreach ($out as &$event) {
+        $filtered=[];
+        foreach ($out as $event) {
             $a=TimeMath::parse($event['start']);$b=TimeMath::parse($event['end']);
-            $event['observed_seconds']=TimeMath::seconds($a,$b);
+            $seconds=TimeMath::seconds($a,$b);
+            // Match the original Python ActivityWatch collector: merge first,
+            // then discard transient <5-second fragments that are not stable
+            // evidence of an ongoing foreground activity.
+            if ($seconds<5)continue;
+            $event['observed_seconds']=$seconds;
             $event['source_id']=substr(hash('sha256',implode('|',[
                 $event['start'],$event['end'],$event['app'],$event['url_kind'],
                 $event['afk']?'True':'False',$event['private']?'True':'False',
             ])),0,20);
+            $filtered[]=$event;
         }
-        unset($event);
-        return [$out,[
+        return [$filtered,[
             'buckets_seen'=>count($source),'active_buckets'=>$counts,
             'window_events'=>count($data['window']),'afk_events'=>count($data['afk']),
-            'browser_events'=>count($data['web']),'sanitized_blocks'=>count($out),
+            'browser_events'=>count($data['web']),'sanitized_blocks'=>count($filtered),
             'browser_extension_detected'=>$browser,
         ]];
     }

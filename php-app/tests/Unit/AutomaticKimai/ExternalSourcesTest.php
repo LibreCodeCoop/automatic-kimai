@@ -75,6 +75,33 @@ final class ExternalSourcesTest extends TestCase
         self::assertFalse($record['events'][0]['human_duration_verified']);
     }
 
+    public function test_github_collector_sends_required_user_agent_to_every_api_request(): void
+    {
+        $calls=[];
+        $client=new HttpTransport(static function($method,$url,$headers) use (&$calls) {
+            $calls[]=['method'=>$method,'url'=>$url,'headers'=>$headers];
+            if (!isset($headers['User-Agent']) || trim($headers['User-Agent'])==='') {
+                return ['status'=>403,'body'=>'{"message":"Missing user agent"}'];
+            }
+            if ($url==='https://api.github.com/user') {
+                return ['status'=>200,'body'=>json_encode(['login'=>'example-user'])];
+            }
+            if ($url==='https://api.github.com/users/example-user/events?per_page=100') {
+                return ['status'=>200,'body'=>'[]'];
+            }
+            throw new \RuntimeException('Unexpected external endpoint');
+        });
+        $result=(new GitHubSource($client))->collect('fake-test-token');
+        self::assertSame('ok',$result['status']);
+        self::assertCount(2,$calls);
+        foreach ($calls as $call) {
+            self::assertSame('GET',$call['method']);
+            self::assertSame('Bearer fake-test-token',$call['headers']['Authorization']);
+            self::assertNotEmpty($call['headers']['User-Agent']);
+            self::assertSame('2022-11-28',$call['headers']['X-GitHub-Api-Version']);
+        }
+    }
+
     public function test_github_unconfigured_is_optional(): void
     {
         $record=(new GitHubSource(new HttpTransport()))->collect('');

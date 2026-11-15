@@ -65,6 +65,41 @@ final class ActivityWatchClientTest extends TestCase
         self::assertSame(1,$stats['sanitized_blocks']);
     }
 
+    public function test_short_noise_is_removed_after_coalescing_identical_intervals(): void
+    {
+        $buckets=['window'=>['type'=>'currentwindow'],'afk'=>['type'=>'afkstatus']];
+        $window=[
+            ['timestamp'=>'2026-11-14T10:00:00+00:00','duration'=>2,
+                'data'=>['app'=>'Short A']],
+            ['timestamp'=>'2026-11-14T10:00:02+00:00','duration'=>3,
+                'data'=>['app'=>'Short B']],
+            ['timestamp'=>'2026-11-14T10:00:05+00:00','duration'=>3,
+                'data'=>['app'=>'Long C']],
+            ['timestamp'=>'2026-11-14T10:00:08+00:00','duration'=>3,
+                'data'=>['app'=>'Long C']],
+        ];
+        $client=new ActivityWatchClient('http://127.0.0.1:5600',
+            static function($route)use($buckets,$window) {
+                if ($route==='/buckets/')return $buckets;
+                if ($route==='/buckets/window/events')return $window;
+                if ($route==='/buckets/afk/events')return [[
+                    'timestamp'=>'2026-11-14T10:00:00+00:00','duration'=>11,
+                    'data'=>['status'=>'not-afk']
+                ]];
+                return [];
+            });
+        [$events,$stats]=$client->collect(
+            new DateTimeImmutable('2026-11-14T10:00:00+00:00'),
+            new DateTimeImmutable('2026-11-14T10:00:11+00:00')
+        );
+        // Matches Python aw_collector.extract_work_events(min_seconds=5):
+        // merge matching adjacent observations, then discard <5s fragments.
+        self::assertCount(1,$events);
+        self::assertSame('Long C',$events[0]['app']);
+        self::assertSame(6.0,$events[0]['observed_seconds']);
+        self::assertSame(1,$stats['sanitized_blocks']);
+    }
+
     public function test_afk_flags_prevent_work_classification(): void
     {
         $source=['aw-window'=>['type'=>'currentwindow'],'aw-afk'=>['type'=>'afkstatus']];

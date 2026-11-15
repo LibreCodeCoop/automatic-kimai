@@ -16,6 +16,7 @@ final class GitHubSource
             'Accept'=>'application/vnd.github+json',
             'Authorization'=>'Bearer '.$token,
             'X-GitHub-Api-Version'=>'2022-11-28',
+            'User-Agent'=>'automatic-kimai',
         ];
         $user=$this->http->json('GET','https://api.github.com/user',$headers);
         $login=$user['login']??null;

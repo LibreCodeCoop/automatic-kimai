@@ -112,7 +112,15 @@ final class SyncEngine
                 try {
                     $result=(new NextcloudSource($http))->talk($profile,$creds);
                     $this->store->write('nextcloud_talk_context.json',$result);
-                    $sources['nextcloud_talk']=['status'=>'ok','own_actions'=>count($result['own_actions']??[])];
+                    $sources['nextcloud_talk']=[
+                        'status'=>($result['rooms_unavailable']>0||$result['rooms_truncated'])
+                            ?'partial':'ok',
+                        'own_actions'=>count($result['own_actions']??[]),
+                        'rooms_total'=>$result['rooms_total'],
+                        'rooms_analyzed'=>$result['rooms_analyzed'],
+                        'rooms_unavailable'=>$result['rooms_unavailable'],
+                        'rooms_truncated'=>$result['rooms_truncated'],
+                    ];
                 } catch(Throwable) {
                     $sources['nextcloud_talk']=['status'=>'unavailable','own_actions'=>0];
                 }

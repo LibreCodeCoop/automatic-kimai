@@ -434,3 +434,80 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   por pesquisa, a interrupção no limite e a continuação manual. Também
   confirmou marcar/remover grupo com a sessão real: sem POST, sem alterar
   grupos previamente salvos nem publicar horas.
+
+## Auditoria real de paridade e bloqueios de cutover (15/11/2026)
+
+A branch PHP continua em modo de revisão somente leitura. **Não parar o Python nem
+ativar POST/PATCH no Kimai** antes de resolver os bloqueios abaixo. As falhas de
+GitHub Actions de repositório privado foram deliberadamente excluídas desta
+homologação; a suíte local continua obrigatória.
+
+### Integrações corrigidas e comprovadas com dados reais
+
+- **GitHub**: `GitHubSource` passou a enviar `User-Agent`, exigido pela API.
+  Teste de regressão falhou com HTTP 403 antes do ajuste e passou depois.
+  A conta autorizada responde no endpoint de identidade e avatar do PHP; o
+  ciclo PHP leu **94 eventos** GitHub, sem persistir conteúdo de comentários
+  nem fazer escrita remota.
+- **Nextcloud Mail**: os endpoints internos do aplicativo retornavam HTTP 412
+  sem `OCS-APIRequest: true` na autenticação com senha de aplicativo.
+  O cabeçalho corrigiu as chamadas sem usar cookie/CSRF da sessão web.
+  A paginação passou a usar `cursor` e consultar a página seguinte antes
+  de declarar resultados incompletos. A consulta real identificou **3
+  timestamps de mensagens enviadas** e concluiu sem truncamento; não grava
+  corpo, assunto, destinatários, prévia nem remetentes.
+- **Nextcloud Talk**: o PHP consultava apenas as primeiras 30 salas. Agora
+  considera até 120 e sinaliza explicitamente resultados parciais. Na
+  instalação real: 100 salas listadas, 15 recentes consultadas, **98 ações
+  próprias**, nenhuma sala indisponível, nenhuma mensagem marcada como lida.
+  O ciclo completo persistiu somente timestamps e hashes, sem conteúdos.
+- **ActivityWatch**: a versão Python descartava eventos menores que 5 segundos
+  *após* agrupar fragmentos contíguos, enquanto PHP aceitava 1 segundo.
+  O ajuste reduziu a discrepância dos mesmos buckets/dias: em 12/11,
+  Python 1.853 blocos versus PHP 1.856; em 13/11, 857 versus 859;
+  em 14/11, 1.652 versus 1.656. Não é paridade exata: regras de classificação
+  e limites de captura ainda requerem comparação em entradas congeladas.
+
+### Estados históricos: auditoria segura e snapshots isolados
+
+- Comando local: `php artisan automatic-kimai:migration-audit
+  --legacy-cache=/caminho/privado/.kimai_cache [--strict]`.
+  Entrada exige bancos SQLite owner-only (0600), abre em modo somente leitura,
+  verifica integridade e emite apenas contagens e códigos de bloqueio.
+  `--strict` falha caso falte algum estado. Não importa dados, não emite
+  identificadores, e jamais autoriza automaticamente desligar o Python.
+- Em 15/11: fila Python 104 versus PHP 14 (90 registros não presentes e
+  14 com `source_digest` divergente), outbox Python 92, ledger Python
+  267 intenções, 87 sessões e 7 declarações humanas; correspondentes PHP
+  ainda não foram importados. O histórico de metadados de áudio Telegram
+  também ainda não tem consumidor equivalente no PHP.
+- Todos os quatro bancos originais tiveram snapshots consistentes, com
+  `integrity_check`, armazenados em diretório privado de homologação e
+  sem substituição dos arquivos PHP ativos. Esses snapshots servem para
+  rollback/auditoria; **não equivalem a migração de estado**.
+- Na comparação de 14 candidatos com ID comum, os campos de contexto
+  observado divergiam em 14/14, assim como o campo sem cobertura AW;
+  sete limites de fim e quatro listas de interseções remotas também
+  diferiam. Importar decisões/assinaturas antigas indiscriminadamente
+  seria inseguro.
+
+### Bloqueios para desligar os 11 serviços Python
+
+1. Reconciliar os estados da fila, ledger, declarações humanas e outbox
+   preservando proveniência e casos confirmados ou supersedidos, sem
+   sobrescrever os 14 candidatos de evidência divergente.
+2. Comparar eventos/classificações com os **mesmos insumos congelados**
+   e corrigir as diferenças ainda existentes entre as duas versões.
+3. Homologar a coleta Telegram real com a seleção autorizada; a chave
+   `telegram_setup` não equivale a consentimento para coletar mensagens.
+4. Integrar metadados de execução do agente e de áudio Telegram, evitando
+   converter duração de agente/sala em jornada humana comprovada.
+5. Portar e testar a revisão humana, aprovação, idempotência, outbox,
+   reconciliação após falhas de rede e publicação `approved_only`, sem
+   permitir retrigger de lançamentos anteriores.
+6. Validar agendamentos, empacotamento desktop e rollback sem perda de
+   continuidade. Só então trocar serviços, monitorar e desativar Python.
+
+**Nota:** ciclos PHP bem-sucedidos tiveram `remote_writes=0`; o modo
+`--apply` continua bloqueado de propósito. Homologação em leitura não é
+homologação de publicação financeira.

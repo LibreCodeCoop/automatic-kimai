@@ -151,9 +151,13 @@ final class NextcloudSource
         }
         $rooms=$query('/ocs/v2.php/apps/spreed/api/v4/room',['noStatusUpdate'=>1]);
         if (!is_array($rooms))throw new RuntimeException('Talk rooms unavailable');
-        $safe=[];$actions=[];$missing=0;
+        $safe=[];$actions=[];$missing=0;$analyzed=0;
+        $total=count($rooms);
+        // Match the legacy Talk scanner's 120-room discovery bound.
+        // Rooms without recent activity do not require a chat request.
+        $truncated=$total>120;
         $cutoff=time()-$profile->get('lookback_days')*86400;
-        foreach (array_slice($rooms,0,30) as $room) {
+        foreach (array_slice($rooms,0,120) as $room) {
             $token=(string)($room['token']??'');
             if (!preg_match('/^[A-Za-z0-9]{5,100}$/D',$token))continue;
             $safe[]=[
@@ -164,6 +168,7 @@ final class NextcloudSource
             ];
             if (is_int($room['lastActivity']??null) && $room['lastActivity']<$cutoff)continue;
             try {
+                $analyzed++;
                 $rows=$query('/ocs/v2.php/apps/spreed/api/v1/chat/'.$token,[
                     'lookIntoFuture'=>0,'limit'=>100,'setReadMarker'=>0,
                     'noStatusUpdate'=>1,'markNotificationsAsRead'=>0
@@ -182,6 +187,8 @@ final class NextcloudSource
         }
         return [
             'fetched_at'=>gmdate('c'),'rooms'=>$safe,'own_actions'=>$actions,
+            'rooms_total'=>$total,'rooms_scanned'=>count($safe),
+            'rooms_analyzed'=>$analyzed,'rooms_truncated'=>$truncated,
             'rooms_unavailable'=>$missing,
             'eligible_for_sync'=>false,
             'privacy'=>'No room titles, message bodies or participant identities persisted',

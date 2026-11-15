@@ -76,6 +76,10 @@ final class NextcloudMetadataTest extends TestCase
         $requests=[];
         $transport=new HttpTransport(static function($method,$url,$headers,$body,$auth)use(&$requests) {
             $requests[]=$url;
+            // Live Nextcloud Mail returns HTTP 412 without OCS-APIRequest.
+            if (($headers['OCS-APIRequest']??null)!=='true') {
+                return ['status'=>412,'body'=>'{"message":"precondition failed"}'];
+            }
             if (str_contains($url,'/api/accounts')) {
                 return ['status'=>200,'body'=>json_encode([
                     ['accountId'=>7,'sentMailboxId'=>42,'isDelegated'=>false],
@@ -105,6 +109,40 @@ final class NextcloudMetadataTest extends TestCase
         foreach (['Sensitive','client@secret','private message body'] as $needle) {
             self::assertStringNotContainsString($needle,json_encode($result));
         }
+    }
+
+    public function test_mail_full_first_page_is_not_reported_partial_when_cursor_is_exhausted(): void
+    {
+        $calls=[];
+        $mock=new HttpTransport(static function($method,$url,$headers) use (&$calls) {
+            $calls[]=$url;
+            if ($method!=='GET'||($headers['OCS-APIRequest']??null)!=='true') {
+                return ['status'=>412,'body'=>'{}'];
+            }
+            if (str_contains($url,'/api/accounts')) {
+                return ['status'=>200,'body'=>json_encode([
+                    ['sentMailboxId'=>55,'isDelegated'=>false]
+                ],JSON_THROW_ON_ERROR)];
+            }
+            if (str_contains($url,'cursor=100'))return ['status'=>200,'body'=>'[]'];
+            $events=[];
+            for ($id=1;$id<=100;$id++) {
+                $events[]=['databaseId'=>$id,'dateInt'=>1794654000,
+                    'subject'=>'Never store this subject',
+                    'previewText'=>'Never store this message'];
+            }
+            return ['status'=>200,'body'=>json_encode($events,JSON_THROW_ON_ERROR)];
+        });
+        $result=(new NextcloudMailSource($mock))->collect(
+            $this->profile(),$this->credentials(),
+            new DateTimeImmutable('2026-11-15T12:00:00Z')
+        );
+        self::assertFalse($result['partial']);
+        self::assertSame(1,$result['accounts_scanned']);
+        self::assertCount(100,$result['sent_actions']);
+        self::assertCount(3,$calls);
+        self::assertStringContainsString('cursor=100',$calls[2]);
+        self::assertStringNotContainsString('Never store',json_encode($result));
     }
 
     public function test_mail_failure_does_not_return_stale_or_invented_events(): void
