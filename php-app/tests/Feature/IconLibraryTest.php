@@ -24,7 +24,18 @@ final class IconLibraryTest extends TestCase
             self::assertSame(1,$symbols->length);
             self::assertGreaterThan(0,$x->query('svg:path',$symbols[0])->length);
         }
-        $this->app->make(\App\AutomaticKimai\LocalStore::class)->setSources([
+        $store=$this->app->make(\App\AutomaticKimai\LocalStore::class);
+        self::assertNotSame(
+            storage_path('app/private/automatic-kimai'),
+            $store->root(),
+            'The icon rendering test must not alter the real desktop profile',
+        );
+        self::assertSame(
+            $store->root().'/views',
+            config('view.compiled'),
+            'The Blade test cache must not use storage/framework/views',
+        );
+        $store->setSources([
             'nextcloud_calendar'=>true,'github'=>true,'telegram_setup'=>true,
         ]);
         foreach (['integrations','nextcloud'] as $view) {

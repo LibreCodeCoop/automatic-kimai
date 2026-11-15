@@ -124,3 +124,24 @@ A tela oferece busca e seleção múltipla de grupos (máximo de 40). A lista é
 Perfis anteriores com aprovação explícita apenas por nome continuam compatíveis até passarem pelo seletor. Chaves e sessões Telegram ficam restritas ao armazenamento local criptografado ou à sessão privada MadelineProto. A versão PHP segue em **modo de revisão sem publicação de horas**, embora a autenticação e as escolhas locais sejam gravadas normalmente.
 
 Os símbolos de **Nextcloud, Telegram e GitHub** são agora suas marcas, obtidas do projeto Simple Icons (versão 16.37.0), separadas dos pictogramas de interface Lucide. Estão embutidos em public/icons/brands.svg, com licença e observações sobre marcas comerciais nos dois arquivos de licença em public/icons. Não dependem de CDN.
+
+### Isolamento de testes e inicialização do desktop (15/11/2026)
+
+Os testes HTTP que usam Tests\TestCase agora recebem um LocalStore
+temporário e exclusivo e um cache de templates Blade igualmente isolado,
+injetados antes da primeira requisição. Nunca escreva em
+storage/app/private/automatic-kimai/ ou storage/framework/views/
+ao executar PHPUnit: esses diretórios pertencem ao runtime real do
+aplicativo desktop. Executar PHPUnit como root em um contêiner com a aplicação
+montada pode deixar arquivos 0600 pertencentes a root, tornando-os
+ilegíveis ao processo da interface (UID normal) e causando HTTP 500.
+
+A suíte de regressão deve preservar o hash, proprietário e permissões de
+sources.json no ambiente hospedeiro. Para um diagnóstico somente leitura
+do aplicativo desktop instalado, execute
+~/.local/bin/automatic-kimai-desktop --check. Esse comando exige resposta
+válida do servidor PHP em 127.0.0.1:6817 e a presença do runtime Electron;
+não inicia uma janela nem publica horas no Kimai. Em caso de erro HTTP 500,
+investigue os logs locais de Laravel e as permissões do armazenamento privado.
+Não torne os arquivos públicos (chmod 644) e não execute o servidor desktop
+como root para contornar o problema.

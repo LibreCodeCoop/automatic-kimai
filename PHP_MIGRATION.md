@@ -151,3 +151,28 @@ php artisan native:run
 **No ambiente local de avaliação, não há PHP instalado diretamente no sistema.** Os testes rodam em contêiner PHP 8.4 e a interface local em `127.0.0.1:6817` num contêiner separado, sem afetar os serviços Python. Para construir a ponte Electron é necessário Node 22+. Os binários Windows/macOS não foram homologados.
 
 A configuração de local e credenciais deve ser individual; nunca colocar tokens, arquivos `.env`, caches, sessões Telegram, arquivos de observação ou bancos SQLite no Git. O projeto utiliza GPL-3.0-or-later **como proposta de licença**, sujeita à autorização dos titulares antes de publicação pública. **Revisão jurídica de licença pendente:** MadelineProto 8.21.2 declara AGPL-3.0; confirmar obrigações do trabalho combinado e distribuição antes de disponibilizar o Automatic Kimai publicamente.
+
+## Recuperação da inicialização local do desktop (15/11/2026)
+
+O atalho Automatic-Kimai.desktop parou de abrir porque o servidor PHP
+respondia HTTP 500. A análise de storage/logs/laravel.log identificou falha
+de leitura de storage/app/private/automatic-kimai/sources.json, com modo
+0600 e proprietário root:root. O teste de renderização dos ícones invocava
+LocalStore sem injetar o diretório de teste, escrevendo esse arquivo no
+armazenamento real quando PHPUnit era executado como root em Docker.
+
+Ação local: a propriedade do único arquivo afetado foi restaurada ao
+UID/GID do usuário, preservando o modo 0600 e sem tocar nas credenciais,
+sessões Telegram, bancos SQLite ou serviços Python. O endpoint web voltou a
+HTTP 200 e o launcher passou --check (Electron e backend loopback prontos).
+
+Correção permanente no código: Tests\TestCase injeta LocalStore e cache
+de views Blade temporários em todos os testes de interface; a regressão
+de ícones verifica que não está usando a pasta real. As views compiladas
+que estavam sob propriedade root também foram limpas com o UID normal
+da aplicação e regeneradas em leitura HTTP, sem afetar dados privados.
+A suíte de 99 testes passa sem alterar hash, UID/GID ou permissões do
+sources.json do desktop.
+Limite da validação: a inicialização da interface gráfica pelo duplo
+clique deve ser confirmada pelo usuário, pois a checagem remota foi realizada
+sem abrir janelas ou assumir controle de mouse/teclado.
