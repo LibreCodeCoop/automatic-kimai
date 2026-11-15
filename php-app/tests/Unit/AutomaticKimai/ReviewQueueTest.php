@@ -75,6 +75,31 @@ final class ReviewQueueTest extends TestCase
         } finally {@unlink($file);@rmdir($dir);}
     }
 
+    public function test_adjacent_remote_timesheets_cover_entire_candidate_without_conflict(): void
+    {
+        $dir=sys_get_temp_dir().'/kimai-review-'.bin2hex(random_bytes(8));
+        mkdir($dir,0700);
+        $file=$dir.'/queue.sqlite3';
+        try {
+            $queue=new ReviewQueue($file);
+            $candidate=$this->candidates();
+            $adjacent=[
+                ['id'=>91,'begin'=>'2026-11-06T09:00:00-03:00',
+                 'end'=>'2026-11-06T09:30:00-03:00'],
+                ['id'=>92,'begin'=>'2026-11-06T09:30:00-03:00',
+                 'end'=>'2026-11-06T10:00:00-03:00'],
+            ];
+            $queue->synchronize($candidate,$adjacent);
+            self::assertSame('covered',$queue->rows()[0]['status']);
+            self::assertNull($queue->rows()[0]['existing_timesheet_id']);
+            $withGap=$adjacent;
+            $withGap[1]['begin']='2026-11-06T09:30:01-03:00';
+            $queue->synchronize($candidate,$withGap);
+            self::assertSame('conflict',$queue->rows()[0]['status']);
+            $queue->close();
+        } finally {@unlink($file);@rmdir($dir);}
+    }
+
     public function test_approved_frozen_digest_becomes_needs_reapproval_when_evidence_changes(): void
     {
         $dir=sys_get_temp_dir().'/kimai-review-'.bin2hex(random_bytes(8));

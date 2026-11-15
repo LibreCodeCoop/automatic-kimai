@@ -80,11 +80,20 @@ $conflictsToReview=count(array_filter($reviewRows ?? [], static fn($row)=>($row[
 </summary>
 <div class="day-body">
 <p class="muted">Contexto observado não comprova duração de trabalho. Revise pausas, atividade e projeto antes de decidir. O faturamento não é controlado por esta tela.</p>
-@if(!empty($candidate['hold_reason']))<p class="warn">{{ $candidate['hold_reason'] }}</p>@endif
+@if(($candidate['status'] ?? '')!=='conflict' && !empty($candidate['hold_reason']))
+<p class="warn">{{ $candidate['hold_reason'] }}</p>
+@endif
 @if(($candidate['status'] ?? '')==='conflict')
-<div class="review-conflict" role="group" aria-label="Decisão sobre sobreposição">
+<div class="review-conflict" role="group" aria-label="Decisão sobre sobreposição"
+ data-conflict-details data-conflict-id="{{ $candidate['id'] }}"
+ data-conflict-digest="{{ $candidate['source_digest'] }}">
 <h3>Sobreposição com horas já registradas</h3>
 <p class="warn">Este intervalo cruza um ou mais lançamentos existentes no Kimai. Não é seguro aprovar tudo nem substituir registros automaticamente.</p>
+<div class="conflict-remote-list" aria-live="polite">
+<p class="muted" data-conflict-status>Conferindo os horários existentes no Kimai...</p>
+<ul data-conflict-rows></ul>
+<button type="button" class="secondary" data-conflict-retry hidden>Tentar carregar registros</button>
+</div>
 @if(!empty($candidate['remote_intersections']))
 <p><strong>Registros no Kimai:</strong> #{{ implode(', #',array_map('intval',$candidate['remote_intersections'])) }}</p>
 @endif

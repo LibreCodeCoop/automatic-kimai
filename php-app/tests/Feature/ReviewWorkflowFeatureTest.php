@@ -103,6 +103,12 @@ final class ReviewWorkflowFeatureTest extends TestCase
             ->assertSee('Reanalisar sobreposições')
             ->assertSee('#65')
             ->assertDontSee('name="project_id" data-default',false);
+        $details='http://localhost/review/conflict/details?candidate_id='.$candidate['id'].
+            '&source_digest='.$candidate['source_digest'];
+        $this->get($details)->assertStatus(422)
+            ->assertJsonPath('error','Não foi possível confirmar os registros no Kimai. Tente novamente.');
+        $this->get('http://outside.example/review/conflict/details?candidate_id='.$candidate['id'].
+            '&source_digest='.$candidate['source_digest'])->assertForbidden();
         $url='http://localhost/review/conflict';
         $base=['candidate_id'=>$candidate['id'],'source_digest'=>$candidate['source_digest']];
         $this->post($url,$base+['decision'=>'already_recorded'])->assertSessionHasErrors('confirm_discard');

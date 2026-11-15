@@ -114,3 +114,55 @@
     if (retry) retry.addEventListener('click', () => void load(form));
   }
 })();
+
+(() => {
+  // Remote entries are loaded on demand, never from the untrusted HTML cache.
+  // The human sees the actual booked bounds before dismissing a partial overlap.
+  const endpoint = @json(route('kimai.review-conflict-details'));
+  for (const panel of document.querySelectorAll('[data-conflict-details]')) {
+    const detail = panel.closest('details');
+    const status = panel.querySelector('[data-conflict-status]');
+    const list = panel.querySelector('[data-conflict-rows]');
+    const retry = panel.querySelector('[data-conflict-retry]');
+    if (!detail || !status || !list || !retry) continue;
+    let inFlight = false;
+    let loaded = false;
+    const load = async () => {
+      if (inFlight || loaded) return;
+      inFlight = true;
+      status.textContent = 'Conferindo os horários registrados no Kimai...';
+      retry.hidden = true;
+      list.replaceChildren();
+      try {
+        const url = new URL(endpoint);
+        url.searchParams.set('candidate_id', panel.dataset.conflictId || '');
+        url.searchParams.set('source_digest', panel.dataset.conflictDigest || '');
+        const response = await fetch(url.toString(), {
+          credentials: 'same-origin', cache: 'no-store',
+          headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('Kimai indisponível');
+        const data = await response.json();
+        if (!Array.isArray(data.timesheets)) throw new Error('Resposta inválida');
+        for (const item of data.timesheets) {
+          const row = document.createElement('li');
+          row.textContent = 'Kimai #' + String(item.id) + ': ' +
+            String(item.start) + '–' + String(item.end);
+          list.appendChild(row);
+        }
+        status.textContent = data.timesheets.length
+          ? 'Registros existentes que cruzam esta proposta:'
+          : 'Nenhum lançamento sobreposto encontrado. Reanalise antes de decidir.';
+        loaded = true;
+      } catch (_error) {
+        status.textContent = 'Não foi possível consultar os horários atuais. Não descarte por suposição.';
+        retry.hidden = false;
+      } finally {
+        inFlight = false;
+      }
+    };
+    detail.addEventListener('toggle', () => { if (detail.open) void load(); });
+    retry.addEventListener('click', () => void load());
+    if (detail.open) void load();
+  }
+})();

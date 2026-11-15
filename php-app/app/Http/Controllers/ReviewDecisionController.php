@@ -93,6 +93,47 @@ final class ReviewDecisionController extends Controller
         }
     }
 
+    public function conflictDetails(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $this->local($request);
+        $input=$request->validate([
+            'candidate_id'=>['required','string','regex:/^[A-Za-z0-9_-]{8,90}$/'],
+            'source_digest'=>['required','string','regex:/^[a-f0-9]{64}$/'],
+        ]);
+        $queue=new ReviewQueue($this->store->reviewQueueFile());
+        try {$candidate=$queue->conflict($input['candidate_id'],$input['source_digest']);}
+        finally {$queue->close();}
+        if (!$candidate)return response()->json(['error'=>'Conflito desatualizado. Reanalise a fila.'],409);
+        $profile=$this->store->profile();
+        if (!$profile)return response()->json(['error'=>'Conecte o Kimai para conferir horários.'],422);
+        try {
+            $creds=$this->store->credentials();
+            $api=new KimaiClient($creds['KIMAI_BASE_URL']??'',$creds['KIMAI_API_TOKEN']??'');
+            $me=$api->me();
+            if (!is_int($me['id']??null)||$me['id']<1||
+                ($me['timezone']??null)!==$profile->get('timezone')) {
+                throw new RuntimeException('Kimai identity changed');
+            }
+            $start=TimeMath::parse($candidate['start']);
+            $end=TimeMath::parse($candidate['end']);
+            $rows=[];
+            foreach ($api->timesheets($me['id'],[$candidate['date']],$profile->zone) as $record) {
+                if (!is_int($record['id']??null)||empty($record['end']))continue;
+                $a=TimeMath::parse($record['begin']);
+                $b=TimeMath::parse($record['end']);
+                if ($a >= $end || $b <= $start)continue;
+                $rows[]=[
+                    'id'=>$record['id'],
+                    'start'=>$a->setTimezone($profile->zone)->format('H:i'),
+                    'end'=>$b->setTimezone($profile->zone)->format('H:i'),
+                ];
+            }
+            return response()->json(['timesheets'=>$rows]);
+        } catch(Throwable) {
+            return response()->json(['error'=>'Não foi possível confirmar os registros no Kimai. Tente novamente.'],422);
+        }
+    }
+
     public function dismissConflict(Request $request): RedirectResponse
     {
         $this->local($request);

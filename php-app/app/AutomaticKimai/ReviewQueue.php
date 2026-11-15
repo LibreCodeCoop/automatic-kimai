@@ -97,6 +97,7 @@ final class ReviewQueue
         $a=TimeMath::parse($candidate['start']);
         $b=TimeMath::parse($candidate['end']);
         $intersections=[];
+        $coverage=[];
         foreach ($remote as $row) {
             if (!is_array($row)||empty($row['end']))continue;
             try {
@@ -104,16 +105,18 @@ final class ReviewQueue
                 $y=TimeMath::parse($row['end']);
                 if (TimeMath::ts($x)<TimeMath::ts($b)&&TimeMath::ts($a)<TimeMath::ts($y)) {
                     $intersections[]=$row;
+                    $coverage[]=[$x,$y];
                 }
             } catch (\Throwable){}
         }
         if ($intersections===[])return ['new',null];
-        if (count($intersections)===1) {
-            $r=$intersections[0];
-            if (TimeMath::ts(TimeMath::parse($r['begin']))<=TimeMath::ts($a) &&
-                TimeMath::ts($b)<=TimeMath::ts(TimeMath::parse($r['end']))) {
-                return ['covered',is_int($r['id']??null)?$r['id']:null];
-            }
+        // A whole candidate may already be recorded in adjacent Kimai
+        // timesheets. Require *complete* union coverage, not just one overlap.
+        // If even one second is missing, the worker must review the gap.
+        if (TimeMath::subtract([[$a,$b]],$coverage)===[]) {
+            $single=count($intersections)===1?$intersections[0]:null;
+            return ['covered',is_array($single)&&is_int($single['id']??null)
+                ?$single['id']:null];
         }
         // Any remote partial overlap requires explicit human judgment.
         return ['conflict',null];
@@ -403,6 +406,17 @@ final class ReviewQueue
             ]);
         }
         return $result;
+    }
+
+    /** Only the currently frozen evidence may be used to request remote details. */
+    public function conflict(string $id,string $digest): ?array
+    {
+        $row=$this->one($id);
+        if (!$row||$row['status']!=='conflict'||!hash_equals($row['source_digest'],$digest)) {
+            return null;
+        }
+        $proposal=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);
+        return is_array($proposal)?$proposal:null;
     }
 
     public function countByStatus(): array
