@@ -98,3 +98,33 @@ Only a separately reviewed repository/visibility transition may publish it.
 If the original GitHub repository is made public directly, old commits and PR
 references are still potentially retrievable. A new public repository based on
 the clean snapshot avoids exposing the original repository's private history.
+
+## Dependency review of the current alpha (15 November 2026)
+
+The original GitHub default branch reported seven Dependabot advisories:
+two **high** `extract-zip` alerts and five **moderate** alerts.
+The application did not directly use `electron-chromedriver`, which was
+the sole dependency pulling the unpatched `extract-zip` package. The
+hardening branch removes it entirely, along with unused `nodemon`.
+Vitest/`@vitest/mocker`, `colord`, and `rimraf`/`glob` have been updated
+to versions outside the reported vulnerable ranges. Both a clean npm
+install and Electron's local bundle/tests were verified after updating
+the lockfile; npm audit and Composer audit reported zero advisories in
+their own advisory databases.
+
+**Residual upstream risk:** the Electron packaging/development dependency
+tree still includes `minimatch` 9.x and 10.x through packages such as
+`@electron/universal`, `app-builder-lib`, and build tooling. GitHub
+advisory `GHSA-g3hv-75wg-m249` recommends minimatch 11.0.1+, but those
+upstreams currently declare incompatible older major ranges. Do **not**
+force a major override merely to suppress Dependabot without testing
+the actual installer and all affected dependency consumers. Until a safe
+upstream release or verified compatible upgrade is available, do not
+process third-party/untrusted glob patterns in packaging workflows.
+An independent review of this remaining advisory is required before
+shipping signed desktop installers.
+
+Dependabot counts are calculated from GitHub's **default branch**. The
+alerts cannot be presumed closed until the hardening PR is merged and
+the dependency graph is reprocessed. The npm advisory feed and the
+GitHub advisory feed need not report identical results at the same time.

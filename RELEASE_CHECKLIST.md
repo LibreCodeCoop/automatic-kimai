@@ -11,6 +11,9 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   dependencies before first public GPL-3.0-or-later publication.
 - [ ] Review licenses and security advisories for Laravel, NativePHP,
   Electron, MadelineProto and other shipped dependencies.
+- [ ] Recheck GitHub Dependabot alerts **after the hardening PR merges**.
+  Resolve/assess the remaining `minimatch` development/packaging advisory
+  before shipping installers; do not trust npm audit alone.
 - [ ] Run the full PHP test suite, desktop-preview Node tests, package
   privacy guard and source check: php php-app/scripts/check-publication.php.
 - [ ] Create a private, untracked .publication-denylist (mode 0600)
