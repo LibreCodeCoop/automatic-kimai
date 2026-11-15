@@ -782,3 +782,44 @@ O código da escrita automática está implementado e com testes, mas
 o último ledger/outbox, resolver divergências e operações pendentes,
 habilitar um único writer PHP, monitorar e comprovar rollback.
 O PR deve permanecer draft até essas verificações finais e revisão.
+
+## Telegram group search — complete pagination and explicit API budget (15/11/2026)
+
+The selector formerly stopped after 12 pages per Telegram folder. A second
+search term only filtered the 2,400 dialogs already indexed, even if its
+matches were on the next page; the UI could report zero matches despite
+existing groups. Chromium headless reproduced this in a 28-page synthetic
+catalog (24 requests, then **zero new requests** for the second term).
+
+The browser now continues to paginate non-archived and archived groups,
+reuses the volatile account-scoped index for new terms, and displays
+available vs. already-selected matches separately. Accent-insensitive search
+matches titles such as "Coordenação" with "coordenacao". A progress indicator
+and the number of dialogs checked remain visible. The client caps catalog
+RPCs at 18 per rolling 61 seconds (the local endpoint permits 30/minute);
+when saturated it displays a countdown and resumes automatically without
+discarding pagination or selected checkboxes. A high safety threshold
+(120 pages/folder) can be continued explicitly; it is no longer a hidden
+12-page limit. The UI never reads messages or marks anything read just to
+search chat titles.
+
+Native community discovery previously ran eagerly at login and competed
+with the search's serial Telegram RPCs, especially on the single-worker
+local PHP preview. It now loads only when the user opens the "Consultar
+comunidades" section. This preserves community selection without delaying
+the search.
+
+**Tests:** synthetic browser regression
+tests/Browser/telegram-search.cjs (optional Puppeteer, actual Laravel HTML,
+Telegram endpoints fully mocked, no credentials): 28 pages fetched and
+indexed, second term finds matches after the old cutoff, accented title,
+selected-group status, lazy communities, zero JS errors. Local PHPUnit PHP
+regression suite and JavaScript syntax checks passed.
+
+**Real Telegram read-only smoke:** with previously authorized account and
+98 groups selected, 18 successful catalog HTTP responses examined 1,613
+dialogs within ~12.5s. Searching LibreCode showed four *available* matches
+and 29 *already selected*; no native community request or message-history
+query was made. The 18/minute API budget then showed a countdown (~50s)
+until the next batch. Full-dialog exhaustion remains a separate, longer
+end-to-end check; this smoke does not assert that every chat was examined.

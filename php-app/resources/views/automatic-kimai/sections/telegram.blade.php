@@ -58,19 +58,23 @@
 <div class="onboarding-step">
 <div class="step-heading"><span class="step-number">2</span><div><h3>Escolher grupos profissionais</h3><p class="muted">Apenas grupos e supergrupos são exibidos. Contatos individuais e canais de transmissão não entram na lista.</p></div></div>
 <p class="muted">Você pode selecionar grupos individualmente ou expandir uma comunidade para selecionar os grupos vinculados dos quais participa. Comunidades são agrupadores; canais e bots não são fontes de mensagens de trabalho.</p>
-<div id="tg-communities-area" class="telegram-communities-area" hidden>
+<details id="tg-communities-panel" class="advanced-settings">
+<summary>Consultar comunidades e seus grupos (opcional)</summary>
+<div id="tg-communities-area" class="telegram-communities-area">
 <h3>Suas comunidades</h3>
 <p class="muted">Abra uma comunidade para escolher seus grupos. Nada é ativado sem salvar e confirmar a análise.</p>
 <div id="tg-communities-list" class="telegram-communities-list"></div>
-<p id="tg-communities-status" class="muted" role="status" aria-live="polite"></p>
+<p id="tg-communities-status" class="muted" role="status" aria-live="polite">Abra esta seção para consultar comunidades. A busca de grupos funciona sem essa consulta adicional.</p>
 </div>
+</details>
 <form id="tg-groups-form">
 <div class="group-selection-toolbar">
 <p id="tg-selection-summary" class="telegram-selection-counter" role="status" aria-live="polite">0 grupos selecionados</p>
 <p id="tg-selection-feedback" class="telegram-selection-feedback" role="alert" hidden></p>
 <label for="tg-search">Buscar em todos os grupos do Telegram</label>
 <input type="search" id="tg-search" placeholder="Ex.: LibreCode (inclui arquivados)" autocomplete="off" minlength="2" maxlength="80" aria-describedby="tg-search-status">
-<p id="tg-search-status" class="muted" role="status" aria-live="polite">Digite pelo menos 2 caracteres para pesquisar em todas as páginas.</p>
+<p id="tg-search-status" class="muted" role="status" aria-live="polite">Digite pelo menos 2 caracteres para consultar seus grupos, inclusive os arquivados.</p>
+<progress id="tg-search-progress" aria-label="Busca Telegram em andamento" hidden></progress>
 <div class="telegram-folder-switch" role="group" aria-label="Exibir conversas Telegram">
 <button type="button" id="tg-folder-active" class="secondary" aria-pressed="true">Não arquivados</button>
 <button type="button" id="tg-folder-archived" class="secondary" aria-pressed="false">Arquivados</button>

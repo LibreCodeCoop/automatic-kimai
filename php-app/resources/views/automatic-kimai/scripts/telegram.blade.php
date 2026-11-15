@@ -38,7 +38,13 @@
   let catalogRunning=false;
   let catalogController=null;
   let catalogError='';
-  let catalogLimit=12;
+  // Paginate across every joined dialog, not only the first 12 pages.
+  // A strict client-side rolling budget avoids 429s from our local endpoint
+  // (30 requests/minute), leaving room for other Telegram operations.
+  let catalogLimit=120;
+  const catalogRequestTimes=[];
+  const catalogRequestsPerMinute=18;
+  let catalogCooldownSeconds=0;
   let communitiesLoaded=false;
   let avatarRequested=false;
   const pages={
@@ -46,6 +52,10 @@
     1:{cursor:null,loaded:false,scanned:0,seen:0,loading:false,error:false,errorMessage:''},
   };
   const collator=new Intl.Collator('pt-BR',{sensitivity:'base',numeric:true});
+  // Telegram group names can contain accents; the search must not require
+  // the user to type identical diacritics (e.g. "coordenacao"/"coordenação").
+  const fold=value=>String(value).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLocaleLowerCase('pt-BR').trim();
 
   const message=value=>{status.textContent=value;};
   const stopPoll=()=>{if(poll!==null)clearInterval(poll);poll=null;};
@@ -111,13 +121,13 @@
   };
   const refreshSearchMatches=()=>{
     searchMatches.clear();
-    const q=$('tg-search').value.trim().toLocaleLowerCase();
+    const q=fold($('tg-search').value);
     if(q.length<2)return;
     for(const group of loadedGroups.values()){
-      if(group.title.toLocaleLowerCase().includes(q))searchMatches.add(group.id);
+      if(fold(group.title).includes(q))searchMatches.add(group.id);
     }
     for(const community of nativeCommunities){
-      if(community.title.toLocaleLowerCase().includes(q)){
+      if(fold(community.title).includes(q)){
         for(const group of community.groups)searchMatches.add(String(group.id));
       }
     }
@@ -125,7 +135,7 @@
   const renderList=()=>{
     refreshSearchMatches();
     const current=pages[activeFolder];
-    const search=$('tg-search').value.trim().toLocaleLowerCase();
+    const search=fold($('tg-search').value);
     const alphabetically=$('tg-sort').value==='name';
     const previousScroll=$('tg-group-list').scrollTop;
     const searching=search.length>=2;
@@ -141,7 +151,7 @@
     let visible=0;
     for(const group of others){
       group.checkbox.checked=selectedSelection.has(group.id);
-      group.element.hidden=!searching&&search!==''&&!group.title.toLocaleLowerCase().includes(search);
+      group.element.hidden=!searching&&search!==''&&!fold(group.title).includes(search);
       if(!group.element.hidden)visible++;
       children.push(group.element);
     }
@@ -150,10 +160,11 @@
       note.className='muted';
       if(current.error)note.setAttribute('role','alert');
       note.textContent=searching ?
-        (catalogRunning?'Procurando mais grupos no Telegram…':
-          catalogFolders[0].done&&catalogFolders[1].done?
-            'Nenhum outro grupo disponível com esse nome.':
-            'Nenhum outro grupo encontrado até agora.') :
+        (searchMatches.size>0&&[...searchMatches].every(id=>selectedSelection.has(id))?
+          'Todos os grupos encontrados com esse nome já estão na lista de selecionados.':
+          catalogRunning?'Procurando mais grupos no Telegram…':
+          catalogComplete()?'Nenhum grupo disponível com esse nome.':
+          'Ainda não foram encontradas correspondências. A busca é parcial; continue a consulta.') :
         current.error?current.errorMessage:
         current.loading?'Carregando a primeira página…':
         current.loaded?(current.cursor===null?'Nenhum outro grupo nesta categoria.':
@@ -173,12 +184,14 @@
     while(catalog.children.length>children.length)catalog.lastElementChild.remove();
     catalog.scrollTop=previousScroll;
     $('tg-page-status').textContent=searching ?
-      visible+' grupos disponíveis na busca'+(catalogRunning?' · procurando mais…':'') :
+      visible+' grupos disponíveis na busca'+(catalogRunning?' · consulta em andamento…':'') :
       current.seen+' grupos carregados'+
       (current.cursor!==null?' · há mais páginas':current.loaded?' · fim da lista':'');
     $('tg-load-more').hidden=searching||!(current.error || (current.loaded&&current.cursor!==null));
     $('tg-load-more').disabled=fetchingGroups;
     $('tg-reload-groups').disabled=fetchingGroups||catalogRunning;
+    $('tg-search-progress').hidden=!catalogRunning;
+    $('tg-search').setAttribute('aria-busy',String(catalogRunning));
     $('tg-load-more').textContent=current.error?
       'Tentar carregar novamente':'Carregar mais grupos';
     renderSelection();
@@ -343,13 +356,13 @@
         nativeCommunities.push({id:String(item.id),title:item.title,groups:children});
       }
       $('tg-communities-list').replaceChildren(fragment);
-      $('tg-communities-area').hidden=nativeCommunities.length===0;
-      $('tg-communities-status').textContent=nativeCommunities.length+
-        ' comunidades disponíveis; selecione apenas os grupos autorizados.';
-      const query=$('tg-search').value.trim().toLocaleLowerCase();
+      $('tg-communities-status').textContent=nativeCommunities.length===0?
+        'Nenhuma comunidade com grupos vinculados disponível nesta conta.':
+        nativeCommunities.length+' comunidades disponíveis; selecione apenas os grupos autorizados.';
+      const query=fold($('tg-search').value);
       if(query.length>=2){
         for(const community of nativeCommunities){
-          if(community.title.toLocaleLowerCase().includes(query)){
+          if(fold(community.title).includes(query)){
             for(const group of community.groups)searchMatches.add(String(group.id));
           }
         }
@@ -357,8 +370,7 @@
       renderList();
     }catch(_error){
       communitiesLoaded=false;
-      $('tg-communities-area').hidden=false;
-      $('tg-communities-status').textContent='Não foi possível listar as comunidades. Atualize a página para tentar novamente.';
+      $('tg-communities-status').textContent='Não foi possível listar as comunidades. Feche e reabra esta seção para tentar novamente.';
     }
   };
 
@@ -374,21 +386,51 @@
     }
     const scanned=catalogFolders[0].scanned+catalogFolders[1].scanned;
     const matched=searchMatches.size;
-    const prefix=matched+' grupos encontrados · '+scanned+' diálogos adicionais consultados.';
+    const selected=[...searchMatches].filter(id=>selectedSelection.has(id)).length;
+    const available=matched-selected;
+    const prefix=available+' grupos disponíveis'+
+      (selected?' · '+selected+' já selecionados':'')+
+      ' · '+scanned+' diálogos consultados.';
     $('tg-reload-groups').textContent=catalogComplete()?'Atualizar busca':
-      catalogAtLimit()?'Continuar busca':'Atualizar lista';
+      catalogAtLimit()?'Continuar busca':
+      catalogError?'Tentar novamente':'Atualizar lista';
     $('tg-search-status').textContent=catalogError?
-      prefix+' Busca parcial: '+catalogError+' Use Atualizar lista para tentar novamente.':
-      catalogRunning?prefix+' Procurando mais, incluindo arquivados…':
-      catalogComplete()?prefix+' Busca concluída. Alterar o texto não refaz chamadas à API.':
-      catalogAtLimit()?prefix+' Busca parcial por limite de segurança. Clique em Continuar busca.':
-      prefix+' Mostrando resultados locais; as demais páginas serão consultadas.';
+      prefix+' Busca incompleta: '+catalogError+' Clique em Tentar novamente.':
+      catalogRunning&&catalogCooldownSeconds>0?
+        prefix+' Busca em andamento. Aguardando liberação de consultas ao Telegram ('+
+          catalogCooldownSeconds+' s); a busca continuará automaticamente.':
+      catalogRunning?
+        prefix+' Buscando em todas as páginas, inclusive arquivadas. Os resultados aparecem durante a consulta…':
+      catalogComplete()?prefix+' Busca completa, incluindo arquivados. Alterar o termo filtra todos os grupos encontrados.':
+      catalogAtLimit()?prefix+' Busca parcial por limite de proteção. Clique em Continuar busca.':
+      prefix+' Catálogo parcial. Ao pesquisar, serão consultadas as páginas restantes.';
+  };
+
+  // Keep the API query bounded without arbitrarily ending a search
+  // at a fixed page count. Display a live countdown when access is paused.
+  const waitForCatalogBudget=async controller=>{
+    while(!controller.signal.aborted && $('tg-search').value.trim().length>=2){
+      const now=Date.now();
+      while(catalogRequestTimes.length&&catalogRequestTimes[0]+61000<=now){
+        catalogRequestTimes.shift();
+      }
+      if(catalogRequestTimes.length<catalogRequestsPerMinute){
+        catalogRequestTimes.push(now);
+        catalogCooldownSeconds=0;
+        return true;
+      }
+      catalogCooldownSeconds=Math.max(1,
+        Math.ceil((catalogRequestTimes[0]+61000-now)/1000));
+      renderList();
+      await new Promise(resolve=>setTimeout(resolve,1000));
+    }
+    return false;
   };
 
   /**
-   * Build a volatile, account-scoped catalog in the current browser page.
-   * Unlike the previous query-bound RPC search, one catalog page is read
-   * only once even if the person changes the search term many times.
+   * Build a volatile, account-scoped catalog in the browser. Changing the
+   * search term must not prevent subsequent pages from loading. Requests
+   * remain serialized and do not read messages or select new groups.
    */
   const searchAll=async()=>{
     if(catalogRunning||catalogComplete()||catalogAtLimit())return;
@@ -407,6 +449,7 @@
           const state=catalogFolders[folder];
           if(state.done||state.requests>=catalogLimit||
              controller.signal.aborted||$('tg-search').value.trim().length<2)continue;
+          if(!await waitForCatalogBudget(controller))break;
           const payload={folder:String(folder)};
           if(state.cursor!==null)payload.cursor=state.cursor;
           const timeout=setTimeout(()=>controller.abort('timeout'),16000);
@@ -440,6 +483,7 @@
       }
     }finally{
       catalogRunning=false;
+      catalogCooldownSeconds=0;
       catalogController=null;
       renderList();
       if(controller.signal.reason==='query-cleared'&&
@@ -457,7 +501,7 @@
           Object.assign(catalogFolders[folder],
             {cursor:null,done:false,requests:0,scanned:0});
         }
-        catalogLimit=12;
+        catalogLimit=120;
       }else if(catalogError.includes('expirado')){
         // A 20-minute encrypted cursor can expire during a long editing
         // session. Restart only on explicit retry, preserving indexed rows.
@@ -467,9 +511,9 @@
               {cursor:null,done:false,requests:0,scanned:0});
           }
         }
-        catalogLimit=12;
+        catalogLimit=120;
       }else if(catalogAtLimit()){
-        catalogLimit+=12;
+        catalogLimit+=120;
       }
       catalogError='';
       void searchAll();
@@ -617,7 +661,9 @@
     if(connected) {
       stopPoll();
       if(!pages[activeFolder].loaded&&!fetchingGroups)loadGroups();
-      if(!communitiesLoaded)void loadCommunities();
+      // Native communities can make many serial RPCs. Do not block the
+      // search queue at every Telegram login or page navigation.
+      if($('tg-communities-panel').open&&!communitiesLoaded)void loadCommunities();
       renderList();
     } else {
       $('tg-authorized-area').hidden=true;
@@ -689,8 +735,11 @@
     // Update immediately from the in-memory catalog, including groups
     // found during older searches. Do not repeat MTProto pagination.
     renderList();
-    if(q.length>=2 && !catalogRunning&&!catalogComplete()&&!catalogAtLimit()&&
-       catalogError===''){
+    if(q.length>=2 && !catalogRunning&&!catalogComplete()){
+      // A changed query is a new search, not a frozen filter on the first
+      // query's 12-page result. Resume from saved cursors automatically.
+      if(catalogAtLimit())catalogLimit+=120;
+      catalogError='';
       searchTimer=setTimeout(()=>void searchAll(),320);
     }
   });
@@ -698,6 +747,11 @@
   $('tg-folder-active').addEventListener('click',()=>switchFolder(0));
   $('tg-folder-archived').addEventListener('click',()=>switchFolder(1));
   $('tg-reload-groups').addEventListener('click',reloadCurrent);
+  $('tg-communities-panel').addEventListener('toggle',()=>{
+    if($('tg-communities-panel').open&&currentState==='authorized'&&!communitiesLoaded){
+      void loadCommunities();
+    }
+  });
   $('tg-disconnect').addEventListener('click',async()=>{
     if(!window.confirm('Desconectar a conta Telegram deste dispositivo? Isso revoga a sessão e apaga a seleção e os metadados locais dos grupos. As horas no Kimai não serão alteradas.'))return;
     const button=$('tg-disconnect');

@@ -309,3 +309,22 @@ perfil, sessões Telegram, bancos, logs ou credenciais individuais.
 Os testes reais de instalação de cada sistema são sob demanda, não
 bloqueiam o merge deste PR, mas continuam necessários antes de anunciar
 oficialmente suporte a esses sistemas.
+
+### Busca de grupos Telegram sem falsos "zero resultados"
+
+Ao pesquisar dois ou mais caracteres, a aplicação apresenta imediatamente
+os grupos já carregados e continua consultando o catálogo progressivamente,
+inclusive arquivados. Os grupos selecionados aparecem em coluna separada:
+a busca informa quantos estão disponíveis e quantos já foram selecionados.
+A consulta continua para novas palavras, sem parar arbitrariamente na
+12ª página; acentos podem ser omitidos. O indicador de progresso e a
+contagem de diálogos ajudam a diferenciar **consulta incompleta** de
+**nenhum grupo encontrado**. Para respeitar a API, o aplicativo consulta
+até 18 páginas/minuto e mostra o tempo de pausa quando necessário.
+
+A consulta mais pesada de comunidades é opcional e só começa quando
+essa seção for aberta. Nenhuma dessas consultas busca conteúdo de
+mensagens ou altera seus marcadores de leitura.
+
+Teste de interface isolado, com resposta Telegram simulada (Puppeteer opcional):
+PUPPETEER_MODULE=/caminho/para/puppeteer PUPPETEER_EXECUTABLE=/usr/bin/google-chrome AUTOMATIC_KIMAI_PREVIEW_URL=http://127.0.0.1:6817/?view=telegram node tests/Browser/telegram-search.cjs.
