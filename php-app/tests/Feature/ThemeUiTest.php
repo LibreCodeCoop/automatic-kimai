@@ -94,6 +94,40 @@ final class ThemeUiTest extends TestCase
         }
     }
 
+    public function test_nextcloud_switch_thumb_stays_visible_in_both_states_and_themes(): void
+    {
+        $stylesheet=file_get_contents(public_path('css/automatic-kimai.css'));
+        self::assertIsString($stylesheet);
+        self::assertSame(1,preg_match(
+            '/\\.nc-switch input:checked \\+ \\.nc-switch-track\\s*\\{[^}]*background:\\s*var\\((--[a-z-]+)\\)/s',
+            $stylesheet,$enabled
+        ));
+        self::assertSame(1,preg_match(
+            '/\\.nc-switch-track\\s*\\{[^}]*background:\\s*var\\((--[a-z-]+)\\)/s',
+            $stylesheet,$disabled
+        ));
+        self::assertSame(1,preg_match(
+            '/\\.nc-switch-track::after\\s*\\{[^}]*background:\\s*var\\((--[a-z-]+)\\)/s',
+            $stylesheet,$thumb
+        ));
+        foreach ([
+            'light'=>':root',
+            'dark'=>':root[data-theme="dark"]',
+            'system dark'=>':root:not([data-theme])',
+        ] as $mode=>$selector) {
+            $tokens=self::variables($stylesheet,$selector);
+            self::assertArrayHasKey($enabled[1],$tokens);
+            self::assertArrayHasKey($disabled[1],$tokens);
+            self::assertArrayHasKey($thumb[1],$tokens);
+            foreach (['enabled'=>$enabled[1],'disabled'=>$disabled[1]] as $state=>$trackToken) {
+                self::assertGreaterThanOrEqual(
+                    3,self::contrast($tokens[$trackToken],$tokens[$thumb[1]]),
+                    "$mode Nextcloud switch $state thumb/track non-text contrast must be >= 3:1"
+                );
+            }
+        }
+    }
+
     public function test_ui_widgets_use_semantic_colors_and_dark_native_controls(): void
     {
         $stylesheet=file_get_contents(public_path('css/automatic-kimai.css'));
