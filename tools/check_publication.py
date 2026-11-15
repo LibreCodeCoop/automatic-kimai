@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 IGNORED_DIRS = {".git", ".venv", "build", "dist", "__pycache__",
                 ".pytest_cache", ".mypy_cache", ".kimai_cache",
                 ".tox", "automatic_kimai.egg-info"}
-TEXT_EXT = {".py", ".md", ".toml", ".json", ".yml", ".yaml", ".ini", ".txt"}
+TEXT_EXT = {".py", ".php", ".md", ".toml", ".json", ".yml", ".yaml",
+            ".ini", ".txt", ".js", ".mjs", ".ts", ".css", ".html", ".lock"}
 PRIVATE_NAMES = {"profile.json", "sources.json", "calendar_work_context.json",
                  "nextcloud_talk_context.json", "telegram_context.json",
                  "trial_monitor.sqlite3", "latest_daily_plan.json"}

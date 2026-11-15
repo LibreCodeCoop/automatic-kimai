@@ -1,0 +1,10 @@
+# Development/build-only environment; the distributed Electron bundle includes PHP.
+FROM php:8.4-cli
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libzip-dev libgmp-dev libpng-dev zip unzip \
+    && docker-php-ext-install zip gmp gd \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY --from=node:24 /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:24 /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm

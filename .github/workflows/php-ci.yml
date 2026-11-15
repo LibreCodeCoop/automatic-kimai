@@ -1,0 +1,70 @@
+name: PHP migration verification
+
+on:
+  push:
+    branches:
+      - feat/php-migration
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["8.4", "8.5"]
+    defaults:
+      run:
+        working-directory: php-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, dom, fileinfo, mbstring, openssl, pdo_sqlite, sqlite3, xml, zip
+          coverage: none
+          tools: composer:v2
+      - name: Verify dependencies and install without side effects
+        run: |
+          composer validate --strict
+          composer install --no-scripts --no-interaction --prefer-dist --no-progress
+      - name: Initialize private test key
+        run: |
+          cp .env.example .env
+          php artisan key:generate --no-interaction
+          php artisan package:discover --no-ansi
+      - name: PHPUnit full suite
+        run: php vendor/bin/phpunit --no-coverage
+      - name: Route validation
+        run: php artisan route:list --path=/ --except-vendor
+      - name: PHP syntax
+        run: |
+          find app routes tests -name '*.php' -print0 | xargs -0 -n 1 php -l > /dev/null
+      - name: Exclude credentials from tracked files
+        run: |
+          test ! -f ../.publication-denylist
+          test ! -f .env.production
+          test ! -d node_modules
+
+  electron-vite:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: php-app/nativephp/electron
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: php-app/nativephp/electron/package-lock.json
+      - name: Install JavaScript build tooling (no app runtime)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Bundle Electron bridge
+        env:
+          APP_PATH: ${{ github.workspace }}/php-app
+        run: npm run build
