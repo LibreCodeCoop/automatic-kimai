@@ -1,32 +1,59 @@
 # Contributing
 
-Contributions are welcome once the repository is published and its licensing/ownership review has been completed.
+Contributions to Automatic Kimai are welcome after the source publication
+and licensing review has been completed. The application is PHP 8.4+,
+Laravel 12 and NativePHP/Electron; **the Python pilot is not part of the
+new product source tree**. Its original implementation remains a historical
+reference for migration tests, but a numerical difference alone does not
+prove an error in the PHP algorithm.
 
-## Development setup
+## Development and tests
 
-Install Python 3.11+ with Tkinter, create a virtual environment and run:
+Prepare PHP 8.4+, Composer 2 and Node 22+ (for desktop preview):
 
-```sh
-python -m pip install -e '.[desktop]'
-python -m unittest discover -s tests -v
-python tools/check_publication.py
-```
+~~~sh
+cd php-app
+composer install --no-interaction
+cp .env.example .env
+php artisan key:generate
+php artisan package:discover
+php vendor/bin/phpunit
+php scripts/check-publication.php
+node --test desktop-preview/*.test.cjs
+~~~
 
-Keep changes small and include regression tests. Do not replace the user's local profile, send real API requests, or write to any live Kimai instance during unit tests. Tests must use fixtures with invented identities, domains and credentials.
+Do not run the unit suite against an actual user's private profile or
+Kimai account. Tests must use a temporary LocalStore, isolated SQLite
+files and fake HTTP transports with invented identities and data.
+Do not use the development backend or production token for publication tests.
 
-## Security and privacy boundaries
+## Source control and privacy
 
-- Do **not** commit credentials, personal time records, browser histories, meeting titles, raw URLs, chat bodies, Telegram session files, or SQLite ledgers.
-- Do **not** infer human working hours from an open browser, a calendar invitation, automated AI processing, or a long period without mouse activity.
-- Default operation must remain read-only. A Kimai mutation requires explicit user opt-in, scoped credentials, strict preflight checks, idempotent outbox state and verification by GET.
-- Treat a failed or uncertain HTTP write as an unresolved operation: never blindly retry a POST.
-- Test all date-boundary, timezone, overlap and concurrent-run changes.
-- Do not introduce hard-coded organization URLs, project IDs or private paths.
+- Never commit real tokens, private domains, chats, raw URLs, private
+  SQLite ledgers, API sessions, browser history or transcripts.
+- Protect all private files with owner-only permissions, and never
+  print bearer credentials, response bodies or personal content in logs.
+- Maintain .publication-denylist locally (0600) to catch names/domains
+  unique to your own pilot before publication.
+- Use only trusted opt-in source data. Mark AFK and missing watchers as
+  unknown, not automatically worked time.
+- Do not infer hours from calendar entries or agent/voice execution.
+- Mutation requires frozen human approval, account/catalog preflight,
+  an idempotent outbox, no overlapping timesheet and exact GET verification.
+- Treat HTTP timeouts and process crashes as **unknown**, never retrying
+  POST or PATCH without reconciliation.
+- Test timezone, midnight, partial overlap, duplicate and concurrent
+  execution cases.
+- Avoid hardcoded organization names, instance URLs or customer IDs.
 
 ## Pull requests
 
-Explain the behavior before and after your change; link any issue if available. Include tests and a brief statement of user-visible impact. Run the unit suite locally, but do not claim Windows/macOS native support based only on Linux tests. For security-sensitive fixes use the private vulnerability route in [SECURITY.md](SECURITY.md).
+Describe user-visible behavior, security and privacy boundaries, test
+evidence and known limitations. Keep changes focused and add regression
+tests. Local Linux success does not establish Windows/macOS NativePHP
+support. The PR must remain draft until the release checklist and
+cutover gates are satisfied; a CI billing failure is not a test pass.
 
-## Licenses and credits
-
-The proposed project license is GPL-3.0-or-later. Submissions must be your own work or material you have permission to distribute under a compatible license. Preserve origin/attribution and review the licensing of any copied code before public release. See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+See [SECURITY.md](SECURITY.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md),
+[PHP_MIGRATION.md](PHP_MIGRATION.md) and the proposed GPL-3.0-or-later
+license in [LICENSE](LICENSE).

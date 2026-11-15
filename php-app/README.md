@@ -84,7 +84,7 @@ Lembre-se: um agendamento ou um processo de IA rodando sozinho não equivale a h
 
 ## Status da migração
 
-Algoritmos de segmentação, lacunas, GET Kimai, proteção de escrita, ActivityWatch, Nextcloud Calendar/Talk, GitHub, Ollama e frontend Laravel têm implementação e testes. Telegram MTProto já oferece QR/2FA pela interface local mas depende da autenticação final pelo usuário; o publicador aprovado, o histórico de revisão e componentes do piloto precisam de paridade completa e testes de produção **somente leitura** antes de qualquer substituição do runtime antigo.
+Algoritmos de segmentação, lacunas, GET Kimai, proteção de escrita, ActivityWatch, Nextcloud Calendar/Talk, GitHub, Ollama e frontend Laravel têm implementação e testes. Telegram MTProto já oferece QR/2FA pela interface local, mas a coleta real depende da autenticação/ativação explícitas; o histórico de revisão foi importado, e o publicador de sessões aprovadas foi implementado e validado em transportes simulados. Ainda faltam homologação real com Kimai descartável, telemetria operacional, empacotamento multiplataforma e corte controlado antes de substituir o runtime antigo.
 
 Este código é um **candidato de implementação** — não uma release e não uma autorização para remover os serviços Python ainda ativos.
 
@@ -119,7 +119,7 @@ A interface continua **somente leitura** para publicação no Kimai. Ocultar a c
 
 Em **Fontes de dados**, habilite Telegram e salve. A página **Conexões → Telegram** inicia com o fluxo principal para conectar a conta; configurações MTProto ficam recolhidas até serem necessárias. Após o QR Code (e 2FA se solicitada), o aplicativo apresenta apenas grupos e supergrupos da conta autenticada. Contatos individuais e canais de transmissão são excluídos.
 
-A tela oferece busca e seleção múltipla de grupos (máximo de 40). A lista é obtida do Telegram **sem ler histórico de mensagens** e é mostrada apenas na sessão local autorizada. Ao salvar, o programa persiste IDs exatos dos grupos na área privada e suspende a coleta anterior. Só o botão separado **Ativar análise dos grupos** habilita a leitura de metadados dos grupos escolhidos. Não ativa publicação de horas no Kimai. Nomes repetidos não autorizam outros grupos porque a coleta passa a usar identificadores de diálogos, não correspondência aproximada de títulos.
+A tela oferece busca e seleção múltipla de grupos (máximo de 100). A lista é obtida do Telegram **sem ler histórico de mensagens** e é mostrada apenas na sessão local autorizada. Ao salvar, o programa persiste IDs exatos dos grupos na área privada e suspende a coleta anterior. Só o botão separado **Ativar análise dos grupos** habilita a leitura de metadados dos grupos escolhidos. Não ativa publicação de horas no Kimai. Nomes repetidos não autorizam outros grupos porque a coleta passa a usar identificadores de diálogos, não correspondência aproximada de títulos.
 
 Perfis anteriores com aprovação explícita apenas por nome continuam compatíveis até passarem pelo seletor. Chaves e sessões Telegram ficam restritas ao armazenamento local criptografado ou à sessão privada MadelineProto. A versão PHP segue em **modo de revisão sem publicação de horas**, embora a autenticação e as escolhas locais sejam gravadas normalmente.
 

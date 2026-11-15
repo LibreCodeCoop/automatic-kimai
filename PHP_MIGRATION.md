@@ -130,7 +130,7 @@ Não remover timers, não excluir o ambiente anterior e não reutilizar credenci
 4. Instalar o runtime PHP e seus agendadores nativos, com segredos protegidos e acesso somente local; validar reinício, hibernação, falhas de rede, retentativas e segurança.
 5. Parar e **desabilitar timers Python somente depois** de comprovar paridade. Não deixar dois publicadores concorrentes.
 6. Executar no PHP a primeira coleta e reconciliação com GET. Verificar idempotência e logs antes de permitir POST/PATCH.
-7. Só então remover os arquivos Python da branch definitiva, substituir CI/README e preparar PR de merge para `main`, com rollback documentado.
+7. Os fontes Python já foram removidos **da branch PHP**, e CI/README atualizados. Isso não desliga o runtime Python independente. Preparar o merge para `main` somente após concluir e comprovar o cutover, com rollback documentado.
 
 **Estado atual:** ainda não atende aos critérios 1–7; a mudança de linguagem não justifica perda de funcionalidade ou apontamentos duplicados.
 
@@ -581,10 +581,40 @@ a reproduzir comportamentos incorretos do legado.
 5. Validar distribuição NativePHP e instalação/atualização Linux, Windows
    e macOS; testes do Electron em Linux não demonstram essas plataformas.
 6. Sincronizar estados após congelar o Python, conciliar pendências, garantir
-   um só escritor, monitorar e verificar rollback. Remover os scripts Python
-   do repositório somente após comprovar o corte operacional.
+   um só escritor, monitorar e verificar rollback. Os scripts Python já foram
+   excluídos **do Git da branch PHP**; os serviços em outro diretório continuam
+   ativos até que a substituição esteja comprovadamente segura.
 7. Corrigir bloqueio externo de cobrança nos runners do GitHub Actions e
    obter revisão independente sem contornar verificações.
 
 **Estado:** PR permanece em draft. Python ativo; PHP em shadow somente
 leitura. Sem POST/PATCH real nesta execução e sem desligamento de serviços.
+
+## Higienização definitiva da branch PHP (15/11/2026)
+
+- **40 arquivos Python** de runtime/testes, pyproject.toml, o perfil antigo
+  e os workflows Python/PyInstaller foram retirados apenas da branch PHP.
+  O projeto Python em produção no diretório separado permanece intacto.
+  A remoção do Git não autoriza parar timers nem habilitar PHP como escritor.
+- README, guia de usuários, contribuição, checklist de release e CI agora
+  descrevem o projeto PHP/NativePHP. O workflow PHP é acionado em main,
+  na branch de migração e em pull requests; não depende dos jobs Python.
+- Uma verificação de publicação em PHP substituiu o script Python removido.
+  Ela analisa arquivos rastreados, bloqueia fonte Python, credenciais,
+  estados privados e termos confidenciais configurados no denylist local.
+  **284 arquivos versionados verificados sem ocorrências** na avaliação;
+  isso não prova ausência de segredos em todo o histórico Git ou em backups.
+- **Build Electron:** a configuração de electron-vite deixava de compilar
+  quando APP_PATH estava ausente. Corrigida resolução do diretório-base
+  a partir da localização do arquivo de configuração. Bundle compilou
+  sem APP_PATH. A CI inclui validação sem e com APP_PATH explícito.
+- Suítes locais: **174 testes PHP, 1.303 asserções**, 9 testes da prévia
+  Electron, 46 testes do plugin NativePHP e compilação do plugin.
+- A verificação do launcher local confirmou o PHP em loopback. O ciclo
+  shadow PHP com ledger importado concluiu sem escrita; a revisão passou a
+  refletir as sessões previamente confirmadas sem novo POST.
+- **Bloqueios persistentes:** testes reais de POST/GET em Kimai descartável,
+  aceite e coleta Telegram, substituição dos serviços cron/sistema,
+  replay de casos não cobertos, instaladores multiplataforma,
+  sincronização final do histórico e validação por CI/revisão independente.
+  O pull request continua em draft.

@@ -1,66 +1,127 @@
 # Automatic Kimai
 
-**Status: 0.3.0 alpha, source-release candidate. Not a finished end-user installer.**
+**PHP 8.4 + Laravel 12 + NativePHP/Electron.** Software local para analisar
+evidências de atividade, identificar lacunas e revisar horas que poderão ser
+registradas em uma conta individual do [Kimai](https://www.kimai.org/).
 
-Automatic Kimai is an independent, local-first desktop project for reviewing work-activity evidence against an existing [Kimai](https://www.kimai.org/) timesheet account. It helps users identify missing work intervals and record confirmed work without interpreting every open browser tab, automated AI job or calendar invitation as human labor.
+**Estado:** migração em desenvolvimento; PR em draft. O código PHP funciona
+localmente em modo de revisão. O publicador PHP de sessões aprovadas está
+implementado com testes simulados, mas sua ativação está bloqueada até
+homologação completa e corte único de escritor. Não distribuir como instalador
+final nem desligar uma instalação Python ainda ativa.
 
-The project does **not** require a particular company, server, customer ID, project ID or domain. Users connect to **their own HTTPS Kimai instance** and select the appropriate client, project and activity through the application.
+O produto não presume uma empresa, domínio, cliente, projeto ou servidor
+específico. Cada usuário conecta sua própria instância Kimai e escolhe
+explicitamente projeto, atividade e fontes de dados.
 
-The source is being prepared under **GPL-3.0-or-later**; see [LICENSE](LICENSE). **Copyright ownership and permission to publish must be verified before the first public release.** No organization-specific pilot code, secret keys or personal caches are required.
+## Funcionalidades disponíveis no PHP
 
-## Features and boundaries
+- Coleta local sanitizada do ActivityWatch; vigilância AFK e exclusão de contexto privado.
+- Leitura Kimai com verificação da conta, catálogo e intervalos já registrados.
+- Fontes opt-in de calendário, Talk, Activity e Mail do Nextcloud, GitHub e Telegram MTProto.
+- Revisão manual das lacunas, contexto de trabalho presencial e avisos sobre evidências incompletas.
+- Fila de aprovação com decisão humana e hash da evidência congelado.
+- Outbox SQLite que impede POST duplicado e reconciliação por GET para resultados incertos.
+- Importação idempotente do histórico legado, sem sobrescrever propostas do algoritmo PHP.
+- Metadados de áudio PipeWire e telemetria de agentes separados de horas humanas.
+- Interface Laravel local e prévia Electron em Linux; instaladores independentes
+  Windows, macOS e Linux ainda não foram homologados.
 
-- Local ActivityWatch evidence with inactivity checks; per-user profiles, timezone and opt-in source settings.
-- Read-only reconciliation of timesheets by default, with guarded, explicitly authorized internal preview submissions.
-- Human-reviewed gaps, calendar schedule warnings, separate manual-entry and off-computer attendance forms.
-- Optional Nextcloud Calendar/Talk, GitHub and Telegram metadata sources. No proprietary API or organization account is mandatory.
-- SQLite outbox and GET verification protect against ambiguous HTTP writes and accidental duplicate timesheets.
-- Windows, macOS and Linux scheduling templates, currently **not validated with real end-user installers**.
+**Limite essencial:** janela aberta, chamada presumida, mensagem enviada,
+agenda ou agente de IA executando não comprovam trabalho humano nem autorizam
+faturamento. O modo padrão é somente leitura.
 
-**Safety:** A calendar event or browser window is not evidence of hours actually worked. All automatic entries, when individually opted into, are non-billable previews. They do **not** approve payroll, invoices or customer billing. Manually confirmed work requires separate authorization. Read [PRIVACY.md](PRIVACY.md).
+## Desenvolvimento
 
-## Status of installation
+Requisitos: PHP 8.4+, Composer 2, Node 22+ para Electron, extensões PHP
+cURL, DOM, fileinfo, mbstring, OpenSSL, PDO SQLite, SQLite3, XML e ZIP.
+Opcionalmente, ActivityWatch local em http://127.0.0.1:5600.
 
-The source and Python wheel are usable by developers for evaluation. There is **no validated point-and-click installer** for nontechnical end users yet. PyInstaller jobs are experimental and must not be presented as signed, verified release binaries.
+~~~sh
+cd php-app
+composer install --no-interaction
+cp .env.example .env
+chmod 600 .env
+php artisan key:generate
+php artisan package:discover
+php vendor/bin/phpunit
+php artisan serve --host=127.0.0.1 --port=6817
+~~~
 
-For development on Python 3.11 or newer (with Tkinter available):
+Abra http://127.0.0.1:6817. Não exponha o painel na rede.
+A configuração inicial requer um token Kimai individual, URL HTTPS e
+timezone compatível. O perfil privado e as credenciais nunca entram no Git.
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -e '.[desktop]'
-python -m unittest discover -s tests -v
-automatic-kimai
-```
+A prévia de janela Electron em Linux utiliza:
 
-On Windows the virtual environment activation command is `.venv\Scripts\activate`; Tkinter and the OS credential backend must be available. [ActivityWatch](https://activitywatch.net/) must be installed and running locally, normally at `http://127.0.0.1:5600`.
+~~~sh
+cd php-app
+./desktop-preview/launch.sh --check
+./desktop-preview/install-desktop.sh
+~~~
 
-For a new account, open the graphical setup and enter the URL of **your** Kimai server (for example `https://kimai.example.org`, an illustrative placeholder), your own Kimai API token, matching timezone and selected customer/project/activity. Leave automatic submissions **disabled** for the initial evaluation. Save settings, generate a read-only analysis and optionally install the 30-minute user-level scheduler.
+Essa prévia depende do backend PHP instalado localmente; não é um instalador
+autocontido. Consulte [php-app/README.md](php-app/README.md) para o
+NativePHP, os segredos na distribuição e as limitações de empacotamento.
 
-For the Portuguese user walkthrough, see [GUIA_INICIO_COOPERADOS.md](GUIA_INICIO_COOPERADOS.md). It explicitly distinguishes currently implemented features from missing installer steps.
+## Comandos de análise, histórico e aprovação
 
-## Providers and storage
+~~~sh
+cd php-app
+php artisan automatic-kimai:sync
+php artisan automatic-kimai:sync --status
+php artisan automatic-kimai:migration-audit --legacy-cache=/caminho/privado/.kimai_cache
+php artisan automatic-kimai:import-legacy --legacy-cache=/caminho/privado/.kimai_cache
+php artisan automatic-kimai:publish-approved
+php artisan automatic-kimai:publish-approved --reconcile-unknown
+php artisan automatic-kimai:audio-sample --status
+~~~
 
-| Source | Purpose | Consent |
-| --- | --- | --- |
-| [ActivityWatch](https://activitywatch.net/) | Local window and inactivity evidence | Required for automatic classification |
-| [Kimai](https://www.kimai.org/) | Personal account; timesheet GET and authorized writes | Required |
-| Nextcloud Calendar/Talk | Scheduled intervals / own-action metadata | Disabled by default |
-| GitHub | Account activity metadata | Disabled by default |
-| Telegram | Selected dialog metadata, no saved bodies | Disabled by default |
-| ChatGPT/Claude browser context | Website category only, not conversation history | Individually configurable |
+A importação exige um snapshot consistente e a opção **--apply-import**
+para realmente transferir histórico ao armazenamento PHP. A migração não
+modifica bancos Python nem causa gravação remota no Kimai.
 
-Generated profile, token store, event cache and SQLite ledgers belong to each local OS user and must never enter source control. More details: [PRIVACY.md](PRIVACY.md).
+O publicador faz **dry-run** por padrão. Seu modo de escrita
+**--post-approved** exige cutover supervisionado, consentimento e verificação
+recente de conta; esses controles não estão autorizados na avaliação.
+A origem antiga não pode permanecer publicando simultaneamente.
+O comando de áudio só coleta metadados se Telegram estiver explicitamente
+ativado; habilitar apenas a tela de configuração não constitui consentimento.
 
-## Development and release checks
+## Desenvolvimento e privacidade
 
-```sh
-python -m unittest discover -s tests -v
-python -m pip install build
-python -m build
-python tools/check_publication.py
-```
+~~~sh
+cd php-app
+php vendor/bin/phpunit
+php scripts/check-publication.php
+node --test desktop-preview/*.test.cjs
+~~~
 
-The source-based checks run on continuous integration. Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) before publishing. Experimental builds live in `.github/workflows/desktop-build.yml` and are unsigned.
+Não versione bancos, tokens, sessões Telegram, histórico de navegação,
+títulos de janelas, mensagens ou domínios confidenciais. O verificador
+de publicação falha se detectar arquivos Python legados, credenciais,
+arquivos privados ou termos definidos pelo desenvolvedor em
+**.publication-denylist** (arquivo local, modo 0600, ignorado pelo Git).
 
-The project is **not affiliated with the Kimai, Nextcloud, GitHub, Telegram, OpenAI or Anthropic maintainers**. Product names are used to identify optional integrations.
+O projeto propõe licença GPL-3.0-or-later, sujeita à verificação da
+titularidade e dos avisos de dependências antes da primeira release.
+Consulte [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md),
+[SECURITY.md](SECURITY.md) e [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+
+## Condições para substituir o piloto Python
+
+A branch PHP pode remover o código Python versionado **sem** interromper
+o processo antigo que opera em outro diretório do computador. Isso não
+representa aprovação operacional para o corte.
+
+Antes de desativar serviços antigos ou mesclar como migração concluída:
+homologar a fonte Telegram autorizada; testar publicação real em Kimai
+descartável com falhas e limpeza; concluir agendadores de áudio/agentes;
+comparar evidências em replay; validar instaladores multiplataforma;
+congelar a origem, repetir a transferência do histórico e comprovar
+um só escritor e rollback. A situação e os resultados estão em
+[PHP_MIGRATION.md](PHP_MIGRATION.md).
+
+O Automatic Kimai é independente dos projetos Kimai, Nextcloud, GitHub,
+Telegram, OpenAI e Anthropic; nomes são usados apenas para descrever
+integrações opcionais.

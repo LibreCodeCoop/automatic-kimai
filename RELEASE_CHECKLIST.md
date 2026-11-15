@@ -1,26 +1,63 @@
-# Publication and release readiness
+# Publication, PR merge and release checklist
 
-This checklist distinguishes **public source publication** from a **usable desktop release**. The project directory is not a published GitHub repository yet.
+Automatic Kimai uses **PHP 8.4+, Laravel 12 and NativePHP/Electron**.
+Source publication, merging the migration PR, switching the operating
+runtime and releasing an end-user installer are **different decisions**.
+A passing PHP unit suite does not prove operational cutover or billing safety.
 
-## Required before the first public source push
+## Source repository and code review
 
-- [ ] Confirm who owns the rights to all existing source files and obtain authorization to publish them under the proposed **GPL-3.0-or-later** license. Retain correct attribution and third-party notices. `LICENSE` and Python package metadata currently record the **proposed** license, not evidence of that authorization.
-- [ ] Decide the canonical repository organization/name and maintainer contacts; initialize a clean Git history, review staged files and publish only approved source content.
-- [ ] Confirm no personal data, tokens, caches, local databases, session material or proprietary snippets are staged. Create an untracked `.publication-denylist` listing your own private domains/names (one per line), run `python tools/check_publication.py`, and review the Git diff. The denylist is ignored by Git.
-- [ ] Run the full unit suite and the Linux CI build; examine the workflow permissions and artifacts.
-- [ ] Enable private vulnerability reporting and publish a maintainer contact/process; ensure contributor moderation contact exists.
-- [ ] Review third-party dependency licenses and security advisories, and perform code review by someone other than the author of the changes.
-- [ ] Confirm terminology and user instructions do not assume any particular company, hostname or project ID.
+- [ ] Verify copyright ownership/permission for all source and third-party
+  dependencies before first public GPL-3.0-or-later publication.
+- [ ] Review licenses and security advisories for Laravel, NativePHP,
+  Electron, MadelineProto and other shipped dependencies.
+- [ ] Run the full PHP test suite, desktop-preview Node tests, package
+  privacy guard and source check: php php-app/scripts/check-publication.php.
+- [ ] Create a private, untracked .publication-denylist (mode 0600)
+  containing any forbidden customer-specific domain/name and rerun the scan.
+- [ ] Confirm no credential, session, encrypted secret, private SQLite,
+  personal browsing record or other runtime state exists in Git or builds.
+- [ ] Obtain an independent code review and working CI; do not waive
+  a failing/missing check because a GitHub Actions billing limit blocks it.
+- [ ] Avoid hardcoded organizations, customers, instance URLs and paths.
+- [ ] Maintain a clear vulnerability reporting and maintainer contact.
 
-## Additional gates before an installer for nontechnical users
+## Additional blockers for PR #1 — Python to PHP migration
 
-- [ ] Validate ActivityWatch installation, browser extension and required OS permissions on real Linux, Windows and macOS machines.
-- [ ] Test OS keyrings, scheduler installation, restart, updates and uninstall on each system.
-- [ ] Build OS-specific installers or packages. Sign and notarize where required, with reproducible provenance and checksums.
-- [ ] Replace the first-run setup's numeric project ID and timezone details with a simpler guided flow, including useful nontechnical errors.
-- [ ] Verify offline behavior, resume after computer shutdown, multiple accounts and interrupted requests; avoid accidental payroll attribution.
-- [ ] Conduct a complete usability test with a person who has no technical training.
+- [ ] Confirm every historical Python publication and human declaration is
+  preserved with its original remote ID/provenance, without overwriting new
+  PHP hypotheses. Run final catch-up from consistent snapshots **after
+  freezing the Python writer**.
+- [ ] Explain remaining algorithm differences by frozen evidence replay,
+  proving AFK/private handling, breaks, attendance away from computer,
+  AI agent time, calendar/Telegram and timezone boundaries.
+- [ ] Validate Telegram MTProto and audio samples with explicit consent,
+  limited/controlled requests and failure-safe continuation.
+- [ ] Run approved-only POST against a disposable Kimai, introduce network
+  faults, verify matching GET recovery and clean up temporary records.
+- [ ] Wire PHP audio and agent telemetry to schedulers without guessing
+  human labor from automated execution.
+- [ ] Prove one writer at a time, reboot/startup continuity, rollback and
+  monitoring before disabling all old Python timers.
+- [ ] Validate NativePHP builds and state/secret isolation on real Linux,
+  Windows and macOS installations.
 
-## What does not block a source repository
+**Do not enable PHP unattended posting or mark the PR ready for merge
+until these checkboxes are evidenced.** Historical Python source files
+may be removed from the PHP branch independently of stopping the
+separate original Python runtime.
 
-A source repository can exist and accept technical contributions while unsigned installers and end-user onboarding remain under development. Clearly mark it as **alpha** and never claim that installer builds are validated merely because they were generated by CI.
+## Additional end-user installer gates
+
+- [ ] Bundle the correct PHP runtime and native dependencies per OS.
+- [ ] Validate OS keyrings, encryption key creation, password handling,
+  update/restart/uninstall and preserved local state.
+- [ ] Exercise NativePHP/Electron installer, signatures/notarization and
+  source provenance/checksums for each supported OS.
+- [ ] Test ActivityWatch installation and permissions on real systems.
+- [ ] Run usability tests with a nontechnical user, including recovery
+  from missing integrations and offline work.
+
+A source repository may exist as alpha while installer and operational
+cutover are pending. Never present generated unsigned artifacts or
+successful mocks as a verified consumer release.
