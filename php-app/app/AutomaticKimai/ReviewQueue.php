@@ -142,7 +142,15 @@ final class ReviewQueue
                         $counts['posted']=($counts['posted']??0)+1;
                         continue;
                     }
-                    if ($before['status']==='approved' && $before['source_digest']!==$digest) {
+                    if ($before['status']==='uncertain') {
+                        // A timed-out POST is never cleared by a subsequent
+                        // overlap or refreshed segmentation. Reconcile by GET.
+                        $status='uncertain';$reason='Remote outcome requires GET reconciliation';
+                    } elseif ($before['status']==='rejected') {
+                        $status=$before['source_digest']===$digest?'rejected':'needs_reapproval';
+                        $reason=$status==='rejected'?'Rejected by the worker':
+                            'Evidence changed after prior rejection';
+                    } elseif ($before['status']==='approved' && $before['source_digest']!==$digest) {
                         $status='needs_reapproval';$reason='Evidence or boundaries changed after approval';
                     } elseif ($relation==='covered') {
                         $status='covered';$reason='Already present in live Kimai';
@@ -152,8 +160,6 @@ final class ReviewQueue
                         $status='approved';$reason=null;
                     } elseif ($before['status']==='needs_reapproval') {
                         $status='needs_reapproval';$reason='Updated evidence requires new approval';
-                    } elseif ($before['status']==='uncertain') {
-                        $status='uncertain';$reason='Remote outcome requires GET reconciliation';
                     } else {
                         $status='draft';$reason=null;
                     }
@@ -195,6 +201,169 @@ final class ReviewQueue
         return $counts;
     }
 
+    /**
+     * Freeze an explicit worker decision. The browser must submit the exact
+     * digest it reviewed: changes to evidence require another confirmation.
+     * No remote operation occurs here.
+     */
+    public function approve(string $id,array $choice,Profile $profile,int $userId,
+                            DateTimeImmutable $now): array
+    {
+        if ($userId<1||!preg_match('/^[A-Za-z0-9_-]{8,90}$/D',$id)||
+            !is_string($choice['source_digest']??null)) {
+            throw new RuntimeException('Review identity missing');
+        }
+        foreach (['human_duration_confirmed','project_confirmed','billing_confirmed'] as $key) {
+            if (($choice[$key]??null)!==true) {
+                throw new RuntimeException('Explicit human, project and billing confirmations required');
+            }
+        }
+        foreach (['customer_id','project_id','activity_id'] as $key) {
+            if (!is_int($choice[$key]??null)||$choice[$key]<1) {
+                throw new RuntimeException('Explicit project and customer IDs required');
+            }
+        }
+        if (!is_bool($choice['billable']??null)) {
+            throw new RuntimeException('Billable or nonbillable must be chosen explicitly');
+        }
+        $description=trim((string)($choice['description']??''));
+        if (mb_strlen($description)<10||mb_strlen($description)>500||
+            preg_match('/[<>\x00-\x1f\x7f]/u',$description)) {
+            throw new RuntimeException('Concrete single-line activity description required');
+        }
+        $start=TimeMath::parse((string)($choice['start']??''),$profile->zone);
+        $end=TimeMath::parse((string)($choice['end']??''),$profile->zone);
+        $a=$start->setTimezone($profile->zone);
+        $b=$end->setTimezone($profile->zone);
+        $length=TimeMath::seconds($a,$b);
+        if ($a->format('s.u')!=='00.000000'||$b->format('s.u')!=='00.000000'||
+            $length<300||$length>21600||
+            $a->format('Y-m-d')!==$b->format('Y-m-d')||
+            TimeMath::ts($b)>TimeMath::ts($now)) {
+            throw new RuntimeException('Invalid approved interval bounds');
+        }
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $row=$this->one($id);
+            if ($row===null||!in_array($row['status'],['draft','needs_reapproval'],true)||
+                !hash_equals($row['source_digest'],$choice['source_digest'])) {
+                throw new RuntimeException('Review candidate has changed or is not approvable');
+            }
+            $candidate=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);
+            if (($candidate['ongoing']??true)!==false||
+                ($candidate['end_stable']??false)!==true||
+                ($candidate['proposed_action']??null)!=='new') {
+                throw new RuntimeException('Ongoing, overlapping or conflicting candidate');
+            }
+            if ($row['day']!==$a->format('Y-m-d')) {
+                throw new RuntimeException('Approved interval differs from candidate day');
+            }
+            $sourceStart=TimeMath::parse($candidate['start'],$profile->zone);
+            $sourceEnd=TimeMath::parse($candidate['end'],$profile->zone);
+            if (TimeMath::ts($a)<TimeMath::ts($sourceStart)-120||
+                TimeMath::ts($b)>TimeMath::ts($sourceEnd)+120) {
+                throw new RuntimeException('Approval extends beyond observed candidate');
+            }
+            $approval=[
+                'candidate_id'=>$id,'source_digest'=>$row['source_digest'],
+                'approved_at'=>$now->setTimezone(new \DateTimeZone('UTC'))->format('c'),
+                'approved_by'=>'explicit_worker_review','user_id'=>$userId,
+                'start'=>TimeMath::iso($a),'end'=>TimeMath::iso($b),
+                'customer_id'=>$choice['customer_id'],
+                'project_id'=>$choice['project_id'],
+                'activity_id'=>$choice['activity_id'],
+                'billable'=>$choice['billable'],
+                'human_duration_confirmed'=>true,'project_confirmed'=>true,
+                'billing_confirmed'=>true,
+                'description'=>$description,
+                'action'=>'new','existing_timesheet_id'=>null,
+                'approved_for_payroll'=>false,
+            ];
+            $approval['approval_digest']=CanonicalJson::digest($approval);
+            $query=$this->db->prepare("UPDATE sessions SET status='approved',
+                approval_json=?,reason=NULL,updated_utc=?
+                WHERE id=? AND source_digest=? AND status IN ('draft','needs_reapproval')");
+            $query->execute([
+                CanonicalJson::encode($approval),$now->format('c'),$id,$row['source_digest']
+            ]);
+            if ($query->rowCount()!==1)throw new RuntimeException('Concurrent review changed');
+            $this->db->commit();
+            return [
+                'id'=>$id,'status'=>'approved','source_digest'=>$row['source_digest'],
+                'approved_for_payroll'=>false,
+            ];
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction())$this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    public function reject(string $id,string $sourceDigest): void
+    {
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $row=$this->one($id);
+            if (!$row||!in_array($row['status'],['draft','needs_reapproval'],true)||
+                !hash_equals($row['source_digest'],$sourceDigest)) {
+                throw new RuntimeException('Candidate changed; refresh before rejecting');
+            }
+            $this->db->prepare("UPDATE sessions SET status='rejected',approval_json=NULL,
+                reason='Rejected by worker',updated_utc=? WHERE id=?")
+                ->execute([gmdate('c'),$id]);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction())$this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /** Raw approval records are used only by the local approved-only publisher. */
+    public function approvedRows(): array
+    {
+        return $this->db->query("SELECT id,day,start,end,status,source_digest,
+            approval_json FROM sessions WHERE status='approved' ORDER BY day,start")
+            ->fetchAll();
+    }
+
+    public function markUnknown(string $id,string $sourceDigest,?int $remoteId): void
+    {
+        $stmt=$this->db->prepare("UPDATE sessions SET status='uncertain',remote_id=?,
+            reason='Remote result unknown; GET-only reconciliation required',
+            updated_utc=? WHERE id=? AND source_digest=? AND status='approved'");
+        $stmt->execute([$remoteId,gmdate('c'),$id,$sourceDigest]);
+        if ($stmt->rowCount()!==1)throw new RuntimeException('Approval changed after remote mutation');
+    }
+
+    public function markPosted(string $id,string $sourceDigest,int $remoteId): void
+    {
+        if ($remoteId<1)throw new RuntimeException('Missing verified remote ID');
+        $stmt=$this->db->prepare("UPDATE sessions SET status='posted',remote_id=?,
+            reason=NULL,updated_utc=? WHERE id=? AND source_digest=? AND status='approved'");
+        $stmt->execute([$remoteId,gmdate('c'),$id,$sourceDigest]);
+        if ($stmt->rowCount()!==1)throw new RuntimeException('Approval changed after confirmation');
+    }
+
+    /**
+     * Called only after an exact GET verified an already-reserved outbox
+     * operation. Never turns an unverified unknown into a fresh POST.
+     */
+    public function markReconciled(string $id,string $sourceDigest,int $remoteId): void
+    {
+        if ($remoteId<1)throw new RuntimeException('Missing verified remote ID');
+        $stmt=$this->db->prepare("UPDATE sessions SET status='posted',remote_id=?,
+            reason=NULL,updated_utc=? WHERE id=? AND source_digest=?
+            AND status IN ('approved','uncertain')");
+        $stmt->execute([$remoteId,gmdate('c'),$id,$sourceDigest]);
+        if ($stmt->rowCount()!==1)throw new RuntimeException('Approval changed during GET reconciliation');
+    }
+
+    public function uncertainRows(): array
+    {
+        return $this->db->query("SELECT id,day,start,end,status,source_digest,
+            approval_json FROM sessions WHERE status='uncertain' ORDER BY day,start")
+            ->fetchAll();
+    }
+
     public function rows(bool $includeStale=false): array
     {
         $sql='SELECT id,day,status,proposed_json,reason,remote_id,approval_json,source_digest
@@ -205,6 +374,7 @@ final class ReviewQueue
             catch (\Throwable){continue;}
             $result[]=array_replace($entry,[
                 'id'=>$row['id'],'status'=>$row['status'],
+                'source_digest'=>$row['source_digest'],
                 'hold_reason'=>$row['reason'],'posted_remote_id'=>$row['remote_id']
             ]);
         }

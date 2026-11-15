@@ -10,6 +10,7 @@ use App\AutomaticKimai\NextcloudDesktopDiscovery;
 use App\AutomaticKimai\NextcloudLoginFlow;
 use App\AutomaticKimai\ManualTime;
 use App\AutomaticKimai\Profile;
+use App\AutomaticKimai\ReviewQueue;
 use App\AutomaticKimai\SyncEngine;
 use DateTimeImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -97,7 +98,24 @@ final class AutomaticKimaiController extends Controller
                 $lastAnalysis=$at->format('d/m/Y').' às '.$at->format('H:i');
             } catch (Throwable) {}
         }
+        $reviewRows=[];$reviewCatalog=null;
+        if ($view==='review' && $this->store->profile()!==null) {
+            $queue=new ReviewQueue($this->store->reviewQueueFile());
+            try {$reviewRows=$queue->rows();}
+            finally {$queue->close();}
+            $creds=$this->store->credentials();
+            if (!empty($creds['KIMAI_BASE_URL'])&&!empty($creds['KIMAI_API_TOKEN'])) {
+                try {
+                    $reviewCatalog=(new KimaiClient($creds['KIMAI_BASE_URL'],
+                        $creds['KIMAI_API_TOKEN']))->catalog();
+                } catch (Throwable) {
+                    // A disconnected provider must not hide local review history.
+                }
+            }
+        }
         return view('automatic-kimai.dashboard',[
+            'reviewRows'=>$reviewRows,
+            'reviewCatalog'=>$reviewCatalog,
             'view'=>$view,
             'statusLabel'=>$statusLabel,
             'lastAnalysis'=>$lastAnalysis,

@@ -65,6 +65,10 @@ final class LegacyCutoverAudit
             ['session_id','payroll_approved']);
         $newDeclarations=$this->rows($db['php_ledger'],'human_declarations',
             ['session_id','payroll_approved']);
+        $archiveQueue=$this->optionalRows($db['php_queue'],'legacy_review_sessions',
+            ['id','status','source_digest']);
+        $archiveOutbox=$this->optionalRows($db['php_ledger'],'legacy_publications',
+            ['idempotency_key','state']);
 
         $missingQueue=$this->missing($pQueue,$newQueue,'id');
         $missingIntents=$this->missing($pIntents,$newIntents,'intent_id');
@@ -83,12 +87,24 @@ final class LegacyCutoverAudit
             !in_array($row['state'],[
                 'confirmed','covered','superseded','cancelled','rejected',
             ],true));
-        $missingProvenance=count($pOutbox)>0 &&
-            count($newIntents)===0;
+        // Historical review proposals are preserved separately: today's PHP
+        // algorithm may legitimately improve their evidence segmentation.
+        $missingArchivedQueue=$this->missing($pQueue,$archiveQueue,'id');
+        $differentArchiveDigest=$this->diverged($pQueue,$archiveQueue,'id','source_digest');
+        $differentArchiveStatus=$this->diverged($pQueue,$archiveQueue,'id','status');
+        $missingArchivedOutbox=$this->missing($pOutbox,$archiveOutbox,'idempotency_key');
+        $differentArchiveOutbox=$this->diverged($pOutbox,$archiveOutbox,'idempotency_key','state');
+        $missingProvenance=count($missingArchivedOutbox)>0||
+            count($differentArchiveOutbox)>0;
 
         $checks=[
             'queue_missing'=>count($missingQueue),
             'queue_evidence_changed'=>count($divergentQueue),
+            'legacy_queue_archive_missing'=>count($missingArchivedQueue),
+            'legacy_queue_archive_digest_changed'=>count($differentArchiveDigest),
+            'legacy_queue_archive_status_changed'=>count($differentArchiveStatus),
+            'legacy_publications_missing'=>count($missingArchivedOutbox),
+            'legacy_publications_state_changed'=>count($differentArchiveOutbox),
             'ledger_intents_missing'=>count($missingIntents),
             'ledger_sessions_missing'=>count($missingLedgerSessions),
             'ledger_remote_id_differences'=>count($divergentRemote),
@@ -99,7 +115,12 @@ final class LegacyCutoverAudit
             'outbox_not_yet_mapped'=>(int)$missingProvenance,
             'legacy_audio_metadata_needs_php_runtime'=>(int)($audioSampleCount>0),
         ];
-        $blockers=array_keys(array_filter($checks,static fn($value)=>$value>0));
+        // Active review differences do not block cutover when original
+        // approvals and evidence are preserved in the immutable archive.
+        $informational=['queue_missing'=>true,'queue_evidence_changed'=>true];
+        $blockers=array_keys(array_filter($checks,
+            static fn($value,$name)=>$value>0&&!isset($informational[$name]),
+            ARRAY_FILTER_USE_BOTH));
         return [
             'mode'=>'read_only',
             'writes_performed'=>0,
@@ -110,7 +131,9 @@ final class LegacyCutoverAudit
             'counts'=>[
                 'python_queue'=>count($pQueue),
                 'php_queue'=>count($newQueue),
+                'archived_python_queue'=>count($archiveQueue),
                 'python_outbox'=>count($pOutbox),
+                'archived_python_outbox'=>count($archiveOutbox),
                 'python_ledger_intents'=>count($pIntents),
                 'php_ledger_intents'=>count($newIntents),
                 'python_ledger_sessions'=>count($pSessions),
@@ -157,6 +180,12 @@ final class LegacyCutoverAudit
             if (!preg_match('/^[a-z_]+$/D',$col))throw new RuntimeException('Invalid column');
         }
         return $db->query('SELECT '.implode(',',$columns).' FROM "'.$table.'"')->fetchAll();
+    }
+
+    private function optionalRows(PDO $db,string $table,array $columns): array
+    {
+        $present=$db->query("SELECT name FROM sqlite_master WHERE type='table' AND name=".$db->quote($table))->fetchColumn();
+        return $present===false?[]:$this->rows($db,$table,$columns);
     }
 
     private function missing(array $old,array $new,string $key): array

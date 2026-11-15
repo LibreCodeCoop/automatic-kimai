@@ -116,7 +116,7 @@ final class LegacyCutoverAuditTest extends TestCase
         self::assertSame(1,$result['blocker_counts']['human_declarations_missing']);
         self::assertSame(2,$result['counts']['legacy_audio_metadata_samples']);
         self::assertSame(1,$result['blocker_counts']['legacy_audio_metadata_needs_php_runtime']);
-        foreach (['q1','q2','pub1','pub2','i1','i2','s1','digest'] as $secret) {
+        foreach (['q1','q2','pub1','pub2','i1','i2','s1','digest-a','digest-b'] as $secret) {
             self::assertStringNotContainsString($secret,json_encode($result));
         }
     }

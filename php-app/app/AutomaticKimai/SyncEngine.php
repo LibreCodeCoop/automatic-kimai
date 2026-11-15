@@ -312,6 +312,18 @@ final class SyncEngine
                     $coverage=new Coverage();$segmenter=new Segmenter();
                     $candidateBuilder=new ReviewCandidateBuilder();
                     $reviewCandidates=[];
+                    // Only explicit agent-run markers are considered. A local
+                    // browser session or an idle gap cannot infer AI execution.
+                    $agentFile=$this->store->root().'/agent_runs.sqlite3';
+                    $agentConnected=is_file($agentFile);
+                    $agentIntervals=[];
+                    if ($agentConnected) {
+                        $agent=new AgentRuns($agentFile,$profile->get('profile_id'),false);
+                        try {
+                            $agentIntervals=$agent->intervals(
+                                TimeMath::dayStart($days[0],$profile->zone),$clock);
+                        } finally {$agent->close();}
+                    }
                     $report=[
                         'created_at'=>TimeMath::iso($clock),
                         'profile_id'=>$profile->get('profile_id'),'user_id'=>$userId,
@@ -319,7 +331,14 @@ final class SyncEngine
                         'mode'=>$profile->get('sync_mode'),'writes_enabled_for_this_run'=>false,
                         'pending_reconciliation'=>$pending,'sources'=>$sources,'days'=>[],
                         'billing_approved'=>false,'payroll_approved'=>false,
-                        'agent_telemetry_status'=>'not_integrated_php',
+                        'agent_telemetry_status'=>$agentConnected?
+                            'explicit_metadata_only':'no_integration_connected',
+                        'agent_execution_intervals'=>array_map(static fn($run)=>[
+                            'source'=>$run['source'],'start'=>$run['start'],
+                            'end'=>$run['end'],'state'=>$run['state'],
+                            'execution_seconds'=>$run['execution_seconds'],
+                            'counts_as_human_work'=>false,
+                        ],$agentIntervals),
                     ];
                     foreach ($days as $day) {
                         [$events,$warning]=$this->readEvidence($day);
@@ -329,17 +348,19 @@ final class SyncEngine
                                 $candidateBuilder->build($day,$events,$calendar,$remote,$profile,$clock));
                             foreach ($segmenter->segment($day,$events,$calendar,$profile,$clock) as $window) {
                                 $decision=$engine->plan($window,$profile,$remote,$ledger->known($window['id']),$userId);
-                                // No agent-run telemetry available: even a
-                                // strong desktop candidate cannot auto-publish.
+                                // Explicit agent execution is context only.
+                                // Neither agent time nor a focused desktop
+                                // window authorizes posting human work.
                                 if (in_array($decision['action'],['post','patch'],true)) {
                                     $decision['action']='review';
                                     $decision['reason']=self::minimumEvidence($window,$profile)?
-                                        'agent_execution_attribution_not_yet_integrated':
+                                        'agent_execution_attribution_requires_human_review':
                                         'insufficient_independent_desktop_evidence';
                                 }
                                 $sessions[]=array_replace($window,$decision,[
                                     'result'=>['status'=>'dry_run'],
-                                    'agent_overlap_seconds'=>null,
+                                    'agent_overlap_seconds'=>$agentConnected?
+                                        AgentRuns::overlappingSeconds($window,$agentIntervals):null,
                                 ]);
                             }
                         }

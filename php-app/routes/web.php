@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AutomaticKimaiController;
+use App\Http\Controllers\ReviewDecisionController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\NextcloudLoginController;
 use App\Http\Controllers\GitHubAccountController;
@@ -15,6 +16,11 @@ Route::post('/attendance/preview',[AutomaticKimaiController::class,'attendancePr
 Route::post('/sources',[AutomaticKimaiController::class,'sources'])->name('kimai.sources');
 Route::post('/analyze',[AutomaticKimaiController::class,'capture'])->name('kimai.analyze');
 Route::post('/manual',[AutomaticKimaiController::class,'manual'])->name('kimai.manual');
+// Explicit worker approval modifies local SQLite only; no HTTP POST to Kimai.
+Route::post('/review/approve',[ReviewDecisionController::class,'approve'])
+    ->middleware('throttle:12,1')->name('kimai.review-approve');
+Route::post('/review/reject',[ReviewDecisionController::class,'reject'])
+    ->middleware('throttle:12,1')->name('kimai.review-reject');
 
 // Explicit localhost-only Telegram MTProto onboarding; QR and 2FA must not
 // appear in URLs, logs or any public network listener.

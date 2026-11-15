@@ -511,3 +511,80 @@ homologação; a suíte local continua obrigatória.
 **Nota:** ciclos PHP bem-sucedidos tiveram `remote_writes=0`; o modo
 `--apply` continua bloqueado de propósito. Homologação em leitura não é
 homologação de publicação financeira.
+
+## Execução incremental: histórico, aprovação e publicador PHP (15/11/2026)
+
+**Paridade funcional, não igualdade cega de números.** Comparar horas totais
+sem inspecionar qualidade de fontes, exclusões, durações e conflitos pode
+ocultar tanto bugs do Python quanto do PHP. Os testes não obrigam o PHP
+a reproduzir comportamentos incorretos do legado.
+
+### Histórico preservado sem sobrescrever o cálculo PHP
+
+- Novo comando automatic-kimai:import-legacy, com --apply-import explícito,
+  importa SQLite privado e somente leitura, valida identidade e preserva
+  integralmente hashes, aprovações e intenções originais.
+- Snapshot real importado em área isolada e no armazenamento PHP shadow:
+  **87 sessões, 268 intenções, 7 declarações, 92 publicações, 104 propostas
+  históricas e 134.948 amostras de áudio PipeWire**. Zero POST/PATCH Kimai.
+  As 14 propostas calculadas pelo novo algoritmo não foram sobrescritas.
+- As propostas históricas residem em legacy_review_sessions e o outbox
+  antigo em legacy_publications. O importador é idempotente, retomável e
+  rejeita colisões ou estados contraditórios. Os bancos Python permanecem
+  intactos; seus serviços continuam ativos e ainda podem produzir novos dados.
+- Auditoria agora distingue diferenças informativas do algoritmo de falta
+  de histórico migrado. Nenhuma intenção/publicação com resultado remoto
+  desconhecido foi encontrada no snapshot utilizado. Ainda é obrigatória a
+  sincronização final **depois** de congelar o escritor antigo.
+
+### Aprovações humanas
+
+- Duas rotas POST locais, protegidas por CSRF/throttle: aprovação ou rejeição
+  de uma proposta. Aprovação exige intervalo, projeto, atividade, decisão de
+  faturamento, descrição concreta, confirmação humana explícita e digest
+  congelado da evidência; alterações posteriores requerem nova aprovação.
+- Propostas em andamento, com sobreposição, cobertas ou incertas não são
+  aprováveis; rejeições persistem enquanto a evidência não mudar.
+- Aprovar não altera payroll_approved e não gera lançamento no Kimai.
+
+### Publicação com idempotência e reconciliação
+
+- Novo comando automatic-kimai:publish-approved, que por padrão faz
+  validação somente leitura. --reconcile-unknown faz apenas GET; a opção
+  --post-approved exige a conclusão explícita e recente do cutover, conta
+  Kimai idêntica e opt-in de escrita. Não existe cutover autorizado na
+  instalação real; teste confirmou bloqueio do comando de escrita.
+- A implementação reserva intenção SQLite antes do POST e nunca repete
+  cegamente uma solicitação com resposta incerta. GET de conferência exige
+  um único registro remoto compatível com período, descrição, identidade,
+  projeto, atividade e decisão de faturamento.
+- Testes simulados cobrem publicação única, concorrência, sobreposição,
+  checksum adulterado e interrupções nos dois lados da confirmação durável.
+  Tentativas remotas são contabilizadas mesmo quando a resposta é incerta.
+- AgentRuns já integrado ao relatório como telemetria explícita separada,
+  sem atribuir tempo de execução de agentes a horas humanas. CLI
+  automatic-kimai:agent-run registra marcadores início/fim.
+- Comando automatic-kimai:audio-sample é opt-in para o Telegram, lê apenas
+  metadados PipeWire e nunca grava áudio. No perfil real Telegram está
+  habilitado apenas para setup; a nova amostragem foi corretamente negada.
+
+### Pendências que impedem merge seguro
+
+1. Exercitar o publicador contra uma instância descartável Kimai com POST,
+   GET e falhas artificiais, limpando os registros após o teste.
+2. Validar o coletor Telegram MTProto com consentimento explícito, seleção,
+   retomada, áudio e metadados de chamadas; não usar setup como consentimento.
+3. Validar a telemetria externa de agentes e a substituição do observador
+   antigo de áudio, incluindo operação contínua em PHP.
+4. Replay semântico com insumos congelados, pausas, presença fora da tela,
+   IA, calendário, lacunas, madrugada e fontes indisponíveis.
+5. Validar distribuição NativePHP e instalação/atualização Linux, Windows
+   e macOS; testes do Electron em Linux não demonstram essas plataformas.
+6. Sincronizar estados após congelar o Python, conciliar pendências, garantir
+   um só escritor, monitorar e verificar rollback. Remover os scripts Python
+   do repositório somente após comprovar o corte operacional.
+7. Corrigir bloqueio externo de cobrança nos runners do GitHub Actions e
+   obter revisão independente sem contornar verificações.
+
+**Estado:** PR permanece em draft. Python ativo; PHP em shadow somente
+leitura. Sem POST/PATCH real nesta execução e sem desligamento de serviços.
