@@ -75,6 +75,103 @@ final class ReviewQueueTest extends TestCase
         } finally {@unlink($file);@rmdir($dir);}
     }
 
+    public function test_auto_review_disposes_unverified_hypothesis_without_approval_or_remote_write(): void
+    {
+        $dir=sys_get_temp_dir().'/kimai-auto-'.bin2hex(random_bytes(8));
+        mkdir($dir,0700);
+        $file=$dir.'/queue.sqlite3';
+        try {
+            $queue=new ReviewQueue($file);
+            $candidate=$this->candidates();
+            $queue->synchronize($candidate,[]);
+            $evidence=['2026-11-06'=>[
+                ['start'=>'2026-11-06T09:00:00-03:00',
+                 'end'=>'2026-11-06T10:00:00-03:00',
+                 'idle_status_known'=>true,'private'=>false,'afk'=>false,
+                 'url_kind'=>'github']
+            ]];
+            self::assertSame(['2026-11-06'],$queue->autoReviewDates());
+            $result=$queue->autoAssess($evidence,[],$this->profile(),[],['2026-11-06']);
+            self::assertSame(1,$result['newly_assessed']);
+            self::assertSame(1,$result['unverified_observations']);
+            $row=$queue->rows()[0];
+            self::assertSame('auto_observed',$row['status']);
+            self::assertSame(3600,$row['auto_assessment']['work_context_seconds']);
+            self::assertFalse($row['auto_assessment']['human_duration_verified']);
+            self::assertSame([], $queue->approvedRows());
+            $queue->synchronize($candidate,[]);
+            self::assertSame('auto_observed',$queue->rows()[0]['status']);
+            self::assertSame(1,$queue->autoAssess($evidence,[],$this->profile(),[],['2026-11-06'])['reassessed']);
+            $remote=[['id'=>87,'begin'=>'2026-11-06T08:30:00-03:00',
+                      'end'=>'2026-11-06T10:30:00-03:00']];
+            $queue->synchronize($candidate,$remote);
+            self::assertSame('covered',$queue->rows()[0]['status']);
+            self::assertSame([], $queue->approvedRows());
+            $queue->close();
+        } finally {@unlink($file);@rmdir($dir);}
+    }
+
+    public function test_derived_remote_gap_gets_its_own_observation_not_parent_minutes(): void
+    {
+        $dir=sys_get_temp_dir().'/kimai-auto-'.bin2hex(random_bytes(8));
+        mkdir($dir,0700);
+        $file=$dir.'/queue.sqlite3';
+        try {
+            $queue=new ReviewQueue($file);
+            $candidate=$this->candidates();
+            $remote=[
+                ['id'=>91,'begin'=>'2026-11-06T09:00:00-03:00',
+                 'end'=>'2026-11-06T09:15:00-03:00'],
+                ['id'=>92,'begin'=>'2026-11-06T09:45:00-03:00',
+                 'end'=>'2026-11-06T10:00:00-03:00'],
+            ];
+            $queue->synchronize($candidate,$remote);
+            $events=['2026-11-06'=>[
+                ['start'=>'2026-11-06T09:15:00-03:00',
+                 'end'=>'2026-11-06T09:25:00-03:00',
+                 'url_kind'=>'github','idle_status_known'=>true,'afk'=>false,
+                 'message'=>'Do not store private content or infer work'],
+                ['start'=>'2026-11-06T09:25:00-03:00',
+                 'end'=>'2026-11-06T09:45:00-03:00',
+                 'url_kind'=>'chat','idle_status_known'=>true,'afk'=>false],
+            ]];
+            $result=$queue->autoAssess($events,$remote,$this->profile(),[],['2026-11-06']);
+            self::assertSame(1,$result['newly_assessed']);
+            $rows=$queue->rows();
+            self::assertSame('reconciled_partial',$rows[0]['status']);
+            self::assertSame('auto_observed',$rows[1]['status']);
+            self::assertSame(600,$rows[1]['auto_assessment']['work_context_seconds']);
+            self::assertSame(1200,$rows[1]['auto_assessment']['unverified_chat_seconds']);
+            self::assertFalse($rows[1]['auto_assessment']['approved_for_publication']);
+            self::assertSame([], $queue->approvedRows());
+            $contents=(string)file_get_contents($file);
+            self::assertStringNotContainsString('Do not store private content',$contents);
+            $queue->close();
+        } finally {@unlink($file);@rmdir($dir);}
+    }
+
+    public function test_auto_review_skips_unverified_live_coverage_and_preserves_human_approval(): void
+    {
+        $dir=sys_get_temp_dir().'/kimai-auto-'.bin2hex(random_bytes(8));
+        mkdir($dir,0700);
+        $file=$dir.'/queue.sqlite3';
+        try {
+            $queue=new ReviewQueue($file);
+            $candidate=$this->candidates();
+            $queue->synchronize($candidate,[]);
+            self::assertSame(0,$queue->autoAssess([],[],$this->profile(),[],[])['newly_assessed']);
+            self::assertSame('draft',$queue->rows()[0]['status']);
+            $queue->synchronize($candidate,[
+                ['id'=>87,'begin'=>'2026-11-06T09:30:00-03:00','end'=>null]
+            ]);
+            self::assertSame('conflict',$queue->rows()[0]['status']);
+            self::assertSame(0,$queue->autoAssess(
+                ['2026-11-06'=>[]],[],$this->profile(),[],['2026-11-06'])['newly_assessed']);
+            self::assertSame('conflict',$queue->rows()[0]['status']);
+            $queue->close();
+        } finally {@unlink($file);@rmdir($dir);}
+    }
+
     public function test_adjacent_remote_timesheets_cover_entire_candidate_without_conflict(): void
     {
         $dir=sys_get_temp_dir().'/kimai-review-'.bin2hex(random_bytes(8));
@@ -139,6 +236,36 @@ final class ReviewQueueTest extends TestCase
             self::assertSame('covered',$queue->rows()[0]['status']);
             self::assertCount(1,$queue->rows());
             self::assertSame([], $queue->approvedRows());
+            $queue->close();
+        } finally {@unlink($file);@rmdir($dir);}
+    }
+
+    public function test_ongoing_overlap_waits_until_settled_before_creating_gaps(): void
+    {
+        $dir=sys_get_temp_dir().'/kimai-auto-'.bin2hex(random_bytes(8));
+        mkdir($dir,0700);
+        $file=$dir.'/queue.sqlite3';
+        try {
+            $queue=new ReviewQueue($file);
+            $candidate=$this->candidates();
+            $candidate[0]['ongoing']=true;
+            $candidate[0]['end_stable']=false;
+            $remote=[['id'=>19,'begin'=>'2026-11-06T09:00:00-03:00',
+                      'end'=>'2026-11-06T09:15:00-03:00']];
+            $queue->synchronize($candidate,$remote);
+            self::assertCount(1,$queue->rows());
+            self::assertSame(0,$queue->rows()[0]['remote_gap_candidates']);
+            self::assertTrue($queue->rows()[0]['remote_pending_settlement']);
+            $candidate[0]['end']='2026-11-06T10:10:00-03:00';
+            $queue->synchronize($candidate,$remote);
+            self::assertCount(1,$queue->rows());
+            $candidate[0]['ongoing']=false;
+            $candidate[0]['end_stable']=true;
+            $queue->synchronize($candidate,$remote);
+            $rows=$queue->rows();
+            self::assertCount(2,$rows);
+            self::assertSame('draft',$rows[1]['status']);
+            self::assertFalse($rows[0]['remote_pending_settlement']);
             $queue->close();
         } finally {@unlink($file);@rmdir($dir);}
     }

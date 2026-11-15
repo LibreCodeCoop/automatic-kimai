@@ -24,7 +24,7 @@ O monitoramento continua funcionando, mas uma das fontes selecionadas pode estar
 <div class="grid overview-metrics">
 <div><div class="muted">Situação</div><div class="metrics" style="font-size:20px">{{ $statusLabel }}</div></div>
 <div><div class="muted">Lacunas observadas</div><div class="metrics">{{ $status['coverage_gap_count'] ?? 0 }}</div></div>
-<div><div class="muted">Períodos para conferir</div><div class="metrics">{{ $status['manual_review_interval_count'] ?? 0 }}</div></div>
+<div><div class="muted">Revisões manuais pendentes</div><div class="metrics">{{ $status['manual_queue_pending_count'] ?? 0 }}</div></div>
 <div><div class="muted">Alertas de agenda</div><div class="metrics">{{ $status['calendar_gap_count'] ?? 0 }}</div></div>
 </div>
 <p class="muted">Última análise: {{ $lastAnalysis }}. Horários de agenda e navegador não comprovam trabalho humano.</p>
@@ -38,7 +38,7 @@ O monitoramento continua funcionando, mas uma das fontes selecionadas pode estar
 <section class="next-action">
 <h2>O que deseja fazer?</h2>
 <div class="action-links">
-<a href="{{ route('kimai.home',['view'=>'review']) }}">Revisar intervalos e lacunas @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
+<a href="{{ route('kimai.home',['view'=>'review']) }}">Acompanhar conciliação de horas @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
 <a href="{{ route('kimai.home',['view'=>'kimai']) }}">Conta Kimai @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
 <a href="{{ route('kimai.home',['view'=>in_array(true,$connectionVisibility,true)?'integrations':'sources']) }}">
 {{ in_array(true,$connectionVisibility,true)?'Ver conexões habilitadas':'Escolher fontes de dados' }}

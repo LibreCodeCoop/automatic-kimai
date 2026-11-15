@@ -437,3 +437,22 @@ seleção já autorizada para coleta. Nenhuma seleção autoriza automaticamente
 publicação de horas ou comprova jornada. A retirada de um grupo ou o
 logout revogam sua autorização de classificação. Grupos com o mesmo
 título devem permanecer fora da classificação por título ambíguo.
+
+### Conciliação automática sem fila manual obrigatória
+
+A tela **Conciliação de horas** classifica propostas anteriores como horas
+já registradas no Kimai ou observações sem duração humana verificada.
+Observações são mantidas como `auto_observed` no banco privado, com métricas
+restritas ao próprio trecho e comparação recorrente com a API Kimai.
+Não são descartadas como tempo não trabalhado, não são aprovadas ou
+publicadas e não abrem tarefas de confirmação manual por padrão. Um
+lançamento futuro confirmado pelo Kimai encerra a observação como coberta.
+
+O número de **revisões manuais pendentes** na visão geral corresponde às
+decisões operacionais ainda pendentes, não a eventos de navegador ou
+reuniões previstas. O histórico recolhido preserva dúvidas e eventuais
+lacunas. **Zero pendências manuais não significa zero horas não registradas.**
+
+Lacunas de janelas ainda em andamento são extraídas somente depois de
+estabilizado o fim do intervalo, para evitar múltiplas propostas efêmeras
+entre as sincronizações.

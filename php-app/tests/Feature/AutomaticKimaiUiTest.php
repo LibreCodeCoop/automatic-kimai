@@ -26,7 +26,7 @@ class AutomaticKimaiUiTest extends TestCase
         ]);
         $expectations=[
             'overview'=>['Resumo do trabalho','name="nextcloud_url"'],
-            'review'=>['Períodos para conferir','name="label"'],
+            'review'=>['Observações acompanhadas automaticamente','name="label"'],
             'attendance'=>['Trabalho presencial','name="telegram_labels"'],
             'manual'=>['Informar horas manualmente','name="kimai_url"'],
             'kimai'=>['Buscar meus projetos','id="tg-api-id"'],

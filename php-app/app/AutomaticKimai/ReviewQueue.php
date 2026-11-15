@@ -97,7 +97,7 @@ final class ReviewQueue
         $query->execute([$candidate['date']]);
         foreach ($query as $row) {
             if (isset($claimed[$row['id']]) ||
-                !in_array($row['status'],['draft','needs_reapproval','stale'],true))continue;
+                !in_array($row['status'],['draft','auto_observed','needs_reapproval','stale'],true))continue;
             try {$old=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);}
             catch (\Throwable) {continue;}
             if (self::matchOverlap($old,$candidate))return $row['id'];
@@ -116,11 +116,17 @@ final class ReviewQueue
                 throw new RuntimeException('Nested derived review candidates are forbidden');
             }
             $plan=RemoteOverlapReconciler::analyze($original,$remote);
+            // An ongoing interval changes its right boundary each cycle.
+            // Do not manufacture a new five-minute gap every time the clock
+            // advances; wait until the source interval is settled.
+            $settled=($original['ongoing']??true)===false &&
+                ($original['end_stable']??false)===true;
             if ($plan['kind']==='partial') {
                 $original['remote_uncovered_spans']=$plan['uncovered_spans'];
                 $original['remote_uncovered_seconds']=$plan['uncovered_seconds'];
                 $original['remote_small_gap_seconds']=$plan['small_gap_seconds'];
-                $original['remote_gap_candidates']=count($plan['reviewable_spans']);
+                $original['remote_gap_candidates']=$settled?count($plan['reviewable_spans']):0;
+                $original['remote_pending_settlement']=!$settled;
                 $original['remote_coverage_digest']=$plan['coverage_digest'];
                 $original['remote_intersections']=$plan['remote_ids'];
             }
@@ -128,9 +134,9 @@ final class ReviewQueue
             // Respect a previous human rejection or frozen approval: do not
             // fabricate new children when the parent is already decided.
             $before=$this->one($original['id']);
-            if ($plan['kind']==='partial' &&
+            if ($plan['kind']==='partial' && $settled &&
                 ($before===null||in_array($before['status'],
-                ['draft','conflict','reconciled_partial','covered','stale','needs_reapproval'],true))) {
+                ['draft','auto_observed','conflict','reconciled_partial','covered','stale','needs_reapproval'],true))) {
                 foreach ($plan['reviewable_spans'] as $span) {
                     $child=RemoteOverlapReconciler::child(
                         $original,$span,$plan['coverage_digest']);
@@ -188,6 +194,9 @@ final class ReviewQueue
                         $status='approved';$reason=null;
                     } elseif ($before['status']==='needs_reapproval') {
                         $status='needs_reapproval';$reason='Updated evidence requires new approval';
+                    } elseif ($before['status']==='auto_observed') {
+                        $status='auto_observed';
+                        $reason='Observed context assessed automatically; worked duration not verified';
                     } else {
                         $status='draft';$reason=null;
                     }
@@ -216,7 +225,7 @@ final class ReviewQueue
             $days=array_unique(array_column($proposals,'date'));
             foreach ($days as $day) {
                 $stmt=$this->db->prepare("SELECT id,status FROM sessions WHERE day=? AND
-                    (status IN ('draft','conflict','reconciled_partial')
+                    (status IN ('draft','auto_observed','conflict','reconciled_partial')
                      OR (id LIKE 'gap-%' AND status IN ('approved','needs_reapproval')))");
                 $stmt->execute([$day]);
                 foreach ($stmt as $row) {
@@ -374,6 +383,88 @@ final class ReviewQueue
             if ($this->db->inTransaction())$this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Resolve unattended proposals as audited observations. This is an
+     * operational disposition, NOT a claim that the person did not work and
+     * NOT a labor/payroll approval. The automatic writer separately handles
+     * windows that meet its stricter criteria.
+     *
+     * @param array<string,list<array>> $dayEvidence
+     * @param list<DateTimeImmutable> $ownActions
+     * @param list<string> $remoteDays Exact dates covered by the remote GET.
+     */
+    public function autoAssess(array $dayEvidence,array $remote,Profile $profile,
+                               array $ownActions,array $remoteDays): array
+    {
+        $rows=$this->db->query("SELECT id,day,status,proposed_json,source_digest,approval_json
+            FROM sessions WHERE status IN ('draft','auto_observed') ORDER BY day,start")->fetchAll();
+        $result=['newly_assessed'=>0,'reassessed'=>0,'covered'=>0,
+            'skipped_unverified_remote'=>0,'unverified_observations'=>0];
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            foreach ($rows as $row) {
+                $day=$row['day'];
+                if (!in_array($day,$remoteDays,true) || !array_key_exists($day,$dayEvidence) ||
+                    $row['approval_json']!==null)continue;
+                $candidate=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);
+                if (!is_array($candidate)||($candidate['date']??null)!==$day ||
+                    ($candidate['id']??null)!==$row['id']||
+                    self::fingerprint($candidate)!==$row['source_digest']) {
+                    throw new RuntimeException('Untrusted or modified review candidate');
+                }
+                $coverage=RemoteOverlapReconciler::analyze($candidate,$remote);
+                if ($coverage['kind']==='covered') {
+                    $this->db->prepare("UPDATE sessions SET status='covered',
+                        reason='Verified existing Kimai timesheets in automatic review',
+                        updated_utc=? WHERE id=? AND source_digest=?")
+                        ->execute([gmdate('c'),$row['id'],$row['source_digest']]);
+                    $result['covered']++;
+                    continue;
+                }
+                if ($coverage['kind']!=='new') {
+                    $result['skipped_unverified_remote']++;
+                    continue;
+                }
+                $candidate['auto_assessment']=AutomaticReviewAssessor::assess(
+                    $candidate,$dayEvidence[$day],$profile,$ownActions);
+                $status='auto_observed';
+                $stmt=$this->db->prepare("UPDATE sessions SET status=?,reason=?,proposed_json=?,
+                    updated_utc=? WHERE id=? AND source_digest=? AND
+                    status IN ('draft','auto_observed') AND approval_json IS NULL");
+                $stmt->execute([$status,
+                    'No independently verified worked duration; retained for automatic recheck',
+                    CanonicalJson::encode($candidate),gmdate('c'),
+                    $row['id'],$row['source_digest']]);
+                if ($stmt->rowCount()!==1)throw new RuntimeException('Concurrent review update');
+                $result[$row['status']==='draft'?'newly_assessed':'reassessed']++;
+                $result['unverified_observations']++;
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction())$this->db->rollBack();
+            throw $e;
+        }
+        return $result;
+    }
+
+    /**
+     * Bounded automatic rechecks: current observations every cycle, older
+     * ones daily. New drafts are always eligible, regardless of age.
+     */
+    public function autoReviewDates(): array
+    {
+        $now=new DateTimeImmutable('now',new \DateTimeZone('UTC'));
+        $recent=$now->modify('-14 days')->format('Y-m-d');
+        $old=$now->modify('-24 hours')->format('c');
+        $query=$this->db->prepare("SELECT DISTINCT day FROM sessions
+            WHERE status='draft' OR (status='auto_observed' AND
+                (day>=? OR julianday(updated_utc)<=julianday(?)))
+            ORDER BY day DESC LIMIT 60");
+        $query->execute([$recent,$old]);
+        $rows=$query->fetchAll(PDO::FETCH_COLUMN);
+        return array_values(array_filter($rows,'is_string'));
     }
 
     /** Raw approval records are used only by the local approved-only publisher. */

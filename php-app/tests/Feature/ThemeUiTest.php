@@ -19,7 +19,7 @@ final class ThemeUiTest extends TestCase
             ->assertDontSee('id="theme-select"',false)
             ->assertSee('automatic-kimai:theme')
             ->assertSee('css/automatic-kimai.css')
-            ->assertSee('Revisar horas');
+            ->assertSee('Conciliação de horas');
     }
 
     public function test_icon_theme_switch_follows_system_until_manual_override(): void

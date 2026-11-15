@@ -50,7 +50,7 @@ final class ReviewWorkflowFeatureTest extends TestCase
     public function test_review_screen_displays_candidates_without_enabling_remote_publication(): void
     {
         $this->get('http://localhost/?view=review')->assertOk()
-            ->assertSee('Fila de revisão com decisão humana')
+            ->assertSee('Resultado da revisão automática')
             ->assertSee('Rejeitar esta proposta')
             ->assertSee('aw-webreview0000001')
             ->assertSee('Carregar projetos e atividades ao revisar o período')
@@ -84,6 +84,25 @@ final class ReviewWorkflowFeatureTest extends TestCase
         $queue=new ReviewQueue($this->store->reviewQueueFile());
         self::assertSame('rejected',$queue->rows()[0]['status']);
         $queue->close();
+        self::assertFileDoesNotExist($this->store->ledgerFile());
+    }
+
+    public function test_autonomous_triage_leaves_no_manual_review_and_preserves_audit(): void
+    {
+        $queue=new ReviewQueue($this->store->reviewQueueFile());
+        $decision=$queue->autoAssess(['2026-11-12'=>[]],[],
+            $this->store->profile(),[],['2026-11-12']);
+        self::assertSame(1,$decision['newly_assessed']);
+        self::assertSame('auto_observed',$queue->rows()[0]['status']);
+        self::assertSame([], $queue->approvedRows());
+        $queue->close();
+        $this->get('http://localhost/?view=review')->assertOk()
+            ->assertSee('Nenhuma pendência de revisão manual')
+            ->assertSee('Histórico auditável da conciliação')
+            ->assertSee('Observação avaliada automaticamente')
+            ->assertDontSee('Rejeitar esta proposta')
+            ->assertDontSee('Aprovar somente na fila local')
+            ->assertDontSee('Revisar</span>',false);
         self::assertFileDoesNotExist($this->store->ledgerFile());
     }
 
@@ -144,11 +163,10 @@ final class ReviewWorkflowFeatureTest extends TestCase
         $queue->close();
         $this->get('http://localhost/?view=review')->assertOk()
             ->assertSee('propostas reconciliadas automaticamente com o Kimai')
-            ->assertSee('Cobertura reconciliada')
+            ->assertSee('Sobreposição conciliada')
             ->assertSee('Lacuna não registrada')
             ->assertSee('Trecho não coberto pelo Kimai')
-            ->assertSee('09:15:00')
-            ->assertSee('09:45:00')
+            ->assertSee('09:15–09:45')
             ->assertSee('gap-',false)
             ->assertSee('data-review-catalog',false);
         self::assertFileDoesNotExist($this->store->ledgerFile());

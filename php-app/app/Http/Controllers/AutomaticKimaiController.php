@@ -41,7 +41,7 @@ final class AutomaticKimaiController extends Controller
         if ($view==='about')$view='overview'; // Old migration-page links.
         $titles=[
             'overview'=>'Visão geral',
-            'review'=>'Revisar minhas horas',
+            'review'=>'Conciliação de horas',
             'attendance'=>'Trabalho presencial',
             'manual'=>'Informar horas',
             'kimai'=>'Conta Kimai',
@@ -53,7 +53,7 @@ final class AutomaticKimaiController extends Controller
         ];
         $hints=[
             'overview'=>'Acompanhe seu monitoramento e veja o que precisa de atenção.',
-            'review'=>'Confira períodos sugeridos e lacunas que precisam de confirmação.',
+            'review'=>'Acompanhe horas reconciliadas e observações monitoradas automaticamente.',
             'attendance'=>'Revise compromissos presenciais e desconte as pausas.',
             'manual'=>'Informe atividades realizadas fora da coleta automática.',
             'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',

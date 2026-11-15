@@ -1056,3 +1056,52 @@ não é silenciosamente expandida para todos os grupos.
 Testes Feature comprovam que atualizar a classificação não altera o
 consentimento de coleta, não toca o ledger e não permite selecionar IDs
 estranhos, grupos homônimos ou requisições de fora de localhost.
+
+## 15/11/2026 — Revisão automática sem confirmação inventada
+
+A pessoa usuária optou por **não executar revisões manuais** das propostas
+independentes do motor de publicação. Foi implementado um fluxo de avaliação
+automática, separado da escrita das timesheets:
+
+1. `AutomaticReviewAssessor` mede somente o contexto efetivamente observado
+   **dentro** de cada trecho não coberto (ActivityWatch: trabalho, conversa
+   incerta, outros contextos, AFK, privado, marcadores pontuais de ações).
+   Segmentos sobrepostos são unidos, sem somar observações duplicadas.
+2. `ReviewQueue::autoAssess` cruza cada hipótese com GET das timesheets atuais.
+   Um período coberto é conciliado; uma hipótese nova sem duração humana
+   verificável ganha o estado `auto_observed` e uma avaliação auditável.
+   Nunca é transformada em `rejected/not_worked`, em aprovação humana,
+   em horas de folha ou em uma operação de escrita. Intervalos com
+   timesheet aberto/inconsistente não são automaticamente descartados.
+3. `SyncEngine` reconsulta os dias com observações ativas, inclusive além da
+   janela padrão de captura, e atualiza os metadados de avaliação a cada
+   ciclo, sem enviar horas remotamente. Uma timesheet registrada depois
+   pode encerrar a observação como `covered`. Revisões humanas já aprovadas
+   ou rejeitadas não são convertidas pelo avaliador.
+4. A tela apresenta **zero decisões manuais** quando não há conflitos nem
+   aprovações desatualizadas; observações inconclusivas permanecem em um
+   histórico de auditoria recolhido, com contagem e contexto limitado.
+   A visão geral separa `manual_queue_pending_count` da contagem de
+   atividade observada. A atividade inconclusiva não some da base.
+
+Auditoria prévia sobre os nove itens de 12–15/11: todos tinham menos de
+sete minutos de contexto profissional diretamente observado em seus
+respectivos trechos (o máximo foi 411 segundos), abaixo do limiar configurado.
+Esse resultado não prova que a pessoa não trabalhou, apenas que a duração
+não foi comprovada pelas fontes atuais. A publicação automática legítima
+continua sob o mecanismo existente e suas regras específicas.
+
+**Não inferir:** fila manual vazia não significa jornada completa, salários
+aprovados ou cobertura integral de horas. Reconciliar é diferente de declarar
+trabalho. O monitoramento recorrente poderá detectar novos registros e
+reclassificar observações, sem exigir cliques de confirmação no painel.
+
+### Prevenção de propostas efêmeras durante a jornada em andamento
+
+Uma janela ActivityWatch ainda aberta altera os limites a cada coleta.
+O reconciliador espera `ongoing=false` e `end_stable=true` antes de criar
+novos fragmentos de revisão. Isso evita a criação e obsolescência de
+várias observações de cinco minutos enquanto o computador continua
+ativo. A cobertura original continua documentada; a separação de lacunas
+é concluída após a estabilização. Há teste específico para a transição
+aberto → finalizado.

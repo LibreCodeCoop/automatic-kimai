@@ -350,6 +350,7 @@ final class SyncEngine
                     $coverage=new Coverage();$segmenter=new Segmenter();
                     $candidateBuilder=new ReviewCandidateBuilder();
                     $reviewCandidates=[];
+                    $reviewEvidenceByDay=[];
                     // Only explicit agent-run markers are considered. A local
                     // browser session or an idle gap cannot infer AI execution.
                     $agentFile=$this->store->root().'/agent_runs.sqlite3';
@@ -382,6 +383,7 @@ final class SyncEngine
                         [$events,$warning]=$this->readEvidence($day);
                         $sessions=[];
                         if (!$warning) {
+                            $reviewEvidenceByDay[$day]=$events;
                             $reviewCandidates=array_merge($reviewCandidates,
                                 $candidateBuilder->build($day,$events,$calendar,$remote,$profile,$clock));
                             foreach ($segmenter->segment($day,$events,$calendar,$profile,$clock) as $window) {
@@ -451,11 +453,15 @@ final class SyncEngine
                     try {
                         $report['review_queue_states']=$queue->synchronize($reviewCandidates,$remote);
                         $historic=$queue->olderConflicts($days);
+                        $remoteDates=$days;
+                        $allRemote=$remote;
                         if ($historic!==[]) {
                             $historicDays=array_values(array_unique(array_column($historic,'date')));
                             $totals=[];
                             foreach (array_chunk($historicDays,7) as $batch) {
                                 $olderRemote=$api->timesheets($userId,$batch,$profile->zone);
+                                $allRemote=array_merge($allRemote,$olderRemote);
+                                $remoteDates=array_merge($remoteDates,$batch);
                                 $pending=array_values(array_filter($historic,static fn($r)=>
                                     in_array($r['date'],$batch,true)));
                                 foreach ($queue->synchronize($pending,$olderRemote) as $key=>$value) {
@@ -468,7 +474,32 @@ final class SyncEngine
                                 'days'=>count($historicDays),'states'=>$totals,
                             ];
                         }
-                        $report['review_queue_count']=count($queue->rows());
+                        // Autonomous queue assessment is separate from the
+                        // automatic writer. Context is not verified worked
+                        // duration, so unresolved observations remain
+                        // auditable without requiring a manual task.
+                        $autoDays=$queue->autoReviewDates();
+                        $missingDates=array_values(array_diff($autoDays,$remoteDates));
+                        foreach (array_chunk($missingDates,7) as $batch) {
+                            $extra=$api->timesheets($userId,$batch,$profile->zone);
+                            $allRemote=array_merge($allRemote,$extra);
+                            $remoteDates=array_merge($remoteDates,$batch);
+                        }
+                        foreach ($autoDays as $day) {
+                            if (!array_key_exists($day,$reviewEvidenceByDay)) {
+                                [$olderEvents,$olderWarning]=$this->readEvidence($day);
+                                $reviewEvidenceByDay[$day]=$olderWarning?[]:$olderEvents;
+                            }
+                        }
+                        $report['automatic_review']=$queue->autoAssess(
+                            $reviewEvidenceByDay,$allRemote,$profile,$anchors,$remoteDates);
+                        $currentQueue=$queue->rows();
+                        $report['manual_queue_pending_count']=count(array_filter(
+                            $currentQueue,static fn($r)=>in_array($r['status'],
+                                ['draft','conflict','needs_reapproval','uncertain'],true)));
+                        $report['auto_observed_count']=count(array_filter(
+                            $currentQueue,static fn($r)=>$r['status']==='auto_observed'));
+                        $report['review_queue_count']=count($currentQueue);
                     } finally {
                         $queue->close();
                     }
@@ -501,7 +532,8 @@ final class SyncEngine
                     $this->store->write('review.json',$report);
                     $status['result']='success';
                     foreach (['coverage_gap_count','manual_review_interval_count',
-                        'calendar_gap_count','missing_workday_count','overnight_review_count'] as $key) {
+                        'calendar_gap_count','missing_workday_count','overnight_review_count',
+                        'manual_queue_pending_count','auto_observed_count'] as $key) {
                         $status[$key]=$report[$key];
                     }
                     $status['review_count']=array_sum(array_map(static fn($day)=>

@@ -1,12 +1,12 @@
 <section>
 <div class="section-heading">
-<div><h2>Períodos para conferir</h2><p class="muted">Os dados abaixo são sugestões, não horas confirmadas. Uma aba aberta ou uma reunião agendada não prova que você trabalhou durante todo o período.</p></div>
+<div><h2>Observações acompanhadas automaticamente</h2><p class="muted">Acompanhamento informativo, sem tarefas obrigatórias de revisão manual. A ausência de lançamento não prova nem descarta trabalho; novos registros podem reconciliar estas observações.</p></div>
 </div>
 @forelse(($report['days'] ?? []) as $day)
 <details class="day-card" @if($loop->last) open @endif>
 <summary>
 <span class="day-title">{{ $day['day'] }}</span>
-<span class="day-subtitle">{{ count($day['review_intervals'] ?? []) }} intervalos a conferir · {{ count($day['calendar_gap_alerts'] ?? []) }} alertas de agenda</span>
+<span class="day-subtitle">{{ count($day['review_intervals'] ?? []) }} observações de atividade · {{ count($day['calendar_gap_alerts'] ?? []) }} sinais de agenda</span>
 </summary>
 <div class="day-body">
 @if(!empty($day['warning']))<p class="warn">{{ $day['warning'] }}</p>@endif
@@ -14,9 +14,9 @@
 <div class="review-entry">
 <div>
 <strong>{{substr($entry['start']??'',11,5)}} às {{substr($entry['end']??'',11,5)}}</strong>
-<p>Atividade observada por {{ $entry['observed_nonafk_minutes']??0 }} min. Confirme se foi trabalho e desconte pausas.</p>
+<p>Atividade observada por {{ $entry['observed_nonafk_minutes']??0 }} min; não comprova a duração de trabalho. A comparação com o Kimai continuará automaticamente.</p>
 </div>
-<span class="review-chip">Revisar</span>
+<span class="review-chip">Monitorado</span>
 </div>
 @empty
 <p class="muted">Nenhum intervalo de atividade não classificada neste dia.</p>
@@ -24,7 +24,7 @@
 @foreach(($day['calendar_gap_alerts'] ?? []) as $entry)
 <div class="review-entry">
 <div><strong>Compromisso na agenda · {{ substr($entry['start']??'',11,5) }} às {{ substr($entry['end']??'',11,5) }}</strong><p>{{ $entry['uncovered_schedule_minutes']??0 }} minutos previstos sem registros confirmados. Uma agenda não comprova presença.</p></div>
-<span class="review-chip">Verificar</span>
+<span class="review-chip">Monitorado</span>
 </div>
 @endforeach
 @if(count($day['sessions']??[])>0)
@@ -56,26 +56,33 @@
 <section class="review-workflow">
 <div class="section-heading">
 <div>
-<h2>Fila de revisão com decisão humana</h2>
-<p class="muted">A revisão registra sua decisão na fila local. O publicador envia apenas sessões aprovadas e verificadas, quando a política de publicação estiver ativa.</p>
+<h2>Resultado da revisão automática</h2>
+<p class="muted">A análise automática concilia o que já consta do Kimai e monitora observações sem duração de trabalho comprovada. Uma observação sem comprovação não é contabilizada, descartada como não trabalhada nem enviada ao Kimai.</p>
 </div>
 </div>
 @php
+$manualQueueRows=array_values(array_filter($reviewRows ?? [], static fn($row)=>in_array(($row['status']??''),['draft','needs_reapproval','conflict','uncertain'],true)));
+$auditedRows=array_values(array_filter($reviewRows ?? [], static fn($row)=>!in_array(($row['status']??''),['draft','needs_reapproval','conflict','uncertain'],true)));
+$autoObservedRows=array_values(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='auto_observed'));
 $conflictsToReview=count(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='conflict'));
 $reconciledPeriods=count(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='reconciled_partial'));
-$unregisteredGaps=count(array_filter($reviewRows ?? [], static fn($row)=>isset($row['source_parent_id']) && in_array(($row['status']??''),['draft','needs_reapproval'],true)));
 $remainingSmallSeconds=array_sum(array_map(static fn($row)=>(int)($row['remote_small_gap_seconds']??0),array_filter(
     $reviewRows ?? [],static fn($row)=>($row['status']??'')==='reconciled_partial')));
 @endphp
 @if($reconciledPeriods>0)
 <p class="muted" role="status"><strong>{{ $reconciledPeriods }} propostas reconciliadas automaticamente com o Kimai.</strong>
-Os trechos já registrados não serão duplicados. Existem {{ $unregisteredGaps }} intervalos inteiros a confirmar;
-{{ $remainingSmallSeconds }} segundos de margens residuais permanecem registrados para conferência, sem aprovação automática.</p>
+Os trechos já registrados não serão duplicados. Existem {{ count($autoObservedRows) }} observações sem duração comprovada, mantidas para reavaliação automática;
+{{ $remainingSmallSeconds }} segundos de margens residuais estão documentados, sem arredondamento para gerar horas.</p>
 @endif
 @if($conflictsToReview>0)
 <p class="warn" role="status">{{ $conflictsToReview }} {{ $conflictsToReview===1?'sobreposição precisa':'sobreposições precisam' }} de decisão. Abra um período para comparar a sugestão com os registros existentes.</p>
 @endif
-@forelse(($reviewRows ?? []) as $candidate)
+@if(count($manualQueueRows)===0)
+<p role="status"><strong>Nenhuma pendência de revisão manual.</strong> A fila de decisões está vazia. As observações não confirmadas permanecem no histórico, sem serem lançadas como horas.</p>
+@else
+<p class="warn">{{ count($manualQueueRows) }} {{ count($manualQueueRows)===1?'situação exige':'situações exigem' }} tratamento específico. Nenhuma será automaticamente aprovada sem duração verificada.</p>
+@endif
+@forelse($manualQueueRows as $candidate)
 <details class="day-card" @if(in_array(($candidate['status'] ?? ''),['conflict','draft'],true) &&
     (isset($candidate['source_parent_id']) || ($candidate['status'] ?? '')==='conflict') &&
     !isset($firstActionOpened)) open @php $firstActionOpened=true; @endphp @endif>
@@ -200,6 +207,38 @@ Os trechos já registrados não serão duplicados. Existem {{ $unregisteredGaps 
 </div>
 </details>
 @empty
-<p class="muted">A fila local ainda não possui propostas. Execute uma análise para construir as hipóteses de jornada.</p>
+<p class="muted">Não há decisões manuais aguardando nesta fila.</p>
 @endforelse
+@if(count($auditedRows)>0)
+<details class="technical-details" id="automated-review-audit">
+<summary>Histórico auditável da conciliação ({{ count($auditedRows) }} {{ count($auditedRows)===1?'registro':'registros' }})</summary>
+<p class="muted">A classificação é informativa e será conferida novamente nas próximas sincronizações. A contagem de observações não equivale a horas trabalhadas. Você ainda pode lançar trabalho efetivamente realizado em Informar horas, sem depender desta fila.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>Dia e horário</th><th>Resultado</th><th>Evidência no trecho</th></tr></thead>
+<tbody>
+@foreach($auditedRows as $item)
+<tr>
+<td>{{ $item['date'] ?? '' }} · {{ substr($item['start']??'',11,5) }}–{{ substr($item['end']??'',11,5) }}</td>
+<td>{{ match($item['status']??'') {
+  'auto_observed'=>'Observação avaliada automaticamente; sem horas comprovadas',
+  'reconciled_partial'=>'Sobreposição conciliada',
+  'covered'=>'Já registrado no Kimai',
+  'posted'=>'Publicado e verificado',
+  'approved'=>'Aprovado anteriormente, aguardando publicação',
+  'rejected'=>'Rejeitado anteriormente',
+  default=>'Histórico preservado'
+} }}</td>
+<td>
+@if(($item['status']??'')==='auto_observed')
+{{ intdiv((int)($item['auto_assessment']['work_context_seconds']??0),60) }} min de contexto profissional observado;
+{{ (int)($item['auto_assessment']['own_action_markers']??0) }} ações pontuais. Duração humana não verificada.
+@else
+{{ $item['hold_reason']??'Registro mantido para auditoria' }}
+@endif
+</td>
+</tr>
+@endforeach
+</tbody></table></div>
+</details>
+@endif
 </section>
