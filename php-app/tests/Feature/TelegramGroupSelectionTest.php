@@ -112,7 +112,7 @@ final class TelegramGroupSelectionTest extends TestCase
         self::assertNull($data['next_cursor']);
         self::assertSame(4,$data['scanned_dialog_count']);
         self::assertSame(0,$data['folder']);
-        self::assertTrue($data['suggestions_allowed']);
+        self::assertFalse($data['suggestions_allowed']);
         self::assertFalse($this->store->sources()['telegram']);
     }
 
@@ -238,99 +238,54 @@ final class TelegramGroupSelectionTest extends TestCase
         }
     }
 
-    public function test_public_defaults_require_a_verified_joined_supergroup(): void
+    public function test_no_public_group_is_preselected_by_the_application(): void
     {
-        $resolve=static fn(array $peer): int=>
-            -1000000000000-$peer['channel_id'];
-        $info=['Chat'=>[
-            '_'=>'channel','id'=>15,'megagroup'=>true,
-            'title'=>'Comunidade Livre','left'=>false,
-            'username'=>'LibreCodeCoop',
-        ]];
-        $allowed=MadelineTelegramAdapter::verifiedRecommendation(
-            $info,'LibreCodeCoop',$resolve);
-        self::assertSame([
-            'id'=>-1000000000015,'title'=>'Comunidade Livre','recommended'=>true,'archived'=>null,
-        ],$allowed);
-        // A copied name, an unrelated username, broadcast channels and
-        // public groups the user has NOT joined are all excluded.
-        foreach ([
-            ['username'=>'anothergroup'],
-            ['left'=>true],
-            ['megagroup'=>false],
-            ['kicked'=>true],
-            ['_'=>'chat'],
-        ] as $overrides) {
-            $forgery=['Chat'=>array_replace($info['Chat'],$overrides)];
-            self::assertNull(MadelineTelegramAdapter::verifiedRecommendation(
-                $forgery,'LibreCodeCoop',$resolve));
-        }
-        // A missing boolean "left" flag in Telegram's TL constructor means
-        // false (joined), not "membership unknown".
-        self::assertSame(-1000000000015,
-            MadelineTelegramAdapter::verifiedRecommendation(
-                ['Chat'=>array_replace($info['Chat'],['left'=>null])],
-                'LibreCodeCoop',$resolve)['id']
-        );
-        self::assertSame(
-            -1000000000015,
-            MadelineTelegramAdapter::verifiedRecommendation(
-                ['Chat'=>array_replace($info['Chat'],['username'=>'LiBrEcOdEcOoP'])],
-                'LibreCodeCoop',$resolve)['id']
-        );
-        // Real MadelineProto sessions return the already normalized negative
-        // ID inside getInfo()['Chat']['id'], not the raw MTProto ID.
-        self::assertSame(-1000000000015,
-            MadelineTelegramAdapter::verifiedRecommendation(
-                ['Chat'=>array_replace($info['Chat'],['id'=>-1000000000015])],
-                'LibreCodeCoop',$resolve)['id']
-        );
+        // The application must never resolve a predefined maintainer group.
+        // Login, browsing and selection remain explicit user decisions.
+        $fake=new class {
+            public function selfId(): int {return 923123;}
+            public function groupsPage(?array $offset=null): array {
+                return ['groups'=>[['id'=>-10055,'title'=>'Sample work group',
+                    'recommended'=>false]],'scanned_dialog_count'=>1,'next_offset'=>null];
+            }
+            public function recommendedGroups(): never {
+                throw new \RuntimeException('Unexpected public-group discovery');
+            }
+        };
+        $page=(new TelegramGroupSelection($this->store))->page(null,$fake);
+        self::assertSame([], $page['recommended_groups']);
+        self::assertFalse($page['suggestions_allowed']);
+        self::assertSame([false],array_column($page['groups'],'recommended'));
     }
 
-    public function test_early_recommendations_need_no_full_account_enumeration(): void
+    public function test_catalog_pages_never_query_default_community_handles(): void
     {
         $fake=new class {
             public int $calls=0;
-            public int $recommendations=0;
             public function selfId(): int{return 923123;}
-            public function groupsPage(?array $offset=null): array{
+            public function groupsPage(?array $offset=null): array {
                 $this->calls++;
-                return ['groups'=>[['id'=>-10055,'title'=>'Grupo novo','recommended'=>false]],
-                    'scanned_dialog_count'=>30,
-                    'next_offset'=>['date'=>1794000123,
-                        'id'=>(int)($offset['id']??15)+1,'peer'=>-10055]];
+                return ['groups'=>[['id'=>-10055,'title'=>'Sample group',
+                    'recommended'=>false]],'scanned_dialog_count'=>1,
+                    'next_offset'=>$offset===null?
+                        ['date'=>1794000123,'id'=>16,'peer'=>-10055]:null];
             }
-            public function recommendedGroups(): array{
-                $this->recommendations++;
-                return [
-                    ['id'=>-10033,'title'=>'LibreCode oficial','recommended'=>true],
-                    ['id'=>-10044,'title'=>'LibreSign oficial','recommended'=>true],
-                ];
+            public function recommendedGroups(): never {
+                throw new \RuntimeException('Must not fetch any suggested public group');
             }
-            public function groups(): never{
-                throw new \RuntimeException('Full catalog scan forbidden');
+            public function groups(): never {
+                throw new \RuntimeException('Unbounded catalog scan forbidden');
             }
         };
         $selection=new TelegramGroupSelection($this->store);
         $first=$selection->page(null,$fake);
         self::assertCount(1,$first['groups']);
-        self::assertSame(['LibreCode oficial','LibreSign oficial'],
-            array_column($first['recommended_groups'],'title'));
-        self::assertSame(1,$fake->recommendations);
+        self::assertSame([], $first['recommended_groups']);
+        self::assertFalse($first['suggestions_allowed']);
         self::assertSame(1,$fake->calls);
         $more=$selection->page($first['next_cursor'],$fake);
-        self::assertSame([],$more['recommended_groups']);
-        self::assertSame(1,$fake->recommendations);
+        self::assertSame([], $more['recommended_groups']);
         self::assertSame(2,$fake->calls);
-        // Once a group was explicitly chosen, no other group is suggested.
-        $settings=$this->store->profile()->toArray();
-        $settings['work_messenger_dialog_ids']=[-10033];
-        $settings['work_messenger_recommendations_reviewed']=true;
-        $this->store->saveProfile(new Profile($settings));
-        $existing=$selection->page(null,$fake);
-        self::assertFalse($existing['suggestions_allowed']);
-        self::assertSame([],$existing['recommended_groups']);
-        self::assertSame(1,$fake->recommendations);
     }
 
     public function test_actual_madeline_proto_shape_handles_normalized_peers_and_extra_pinned_dialogs(): void
@@ -355,11 +310,11 @@ final class TelegramGroupSelectionTest extends TestCase
         $raw=['_'=>'messages.dialogsSlice',
             'dialogs'=>$dialogs,'messages'=>$messages,
             'chats'=>[
-                ['_'=>'channel','id'=>$first,'title'=>'LibreCode oficial',
-                    'megagroup'=>true,'left'=>false,'username'=>'LibreCodeCoop'],
+                ['_'=>'channel','id'=>$first,'title'=>'SampleTeam oficial',
+                    'megagroup'=>true,'left'=>false,'username'=>'SampleGroupA'],
                 ['_'=>'chat','id'=>-42,'title'=>'Equipe interna'],
-                ['_'=>'channel','id'=>-1000000000205,'title'=>'LibreSign equipe',
-                    'megagroup'=>true,'left'=>false,'username'=>'LibreSign'],
+                ['_'=>'channel','id'=>-1000000000205,'title'=>'SampleGroupB equipe',
+                    'megagroup'=>true,'left'=>false,'username'=>'SampleGroupB'],
                 ['_'=>'channel','id'=>-1000000000208,'title'=>'Canal de notícias',
                     'megagroup'=>false,'broadcast'=>true],
             ]];
@@ -370,7 +325,7 @@ final class TelegramGroupSelectionTest extends TestCase
         self::assertSame(32,$result['scanned_dialog_count']);
         self::assertSame([$first,-42,-1000000000205],
             array_column($result['groups'],'id'));
-        self::assertSame([true,false,true],
+        self::assertSame([false,false,false],
             array_column($result['groups'],'recommended'));
         self::assertSame([
             'date'=>1794000229,'id'=>1029,'peer'=>-1000000000229,
@@ -418,16 +373,16 @@ final class TelegramGroupSelectionTest extends TestCase
     public function test_telegram_dialogs_are_bounded_and_only_exact_public_group_usernames_are_suggested(): void
     {
         $chats=[
-            ['_'=>'channel','id'=>10,'title'=>'LibreCode Comunidade',
-             'megagroup'=>true,'username'=>'LibreCodeCoop'],
-            ['_'=>'channel','id'=>11,'title'=>'Equipe LibreSign',
-             'megagroup'=>true,'username'=>'LibreSign'],
-            ['_'=>'channel','id'=>12,'title'=>'LibreSign',
-             'megagroup'=>true,'username'=>'impostorLibresign'],
-            ['_'=>'channel','id'=>13,'title'=>'LibreSign',
-             'megagroup'=>false,'username'=>'LibreSign'],
-            ['_'=>'channel','id'=>14,'title'=>'LibreCode',
-             'megagroup'=>true,'username'=>'LibreCodeCoop','left'=>true],
+            ['_'=>'channel','id'=>10,'title'=>'SampleTeam Comunidade',
+             'megagroup'=>true,'username'=>'SampleGroupA'],
+            ['_'=>'channel','id'=>11,'title'=>'Equipe SampleGroupB',
+             'megagroup'=>true,'username'=>'SampleGroupB'],
+            ['_'=>'channel','id'=>12,'title'=>'SampleGroupB',
+             'megagroup'=>true,'username'=>'impostorSampleGroupB'],
+            ['_'=>'channel','id'=>13,'title'=>'SampleGroupB',
+             'megagroup'=>false,'username'=>'SampleGroupB'],
+            ['_'=>'channel','id'=>14,'title'=>'SampleTeam',
+             'megagroup'=>true,'username'=>'SampleGroupA','left'=>true],
             ['_'=>'chat','id'=>15,'title'=>'Grupo de trabalho'],
         ];
         $dialogs=[];
@@ -446,7 +401,7 @@ final class TelegramGroupSelectionTest extends TestCase
         self::assertSame(30,$page['scanned_dialog_count']);
         self::assertCount(4,$page['groups']);
         self::assertSame([
-            true,true,false,false,
+            false,false,false,false,
         ],array_column($page['groups'],'recommended'));
         self::assertSame(
             ['date'=>1794000039,'id'=>139,'peer'=>-1000000000039],
@@ -490,7 +445,7 @@ final class TelegramGroupSelectionTest extends TestCase
         $first=$selection->page(null,$fake);
         self::assertCount(30,$first['groups']);
         self::assertSame(1,$fake->calls);
-        self::assertTrue($first['suggestions_allowed']);
+        self::assertFalse($first['suggestions_allowed']);
         self::assertTrue($first['groups'][5]['recommended']);
         $next=$selection->page($first['next_cursor'],$fake);
         self::assertCount(30,$next['groups']);
@@ -564,7 +519,7 @@ final class TelegramGroupSelectionTest extends TestCase
         $this->store->saveProfile(new Profile($profile));
         $page=(new TelegramGroupSelection($this->store))->page(null,$fake);
         self::assertSame([-1001234567],$page['selected_ids']);
-        self::assertTrue($page['suggestions_allowed'],
+        self::assertFalse($page['suggestions_allowed'],
             'Older profiles can still receive one-time suggestions');
         $profile['work_messenger_recommendations_reviewed']=true;
         $this->store->saveProfile(new Profile($profile));

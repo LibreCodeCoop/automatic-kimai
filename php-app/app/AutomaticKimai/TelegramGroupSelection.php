@@ -94,13 +94,11 @@ final class TelegramGroupSelection
             }
             $profile=$this->store->profile();
             $selected=$profile?->get('work_messenger_dialog_ids')??[];
-            // Offer each canonical joined community once, even for users
-            // who already saved other groups in an older profile. After the
-            // first explicit Save, never re-add a deliberately unchecked one.
-            $suggestionsAllowed=$profile?->get('work_messenger_recommendations_reviewed')!==true;
-            $recommendations=$cursor===null && $suggestionsAllowed &&
-                method_exists($client,'recommendedGroups')?
-                $client->recommendedGroups():[];
+            // No organization-specific group lookup: even public-group discovery
+            // can leak the installed account's association and preferences.
+            // The operator can manually search and authorize their own chats.
+            $suggestionsAllowed=false;
+            $recommendations=[];
             $selectedGroups=[];
             if ($cursor===null) {
                 $titles=$profile?->get('work_messenger_group_titles')??[];

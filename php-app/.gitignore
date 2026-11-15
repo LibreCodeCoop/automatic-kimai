@@ -22,3 +22,12 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+
+# Fail closed for personal runtime state; keep the placeholder.
+!storage/app/private/.gitignore
+/storage/app/private/*
+!/storage/app/private/.gitignore
+/.env.*
+!/.env.example
+/secrets.enc

@@ -11,18 +11,23 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   dependencies before first public GPL-3.0-or-later publication.
 - [ ] Review licenses and security advisories for Laravel, NativePHP,
   Electron, MadelineProto and other shipped dependencies.
+- [ ] Recheck GitHub Dependabot alerts **after the hardening PR merges**.
+  Resolve/assess the remaining `minimatch` development/packaging advisory
+  before shipping installers; do not trust npm audit alone.
 - [ ] Run the full PHP test suite, desktop-preview Node tests, package
   privacy guard and source check: php php-app/scripts/check-publication.php.
 - [ ] Create a private, untracked .publication-denylist (mode 0600)
   containing any forbidden customer-specific domain/name and rerun the scan.
 - [ ] Confirm no credential, session, encrypted secret, private SQLite,
   personal browsing record or other runtime state exists in Git or builds.
+- [ ] Verify past commits, PR references, CI logs and artifacts for
+  sensitive information before making this repository public.
 - [ ] Obtain an independent code review and working CI; do not waive
   a failing/missing check because a GitHub Actions billing limit blocks it.
 - [ ] Avoid hardcoded organizations, customers, instance URLs and paths.
 - [ ] Maintain a clear vulnerability reporting and maintainer contact.
 
-## Additional blockers for PR #1 — Python to PHP migration
+## Operational migration safeguards (separate from source merge)
 
 - [ ] Confirm every historical Python publication and human declaration is
   preserved with its original remote ID/provenance, without overwriting new
@@ -44,9 +49,8 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   Linux and macOS is explicitly **not** a prerequisite for merging this
   code migration; platform-specific install E2E occurs on demand.
 
-**Do not enable PHP unattended posting or mark the PR ready for merge
-until the applicable correctness, security, cutover and review gates
-are evidenced.** Historical Python source files may be removed from the
+**Do not enable PHP unattended posting until correctness, security,
+cutover and review gates are evidenced.** Historical Python source files may be removed from the
 PHP branch independently of stopping the original Python runtime.
 
 ## Additional end-user installer gates (on demand; not a PR merge blocker)

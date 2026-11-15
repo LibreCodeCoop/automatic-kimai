@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: 2026 LibreCode coop and contributors
-// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 'use strict';
 
 // Optional integration test against the real Laravel-rendered interface.

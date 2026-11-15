@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 LibreCode coop and contributors
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: GPL-3.0-or-later
 set -euo pipefail
 [[ "$(uname -s)" == Linux ]] || { echo 'Linux systemd required' >&2; exit 2; }
 app="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
