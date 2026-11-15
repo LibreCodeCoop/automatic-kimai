@@ -43,7 +43,7 @@ jobs:
         run: php artisan route:list --path=/ --except-vendor
       - name: PHP syntax
         run: |
-          find app routes tests -name '*.php' -print0 | xargs -0 -n 1 php -l > /dev/null
+          find app routes tests scripts -name '*.php' -print0 | xargs -0 -n 1 php -l > /dev/null
       - name: Exclude credentials from tracked files
         run: |
           test ! -f ../.publication-denylist

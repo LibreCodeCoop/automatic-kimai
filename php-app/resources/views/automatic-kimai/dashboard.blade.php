@@ -82,7 +82,8 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <section><h2>2. Fontes de informação</h2>
 <form method="post" action="{{route('kimai.sources')}}">@csrf
 @foreach($sources as $name=>$enabled)
-<div class="source"><input type="checkbox" name="source_{{$name}}" value="1" id="source-{{$name}}" @checked($enabled) @disabled($name==='activitywatch' || $name==='telegram')><label for="source-{{$name}}">{{[
+@if ($name==='telegram') @continue @endif
+<div class="source"><input type="checkbox" name="source_{{$name}}" value="1" id="source-{{$name}}" @checked($enabled) @disabled($name==='activitywatch')><label for="source-{{$name}}">{{[
 'activitywatch'=>'ActivityWatch — aplicativos e inatividade (local)',
 'github'=>'GitHub — metadados de eventos',
 'nextcloud_talk'=>'Nextcloud Talk — ações próprias',
@@ -107,6 +108,46 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 </div>
 <button type="submit">Salvar conexões opcionais</button>
 </form>
+</section>
+<section id="telegram-setup" aria-labelledby="telegram-heading">
+<h2 id="telegram-heading">2.2. Telegram — autenticação MTProto</h2>
+<p class="muted">A conexão usa MadelineProto no próprio computador. Apenas as conversas profissionais que você indicar poderão ser analisadas. Mensagens particulares não serão consultadas e nenhuma mensagem será enviada.</p>
+<form method="post" action="{{route('kimai.telegram.configure')}}">@csrf
+<div class="grid">
+<div><label for="tg-api-id">ID da API do Telegram</label><input id="tg-api-id" name="telegram_api_id" inputmode="numeric" pattern="[0-9]{4,13}" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_ID']) ? 'Já configurado; deixe vazio para manter' : 'Obtido em my.telegram.org' }}"></div>
+<div><label for="tg-api-hash">Hash da API do Telegram</label><input id="tg-api-hash" name="telegram_api_hash" type="password" maxlength="32" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_HASH']) ? 'Já configurado; deixe vazio para manter' : 'Hash de 32 caracteres' }}"></div>
+<div><label for="tg-labels">Conversas profissionais autorizadas</label><input id="tg-labels" name="telegram_labels" maxlength="3000" value="{{ old('telegram_labels',implode(', ', $profile?->get('work_messenger_labels') ?? [])) }}" placeholder="Nome do grupo A, Nome do grupo B" required></div>
+</div>
+<p class="muted">A instalação Python anterior já possui credenciais da API; não é necessário copiá-las novamente se os campos acima mostrarem que estão configurados. Os nomes servem apenas para delimitar o que pode ser consultado.</p>
+<button type="submit" class="secondary">Salvar configuração e conversas permitidas</button>
+</form>
+<div class="notice" style="margin-top:16px">
+<p id="tg-status" role="status" aria-live="polite">Consultando o estado de autenticação...</p>
+<div id="tg-controls">
+<button type="button" id="tg-start">Gerar QR Code para entrar no Telegram</button>
+<button type="button" id="tg-refresh" class="secondary">Verificar autenticação</button>
+</div>
+<div id="tg-qr-area" style="display:none">
+<p><strong>1.</strong> Abra o Telegram no celular. Em <strong>Configurações → Dispositivos → Conectar dispositivo</strong>, escaneie o código abaixo.</p>
+<img id="tg-qr-img" width="320" height="320" style="max-width:100%;background:white;border-radius:8px;padding:10px" alt="QR Code temporário para autenticar esta instalação">
+<p id="tg-qr-expiry" class="muted"></p>
+</div>
+<form id="tg-2fa-form" style="display:none" autocomplete="off">
+<p><strong>2.</strong> O Telegram solicitou a senha de verificação em duas etapas da sua conta.</p>
+<label for="tg-2fa-password">Senha de duas etapas</label>
+<input id="tg-2fa-password" type="password" maxlength="1024" autocomplete="off">
+<button type="submit">Concluir autenticação</button>
+<p class="muted">A senha é utilizada somente na comunicação local com o Telegram, não fica gravada no aplicativo e não deve ser compartilhada neste chat.</p>
+</form>
+<div id="tg-authorized-area" style="display:none">
+<p>Conta Telegram autenticada neste computador. Habilite a leitura apenas das conversas profissionais informadas acima.</p>
+<button type="button" id="tg-activate">Ativar coleta Telegram em modo de revisão</button>
+</div>
+</div>
+<form method="post" action="{{route('kimai.telegram.disable')}}">@csrf
+<button type="submit" class="secondary">Desativar coleta Telegram (preservar login)</button>
+</form>
+<p class="warn">A autenticação do Telegram não ativa publicação de horas. A versão PHP continua somente leitura até a substituição segura do piloto Python.</p>
 </section>
 <section>
 <h2>3. Revisar intervalos e lacunas</h2>
@@ -241,6 +282,134 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
       button.disabled = false;
     }
   });
+})();
+(() => {
+  const status = document.getElementById('tg-status');
+  if (!status) return;
+  const $ = id => document.getElementById(id);
+  const urls = {
+    status: @json(route('kimai.telegram.status')),
+    qr: @json(route('kimai.telegram.qr')),
+    twoFactor: @json(route('kimai.telegram.2fa')),
+    activate: @json(route('kimai.telegram.activate')),
+  };
+  const csrf = @json(csrf_token());
+  let poll = null;
+  let expiresAt = 0;
+  const stopPoll = () => {
+    if (poll !== null) clearInterval(poll);
+    poll = null;
+  };
+  const message = value => { status.textContent = value; };
+  const post = async (url, payload={}) => {
+    const response = await fetch(url,{
+      method:'POST',credentials:'same-origin',cache:'no-store',
+      headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf},
+      body:JSON.stringify(payload),
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      throw new Error(json.message || 'Operação não concluída; tente novamente.');
+    }
+    return json;
+  };
+  const applyState = data => {
+    const s = data.status;
+    const authorized = s === 'authorized';
+    const needs2fa = s === 'password_required';
+    const inQr = s === 'scan_qr';
+    const enabled = data.enabled === true;
+    $('tg-start').style.display = ['ready_for_qr','scan_qr','expired','error'].includes(s) ? '' : 'none';
+    $('tg-2fa-form').style.display = needs2fa ? '' : 'none';
+    $('tg-authorized-area').style.display = authorized && !enabled ? '' : 'none';
+    if (inQr && typeof data.qr_svg_base64 === 'string') {
+      $('tg-qr-img').src = 'data:image/svg+xml;base64,'+data.qr_svg_base64;
+      $('tg-qr-area').style.display = '';
+      expiresAt = Date.now() + Math.max(0,Number(data.expires_in)||0)*1000;
+      $('tg-start').textContent = 'Gerar novo QR Code';
+    } else if (authorized || needs2fa || s === 'not_configured' || s === 'expired' || s === 'error' || s === 'pending') {
+      $('tg-qr-img').removeAttribute('src');
+      $('tg-qr-area').style.display = 'none';
+      stopPoll();
+    }
+    const labels = {
+      not_configured:'Configure as credenciais da API e as conversas autorizadas.',
+      ready_for_qr:'Credenciais configuradas. Clique em gerar QR Code para autenticar.',
+      scan_qr:'QR Code gerado. Escaneie pelo aplicativo Telegram no celular.',
+      password_required:'O Telegram solicitou a senha de verificação em duas etapas.',
+      authorized: enabled
+        ? 'Telegram autenticado e coleta de metadados ativada (somente revisão).'
+        : 'Telegram autenticado. Ative a coleta de metadados abaixo.',
+      pending:'Preparando a sessão ou validando a autenticação...',
+      starting:'Iniciando o serviço local Telegram...',
+      expired:'O QR Code expirou. Gere outro para continuar.',
+      error:'Não foi possível concluir a autenticação. Verifique a conexão e tente novamente.',
+    };
+    message(data.message && s === 'password_required' ? data.message : (labels[s] || labels.error));
+  };
+  const check = async () => {
+    try {
+      const response = await fetch(urls.status,{
+        method:'GET',credentials:'same-origin',cache:'no-store',
+        headers:{'Accept':'application/json'},
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Falha na consulta');
+      applyState(data);
+      if (expiresAt && Date.now() >= expiresAt &&
+          data.status === 'ready_for_qr') {
+        $('tg-qr-area').style.display='none';
+        message('O QR Code expirou. Clique em gerar novo QR Code.');
+        stopPoll();
+      }
+    } catch (error) {
+      message('Não foi possível consultar o Telegram. Verifique a conexão local e tente novamente.');
+      stopPoll();
+    }
+  };
+  $('tg-refresh').addEventListener('click',check);
+  $('tg-start').addEventListener('click',async () => {
+    const button=$('tg-start');
+    button.disabled=true;
+    message('Solicitando código QR ao Telegram...');
+    try {
+      const data=await post(urls.qr);
+      applyState(data);
+      if (data.status==='scan_qr' || data.status==='pending' || data.status==='starting') {
+        stopPoll();
+        poll=setInterval(check,4000);
+      }
+    } catch (error) {message(error.message);}
+    finally {button.disabled=false;}
+  });
+  $('tg-2fa-form').addEventListener('submit',async event => {
+    event.preventDefault();
+    const input=$('tg-2fa-password');
+    const password=input.value;
+    input.value='';
+    if (!password) return;
+    const button=$('tg-2fa-form').querySelector('button');
+    button.disabled=true;
+    message('Validando a senha de duas etapas diretamente no Telegram...');
+    try {
+      const data=await post(urls.twoFactor,{password});
+      applyState(data);
+      stopPoll();
+      poll=setInterval(check,3000);
+      await check();
+    } catch (error) {message(error.message);}
+    finally {button.disabled=false;}
+  });
+  $('tg-activate').addEventListener('click',async () => {
+    const button=$('tg-activate');
+    button.disabled=true;
+    try {
+      const data=await post(urls.activate);
+      applyState(data);
+    } catch(error) {message(error.message);}
+    finally {button.disabled=false;}
+  });
+  check();
 })();
 </script>
 </body>

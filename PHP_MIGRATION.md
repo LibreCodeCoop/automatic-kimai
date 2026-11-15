@@ -25,6 +25,10 @@
 | Snapshot, POST/PATCH, outbox idempotente | `Reconciler`, `Ledger` | Testes locais; **não homologado para POST em produção** |
 | Declaração de tempo/presença | `ManualTime` | Testes; formulário read-only (prévia) |
 | Nextcloud Calendar/Talk | `NextcloudSource` | Implementado; validação em servidor real pendente |
+| Telegram MTProto | `TelegramSource`, `MadelineTelegramAdapter`, `TelegramLoginWorker`, `TelegramWebLogin` | QR real gerado e persistido entre chamadas HTTP; **2FA ainda exige conclusão pelo usuário e nova verificação** |
+| Fila de revisão | `ReviewCandidateBuilder`, `ReviewQueue` | 15 candidatos de três dias comparados com Python; mesma identidade e limites. Não são aprovações |
+| Estados SQLite do piloto | `StateMigrator` | Cópias consistentes de quatro bancos verificadas, **sem ativação como novo ledger** |
+| Metadados de áudio Telegram | `TelegramAudio` | Testes de parsing/privacidade; serviço contínuo PHP não homologado |
 | GitHub contextual | `GitHubSource` | Sem leitura de corpo de mensagem |
 | Classificação via Ollama local | `LocalOllama` | Testes, não determina faturamento |
 | Telemetria explícita de agente | `AgentRuns` | Testes, sem emissor automático integrado |
@@ -54,14 +58,14 @@ A proteção agora faz o comando `native:build` recusar qualquer diretório que 
 | `automatic-kimai-github-activity` | Equivalência com todas as ações da conta e metadados históricos |
 | `automatic-kimai-nextcloud-talk` | Testes CalDAV/Talk reais, inclusão de exceções e ações próprias |
 | `automatic-kimai-calendar` | Regras completas de classificação e recorrência |
-| `automatic-kimai-telegram-scan` | **Telegram Client API/MTProto em PHP**, autenticação individual, 2FA, lista autorizada e credenciais locais |
+| `automatic-kimai-telegram-scan` | Conector PHP e login visual QR/2FA implementados; autenticação persistente do novo dispositivo e equivalência de histórico ainda precisam ser validadas. Telethon permanece ativo |
 | `automatic-kimai-chat-ai` | Classificação de mensagens selecionadas sem preservar texto; Ollama existe mas depende do conector MTProto |
 | `automatic-kimai-enrich` | Verificação ponta a ponta de PR/issue no GitHub e cache de inferências |
-| `automatic-kimai-sessions` | Fila persistente de revisão e transições de aprovação, sem perda de estado |
+| `automatic-kimai-sessions` | Candidatos e fila em PHP, com paridade de três dias; migração das 101 sessões históricas e dos estados de aprovação ainda não foi aplicada definitivamente |
 | `automatic-kimai-approved-publisher` | Migração do publicador aprovado, outbox e atos de confirmação; **nunca executar dois publicadores simultâneos** |
 | `automatic-kimai-refresh` | Atualização periódica e reconciliação de referências de clientes/projetos |
 | `automatic-kimai-daily-agent` | Agendamento nativo do substituto com mesmo escopo de trabalho, sem duplicação |
-| `automatic-kimai-telegram-audio` | Serviço auxiliar não acionado por timer, com coleta de metadados de áudio e chamadas |
+| `automatic-kimai-telegram-audio` | Algoritmo PHP de observação e agrupamento testado; agendamento contínuo no PHP ainda não ativado |
 
 Não remover timers, não excluir o ambiente anterior e não reutilizar credenciais pessoais em builds de distribuição antes de homologar cada serviço. A API pode conter entradas feitas manualmente por outros clientes, que nunca devem ser sobrescritas.
 
@@ -93,4 +97,4 @@ php artisan native:run
 
 **No ambiente local de avaliação, não há PHP instalado diretamente no sistema.** Os testes rodam em contêiner PHP 8.4 e a interface local em `127.0.0.1:6817` num contêiner separado, sem afetar os serviços Python. Para construir a ponte Electron é necessário Node 22+. Os binários Windows/macOS não foram homologados.
 
-A configuração de local e credenciais deve ser individual; nunca colocar tokens, arquivos `.env`, caches, sessões Telegram, arquivos de observação ou bancos SQLite no Git. O projeto utiliza GPL-3.0-or-later **como proposta de licença**, sujeita à autorização dos titulares antes de publicação pública.
+A configuração de local e credenciais deve ser individual; nunca colocar tokens, arquivos `.env`, caches, sessões Telegram, arquivos de observação ou bancos SQLite no Git. O projeto utiliza GPL-3.0-or-later **como proposta de licença**, sujeita à autorização dos titulares antes de publicação pública. **Revisão jurídica de licença pendente:** MadelineProto 8.21.2 declara AGPL-3.0; confirmar obrigações do trabalho combinado e distribuição antes de disponibilizar o Automatic Kimai publicamente.

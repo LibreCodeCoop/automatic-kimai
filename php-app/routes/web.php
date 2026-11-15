@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AutomaticKimaiController;
+use App\Http\Controllers\TelegramController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/',[AutomaticKimaiController::class,'home'])->name('kimai.home');
@@ -12,3 +13,12 @@ Route::post('/attendance/preview',[AutomaticKimaiController::class,'attendancePr
 Route::post('/sources',[AutomaticKimaiController::class,'sources'])->name('kimai.sources');
 Route::post('/analyze',[AutomaticKimaiController::class,'capture'])->name('kimai.analyze');
 Route::post('/manual',[AutomaticKimaiController::class,'manual'])->name('kimai.manual');
+
+// Explicit localhost-only Telegram MTProto onboarding; QR and 2FA must not
+// appear in URLs, logs or any public network listener.
+Route::post('/telegram/configure',[TelegramController::class,'configure'])->name('kimai.telegram.configure');
+Route::get('/telegram/status',[TelegramController::class,'status'])->name('kimai.telegram.status');
+Route::post('/telegram/qr',[TelegramController::class,'qr'])->middleware('throttle:4,1')->name('kimai.telegram.qr');
+Route::post('/telegram/2fa',[TelegramController::class,'twoFactor'])->middleware('throttle:4,1')->name('kimai.telegram.2fa');
+Route::post('/telegram/activate',[TelegramController::class,'activate'])->name('kimai.telegram.activate');
+Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('kimai.telegram.disable');

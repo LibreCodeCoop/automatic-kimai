@@ -63,7 +63,10 @@ final class AutomaticKimaiController extends Controller
             $domains=array_values(array_filter(array_map(
                 static fn($x)=>strtolower(trim($x)),
                 explode(',',(string)($data['work_domains']??'')))));
-            $profile=new Profile([
+            // Do not wipe explicitly approved Telegram conversation labels
+            // when the Kimai connection form is saved again.
+            $currentProfile=$this->store->profile();
+            $profile=new Profile(array_replace($currentProfile?->toArray()??[],[
                 'profile_id'=>$data['profile_id'],'timezone'=>$data['timezone'],
                 'customer_id'=>(int)$data['customer_id'],
                 'project_id'=>(int)$data['project_id'],
@@ -71,7 +74,7 @@ final class AutomaticKimaiController extends Controller
                 'work_domains'=>$domains,
                 'sync_mode'=>'review_only',
                 'allow_auto_nonbillable_preview'=>false,
-            ]);
+            ]));
             $api=new KimaiClient($data['kimai_url'],$token);
             $me=$api->me();
             if (($me['timezone']??null)!==$profile->get('timezone') ||
@@ -203,7 +206,10 @@ final class AutomaticKimaiController extends Controller
             $current=$this->store->sources();
             $next=[];
             foreach ($current as $key=>$value) {
-                $next[$key]=$key==='activitywatch'||$request->boolean('source_'.$key);
+                // Telegram is enabled only by the dedicated authenticated
+                // QR / 2FA flow, not by a generic opt-in checkbox.
+                $next[$key]=$key==='telegram' ? $value :
+                    ($key==='activitywatch'||$request->boolean('source_'.$key));
             }
             $this->store->setSources($next);
             return back()->with('ok','Opt-in sources saved. Only the selected integrations are consulted.');
