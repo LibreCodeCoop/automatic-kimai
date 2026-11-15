@@ -51,7 +51,10 @@ final class TimeMath
 
     public static function iso(DateTimeImmutable $date): string
     {
-        return $date->format('Y-m-d\TH:i:sP');
+        // Python datetime.isoformat() includes fractional microseconds only
+        // when present. Preserve them for stable queue IDs and timestamps.
+        return $date->format((int)$date->format('u')===0
+            ? 'Y-m-d\TH:i:sP' : 'Y-m-d\TH:i:s.uP');
     }
 
     public static function minuteFloor(DateTimeImmutable $date): DateTimeImmutable

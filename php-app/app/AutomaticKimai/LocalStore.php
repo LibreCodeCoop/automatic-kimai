@@ -145,6 +145,7 @@ final class LocalStore
     }
 
     public function ledgerFile(): string {return $this->path('ledger.sqlite3');}
+    public function reviewQueueFile(): string {return $this->path('review_queue.sqlite3');}
     public function status(): array {return $this->read('status.json',['result'=>'never_ran']);}
     public function report(): array {return $this->read('review.json',['days'=>[]]);}
 }

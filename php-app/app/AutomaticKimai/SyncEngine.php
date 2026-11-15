@@ -112,9 +112,15 @@ final class SyncEngine
             } catch(Throwable){$sources['github']='unavailable_context_only';}
         }
         if ($enabled['telegram']) {
-            // No Telegram MTProto replacement yet: NEVER claim parity or
-            // silently treat missing Telegram evidence as verified work.
-            throw new RuntimeException('Telegram MTProto connector not migrated; disable this source for evaluation');
+            // Fail closed if the independent MadelineProto authorization is
+            // not reusable. The old Telegram history remains untouched.
+            $result=(new TelegramCollector($this->store))->scan(now:$now);
+            $sources['telegram']=[
+                'status'=>$result['status'],
+                'matched_dialogs'=>$result['matched_dialogs'],
+                'read_position_advances'=>$result['read_position_advances'],
+                'eligible_for_auto_publication'=>false,
+            ];
         }
         foreach (['chatgpt_browser','claude_browser'] as $name) {
             if ($enabled[$name])$sources[$name]='ActivityWatch browser metadata only';
@@ -125,14 +131,27 @@ final class SyncEngine
     private function actionAnchors(Profile $profile): array
     {
         $actions=[];
-        foreach (['nextcloud_talk_context.json','telegram_context.json'] as $name) {
-            $source=$this->store->read($name);
-            $items=$name==='nextcloud_talk_context.json'?($source['own_actions']??[]):($source['observations']??[]);
-            foreach (array_slice($items,0,20_000) as $item) {
-                if ($name==='telegram_context.json'&&($item['outgoing']??false)!==true)continue;
-                try {$actions[]=TimeMath::parse($item['utc']??$item['timestamp_utc'],$profile->zone);}
-                catch(Throwable) {continue;}
+        $talk=$this->store->read('nextcloud_talk_context.json');
+        foreach (array_slice($talk['own_actions']??[],0,20_000) as $item) {
+            try {$actions[]=TimeMath::parse((string)$item['utc'],$profile->zone);}
+            catch(Throwable){}
+        }
+        $telegram=$this->store->read('telegram_scoped_history.json');
+        foreach ($telegram['scoped_client_chats']??[] as $chat) {
+            foreach (array_slice($chat['observations']??[],0,20_000) as $item) {
+                if (($item['outgoing']??false)!==true)continue;
+                try {$actions[]=TimeMath::parse((string)$item['timestamp_utc'],$profile->zone);}
+                catch(Throwable){}
             }
+        }
+        $github=$this->store->read('github_context.json');
+        foreach (array_slice($github['events']??[],0,1000) as $event) {
+            if (!in_array($event['kind']??'',[
+                'PullRequestReviewEvent','PullRequestReviewCommentEvent',
+                'IssuesEvent','IssueCommentEvent','PullRequestEvent',
+            ],true))continue;
+            try {$actions[]=TimeMath::parse((string)$event['timestamp_utc'],$profile->zone);}
+            catch(Throwable){}
         }
         return $actions;
     }
@@ -217,6 +236,8 @@ final class SyncEngine
                         ($this->store->read('calendar_work_context.json')['events']??[]):[];
                     $anchors=$this->actionAnchors($profile);
                     $coverage=new Coverage();$segmenter=new Segmenter();
+                    $candidateBuilder=new ReviewCandidateBuilder();
+                    $reviewCandidates=[];
                     $report=[
                         'created_at'=>TimeMath::iso($clock),
                         'profile_id'=>$profile->get('profile_id'),'user_id'=>$userId,
@@ -230,6 +251,8 @@ final class SyncEngine
                         [$events,$warning]=$this->readEvidence($day);
                         $sessions=[];
                         if (!$warning) {
+                            $reviewCandidates=array_merge($reviewCandidates,
+                                $candidateBuilder->build($day,$events,$calendar,$remote,$profile,$clock));
                             foreach ($segmenter->segment($day,$events,$calendar,$profile,$clock) as $window) {
                                 $decision=$engine->plan($window,$profile,$remote,$ledger->known($window['id']),$userId);
                                 // No agent-run telemetry available: even a
@@ -253,6 +276,13 @@ final class SyncEngine
                             'calendar_gap_alerts'=>$coverage->calendarGaps($day,$calendar,$remote,$profile,$clock),
                             'missing_workday_alerts'=>$coverage->missingWorkday($day,$remote,$profile,$clock),
                         ];
+                    }
+                    $queue=new ReviewQueue($this->store->reviewQueueFile());
+                    try {
+                        $report['review_queue_states']=$queue->synchronize($reviewCandidates,$remote);
+                        $report['review_queue_count']=count($queue->rows());
+                    } finally {
+                        $queue->close();
                     }
                     foreach (['coverage_gaps'=>'coverage_gap_count',
                         'review_intervals'=>'manual_review_interval_count',
