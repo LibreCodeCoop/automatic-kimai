@@ -6,7 +6,7 @@ Esta pasta oferece uma **janela desktop Electron real** para o Automatic Kimai P
 
 ## Instalação no Linux/KDE já configurado
 
-A partir de `php-app`:
+A partir da raiz do projeto:
 
 ```sh
 ./desktop-preview/launch.sh --check
@@ -17,7 +17,7 @@ O instalador cria a entrada **Automatic Kimai** no menu de aplicativos e, quando
 
 O inicializador `launch.sh` confere o Electron e o backend PHP no loopback. Se o contêiner PHP existente estiver parado, ele tenta iniciá-lo; não cria novos contêineres, não altera o piloto Python nem registra apontamentos no Kimai. Para checar sem mostrar janela, execute `automatic-kimai-desktop --check`.
 
-O Electron é instalado para desenvolvimento em `php-app/nativephp/electron/node_modules/electron`. O arquivo `main.cjs` desativa integração Node no conteúdo web, ativa sandbox e isolamento de contexto, nega permissões e downloads e impede navegação para fora de `http://127.0.0.1:6817`.
+O Electron é instalado para desenvolvimento em `nativephp/electron/node_modules/electron`. O arquivo `main.cjs` desativa integração Node no conteúdo web, ativa sandbox e isolamento de contexto, nega permissões e downloads e impede navegação para fora de `http://127.0.0.1:6817`.
 
 ### Sandbox do Linux
 
@@ -25,7 +25,7 @@ Em distribuições Ubuntu com bloqueio de namespaces via AppArmor, o Electron pr
 
 ### Portabilidade
 
-`install-desktop.sh` funciona como conveniência da avaliação Linux. Não afirma suporte a macOS ou Windows nem produz binários para terceiros. Veja `../README.md` e `../../PHP_MIGRATION.md` para o estado real da migração.
+`install-desktop.sh` funciona como conveniência da avaliação Linux. Não afirma suporte a macOS ou Windows nem produz binários para terceiros. Veja `../README.md` e `../docs/RELEASE_CHECKLIST.md` para os critérios de distribuição.
 
 ### Abrir o Nextcloud para autorizar
 

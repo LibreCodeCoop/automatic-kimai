@@ -171,7 +171,7 @@ final class ReconcilerTest extends TestCase
         $known=['remote_id'=>555,'remote_snapshot'=>Reconciler::snapshot($old)];
         self::assertSame('restore',$e->plan($w,$p,[],$known,1,true)['action']);
         $old['billable']=true;
-        // Billing metadata is not evidence that a cooperado did/didn't work.
+        // Billing metadata is not evidence that a user did/didn't work.
         self::assertSame('restore',$e->plan($w,$p,[],
             ['remote_id'=>555,'remote_snapshot'=>Reconciler::snapshot($old)],
             1,true)['action']);

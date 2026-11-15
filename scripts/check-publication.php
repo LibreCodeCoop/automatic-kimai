@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * Source publication gate. Run from repository root or php-app.
+ * Source publication gate. Run from repository root.
  * Inspects tracked files only; never prints secret matches.
  */
-$root=realpath(dirname(__DIR__,2));
+$root=realpath(dirname(__DIR__));
 if (!$root) {
     fwrite(STDERR,"PUBLICATION_CHECK_FAILED root_unavailable\n");
     exit(1);
@@ -39,8 +39,8 @@ if (in_array('--paths-stdin',$argv,true)) {
 }
 $forbiddenFile=static function(string $file): bool {
     // Repository placeholder to keep the private directory present.
-    if ($file==='php-app/storage/app/private/.gitignore' ||
-        $file==='php-app/nativephp/electron/.npmrc')return false;
+    if ($file==='storage/app/private/.gitignore' ||
+        $file==='nativephp/electron/.npmrc')return false;
     if (preg_match('/(^|\/)\.env\.example$/D',$file))return false;
     if (str_ends_with($file,'.py')||
         preg_match('~(^|/)(?:\.env(?:\..*)?|secrets\.enc|id_rsa|id_ed25519|'
@@ -49,7 +49,8 @@ $forbiddenFile=static function(string $file): bool {
         preg_match('~(^|/)(?:\.ssh|\.aws|\.kube|migration-snapshots)(/|$)~iD',$file))return true;
     if (str_contains($file,'/.kimai_cache/') ||
         str_contains($file,'/storage/app/private/') ||
-        str_starts_with($file,'.kimai_cache/'))return true;
+        str_starts_with($file,'.kimai_cache/') ||
+        str_starts_with($file,'storage/app/private/'))return true;
     return false;
 };
 $patterns=[
@@ -101,7 +102,7 @@ foreach (explode("\0",$names) as $relative) {
         continue;
     }
     if (str_contains(substr($content,0,4096),"\0"))continue;
-    if ($relative==='php-app/nativephp/electron/.npmrc') {
+    if ($relative==='nativephp/electron/.npmrc') {
         // Required npm 11 install-script allowlist is safe, but do not allow
         // registry auth or arbitrary package configurations to slip in later.
         foreach (explode("\n",$content) as $line) {
@@ -121,7 +122,7 @@ foreach (explode("\0",$names) as $relative) {
         $content,$urls,PREG_SET_ORDER)) {
         foreach ($urls as $urlMatch) {
             $host=strtolower(rtrim($urlMatch[1],"\"'.,);"));
-            $example=(str_contains($relative,'/tests/')||
+            $example=((str_starts_with($relative,'tests/') || str_contains($relative,'/tests/'))||
                 preg_match('~(?:^|/)desktop-preview/[^/]*[.]test[.]cjs$~',$relative)) &&
                 preg_match('~(?:^|[.])example(?:[.](?:com|org|net))?$|[.](?:test|invalid)$|^localhost(?::[0-9]+)?$|^127[.]0[.]0[.]1(?::[0-9]+)?$~D',$host);
             if (!$example) {
