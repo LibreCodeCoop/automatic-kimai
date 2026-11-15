@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=8">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=9">
 </head>
 <body>
 <header class="app-header">

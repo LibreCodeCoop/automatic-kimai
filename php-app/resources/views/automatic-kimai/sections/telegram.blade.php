@@ -29,6 +29,7 @@
 <details id="tg-advanced-settings" class="advanced-settings">
 <summary>Configuração de acesso à API do Telegram (quando necessária)</summary>
 <p class="muted">O Telegram pode exigir um ID e um hash de aplicativo para criar o QR Code. Eles podem ser obtidos em <a href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">my.telegram.org/apps</a>. Não informe a senha principal do Telegram aqui.</p>
+<p class="muted">Essas credenciais identificam um aplicativo, não autorizam sua conta sozinhas. O Automatic Kimai as armazena criptografadas somente neste dispositivo, sem incluí-las no código ou compartilhar com outras instalações. Trate o hash como confidencial.</p>
 <form method="post" action="{{route('kimai.telegram.configure')}}">@csrf
 <div class="setup-fields">
 <div><label for="tg-api-id">ID da API</label><input id="tg-api-id" name="telegram_api_id" inputmode="numeric" pattern="[0-9]{4,13}" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_ID']) ? 'Já configurado; deixe vazio para manter' : 'Obtido em my.telegram.org' }}"></div>
@@ -44,14 +45,19 @@
 <div class="step-heading"><span class="step-number">2</span><div><h3>Escolher grupos profissionais</h3><p class="muted">Apenas grupos e supergrupos são exibidos. Contatos individuais e canais de transmissão não entram na lista.</p></div></div>
 <p class="muted">Marque os grupos que podem contribuir para a análise das horas. Os nomes são exibidos aqui somente após sua autenticação; selecionar grupos não consulta mensagens nem publica horas.</p>
 <div class="group-selection-toolbar">
-<label for="tg-search">Buscar um grupo</label>
-<input type="search" id="tg-search" placeholder="Digite parte do nome do grupo" autocomplete="off">
+<label for="tg-search">Filtrar grupos carregados</label>
+<input type="search" id="tg-search" placeholder="Busque pelo nome dos grupos já carregados" autocomplete="off">
 <button type="button" class="secondary" id="tg-reload-groups">Atualizar lista</button>
 </div>
 <form id="tg-groups-form">
 <div id="tg-group-list" class="telegram-group-list" role="group" aria-label="Grupos disponíveis para autorização">
-<p class="muted">Carregando os grupos disponíveis…</p>
+<p class="muted">Carregando a primeira página de grupos…</p>
 </div>
+<div class="group-pagination">
+<button type="button" id="tg-load-more" class="secondary" hidden>Carregar mais grupos</button>
+<span id="tg-page-status" class="muted" role="status" aria-live="polite"></span>
+</div>
+<p class="muted">Apenas uma página é consultada por vez. Para encontrar um grupo que ainda não apareceu, carregue mais páginas.</p>
 <p id="tg-group-count" class="muted">Nenhum grupo selecionado.</p>
 <button id="tg-save-groups" type="submit" disabled>Salvar grupos autorizados</button>
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>

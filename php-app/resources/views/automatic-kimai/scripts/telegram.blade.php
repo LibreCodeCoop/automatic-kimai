@@ -14,11 +14,15 @@
   let poll=null;
   let fetchingGroups=false;
   let groupsLoaded=false;
-  let allGroups=[];
+  const loadedGroups=new Map();
+  let nextCursor=null;
+  let scannedDialogs=0;
+  let suggestionsAllowed=false;
   let enabled=false;
   let currentState='unknown';
   let savedSelection=new Set();
   let selectedSelection=new Set();
+  const manuallyExcludedSuggestions=new Set();
 
   const message=value=>{status.textContent=value;};
   const stopPoll=()=>{if(poll!==null)clearInterval(poll);poll=null;};
@@ -32,7 +36,6 @@
     if(!response.ok)throw new Error(data.message||'Operação não concluída. Tente novamente.');
     return data;
   };
-
   const refreshCount=()=>{
     const count=selectedSelection.size;
     $('tg-group-count').textContent=count===0?'Nenhum grupo selecionado.':
@@ -42,73 +45,142 @@
     $('tg-enabled-area').hidden=!enabled;
     const altered=count!==savedSelection.size ||
       Array.from(selectedSelection).some(id=>!savedSelection.has(id));
-    if(enabled && altered) {
+    if(enabled && altered){
       $('tg-groups-status').textContent=
         'As alterações só terão efeito após salvar e ativar novamente a análise.';
     }
   };
-  const renderGroups=()=>{
+  const applySearch=()=>{
     const query=$('tg-search').value.trim().toLocaleLowerCase();
-    const list=$('tg-group-list');
-    list.replaceChildren();
-    const filtered=allGroups.filter(group=>group.title.toLocaleLowerCase().includes(query));
-    if(filtered.length===0){
-      const p=document.createElement('p');
-      p.className='muted';
-      p.textContent=allGroups.length===0?'Nenhum grupo encontrado na conta.':'Nenhum grupo corresponde à busca.';
-      list.appendChild(p);
-    } else {
-      const fragment=document.createDocumentFragment();
-      for(const group of filtered){
-        const id=String(group.id);
-        const label=document.createElement('label');
-        label.className='telegram-group-option';
-        const checkbox=document.createElement('input');
-        checkbox.className='tg-group-checkbox';
-        checkbox.type='checkbox';
-        checkbox.name='groups';
-        checkbox.value=id;
-        checkbox.checked=selectedSelection.has(id);
-        checkbox.addEventListener('change',()=>{
-          if(checkbox.checked) selectedSelection.add(id); else selectedSelection.delete(id);
-          refreshCount();
-        });
-        const text=document.createElement('span');
-        text.textContent=group.title;
-        label.append(checkbox,text);
-        fragment.appendChild(label);
-      }
-      list.appendChild(fragment);
+    let visible=0;
+    for(const [id,group] of loadedGroups){
+      const show=group.title.toLocaleLowerCase().includes(query);
+      group.element.hidden=!show;
+      if(show)visible++;
     }
+    $('tg-page-status').textContent=
+      loadedGroups.size+' grupos carregados'+
+      (query?' ('+visible+' correspondem à busca)':'')+
+      (nextCursor===null?' · fim da lista':' · há mais páginas');
+  };
+  const appendGroup=group=>{
+    if(!Number.isSafeInteger(group.id)||typeof group.title!=='string')return;
+    const id=String(group.id);
+    if(loadedGroups.has(id))return;
+    const label=document.createElement('label');
+    label.className='telegram-group-option';
+    const checkbox=document.createElement('input');
+    checkbox.className='tg-group-checkbox';
+    checkbox.type='checkbox';
+    checkbox.name='groups';
+    checkbox.value=id;
+    if(suggestionsAllowed&&group.recommended===true&&
+       !manuallyExcludedSuggestions.has(id)&&savedSelection.size===0){
+      selectedSelection.add(id);
+    }
+    checkbox.checked=selectedSelection.has(id);
+    checkbox.addEventListener('change',()=>{
+      if(checkbox.checked)selectedSelection.add(id);
+      else {
+        selectedSelection.delete(id);
+        if(group.recommended===true)manuallyExcludedSuggestions.add(id);
+      }
+      refreshCount();
+    });
+    const title=document.createElement('span');
+    title.textContent=group.title;
+    label.append(checkbox,title);
+    if(group.recommended===true){
+      const recommendation=document.createElement('span');
+      recommendation.className='group-recommendation';
+      recommendation.textContent='Grupo público sugerido';
+      label.appendChild(recommendation);
+    }
+    loadedGroups.set(id,{title:group.title,element:label});
+    $('tg-group-list').appendChild(label);
+  };
+  const resetGroupList=()=>{
+    loadedGroups.clear();
+    nextCursor=null;
+    scannedDialogs=0;
+    groupsLoaded=false;
+    suggestionsAllowed=false;
+    savedSelection.clear();
+    selectedSelection.clear();
+    manuallyExcludedSuggestions.clear();
+    $('tg-group-list').replaceChildren();
+    $('tg-page-status').textContent='';
+    $('tg-load-more').hidden=true;
     refreshCount();
   };
+  // Each request advances the Telegram cursor by one bounded raw-dialog page;
+  // neither the backend nor the browser first enumerates the entire account.
   const loadGroups=async (force=false)=>{
-    if(fetchingGroups||(groupsLoaded&&!force))return;
+    if(fetchingGroups)return;
+    if(groupsLoaded&&!force&&nextCursor===null)return;
+    if(force)resetGroupList();
     fetchingGroups=true;
-    $('tg-groups-status').textContent='Consultando somente a lista de grupos…';
+    const button=$('tg-load-more');
+    button.disabled=true;
+    $('tg-groups-status').textContent='Carregando a próxima página de grupos…';
     try {
-      const response=await fetch(urls.groups,{
+      const url=new URL(urls.groups,location.origin);
+      if(nextCursor!==null)url.searchParams.set('cursor',nextCursor);
+      const response=await fetch(url.toString(),{
         method:'GET',cache:'no-store',credentials:'same-origin',
         headers:{Accept:'application/json'},
       });
       const data=await response.json();
       if(!response.ok)throw new Error(data.message||'Não foi possível listar grupos.');
-      allGroups=Array.isArray(data.groups)?data.groups.filter(group=>
-        typeof group.title==='string'&&Number.isSafeInteger(group.id)):[];
-      const knownIds=new Set(allGroups.map(group=>String(group.id)));
-      const prior=(data.selected_ids||[]).map(String);
-      savedSelection=new Set(prior.filter(id=>knownIds.has(id)));
-      selectedSelection=new Set(savedSelection);
-      groupsLoaded=true;
-      renderGroups();
-      $('tg-groups-status').textContent=prior.length>savedSelection.size?
-        'Alguns grupos autorizados anteriormente não estão mais disponíveis. Confira a seleção antes de salvar.':
-        (enabled && prior.length===0?
-          'A configuração anterior usava nomes de grupos. Selecione os grupos novamente para tornar a autorização mais precisa.':
-          'Escolha os grupos e salve. Nenhum histórico foi consultado nesta etapa.');
-    } catch(error){
+      if(!Array.isArray(data.groups)||data.groups.length>30||
+         !(data.next_cursor===null || typeof data.next_cursor==='string')){
+        throw new Error('Resposta de paginação inválida. Atualize a lista.');
+      }
+      if(!groupsLoaded){
+        const prior=(data.selected_ids||[]).map(String);
+        savedSelection=new Set(prior);
+        selectedSelection=new Set(prior);
+        suggestionsAllowed=data.suggestions_allowed===true;
+        groupsLoaded=true;
+      }
+      if(!Array.isArray(data.recommended_groups)||
+         data.recommended_groups.length>2){
+        throw new Error('Resposta de recomendações inválida.');
+      }
+      // Verified joined groups may appear deep in Telegram's dialog ordering.
+      // Show these at the top on the first page without fetching all dialogs.
+      for(const group of data.recommended_groups)appendGroup(group);
+      for(const group of data.groups)appendGroup(group);
+      if(Number.isSafeInteger(data.scanned_dialog_count)){
+        scannedDialogs+=data.scanned_dialog_count;
+      }
+      nextCursor=data.next_cursor;
+      button.hidden=nextCursor===null;
+      if(loadedGroups.size===0){
+        const empty=document.createElement('p');
+        empty.className='muted';
+        empty.textContent=nextCursor===null?'Nenhum grupo encontrado na conta.':
+          'Nenhum grupo nesta página. Carregue a próxima para continuar.';
+        $('tg-group-list').replaceChildren(empty);
+      }else{
+        for(const placeholder of $('tg-group-list').querySelectorAll('p.muted')){
+          placeholder.remove();
+        }
+      }
+      applySearch();
+      refreshCount();
+      $('tg-groups-status').textContent=
+        'Lista parcial: '+scannedDialogs+' diálogos verificados por páginas. '+
+        (nextCursor===null?'Fim da lista.':
+          'Continue rolando ou clique em Carregar mais grupos.')+
+        ' Nenhum histórico de mensagens foi consultado.';
+    }catch(error){
       $('tg-groups-status').textContent=error.message;
-    } finally {fetchingGroups=false;}
+      button.hidden=false;
+    }finally{
+      fetchingGroups=false;
+      button.disabled=false;
+    }
   };
 
   const applyState=data=>{
@@ -146,7 +218,7 @@
     // The main action will open them only when API credentials are missing.
     if(connected) {
       stopPoll();
-      loadGroups();
+      if(!groupsLoaded)loadGroups();
       refreshCount();
     } else {
       groupsLoaded=false;
@@ -210,8 +282,18 @@
     } catch(error){message(error.message);}
     finally{button.disabled=false;}
   });
-  $('tg-search').addEventListener('input',renderGroups);
+  $('tg-search').addEventListener('input',applySearch);
   $('tg-reload-groups').addEventListener('click',()=>loadGroups(true));
+  $('tg-load-more').addEventListener('click',()=>loadGroups());
+  // Lazy load one additional page only after a real user scroll event.
+  $('tg-group-list').addEventListener('scroll',()=>{
+    const list=$('tg-group-list');
+    if(groupsLoaded&&!fetchingGroups&&nextCursor!==null&&
+       list.scrollHeight>list.clientHeight &&
+       list.scrollTop+list.clientHeight>=list.scrollHeight-85){
+      loadGroups();
+    }
+  });
   $('tg-groups-form').addEventListener('submit',async event=>{
     event.preventDefault();
     const button=$('tg-save-groups');
