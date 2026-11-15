@@ -53,9 +53,23 @@ final class ReviewWorkflowFeatureTest extends TestCase
             ->assertSee('Fila de revisão com decisão humana')
             ->assertSee('Rejeitar esta proposta')
             ->assertSee('aw-webreview0000001')
-            ->assertSee('Catálogo Kimai indisponível')
+            ->assertSee('Carregar projetos e atividades ao revisar o período')
             ->assertDontSee('name="kimai_token"',false);
         $this->post('http://localhost/publish')->assertNotFound();
+    }
+
+    public function test_review_renders_without_waiting_for_remote_catalog(): void
+    {
+        $this->store->saveCredentials([
+            'KIMAI_BASE_URL'=>'https://kimai.example.invalid',
+            'KIMAI_API_TOKEN'=>'fixture-token-for-test',
+        ]);
+        $this->get('http://localhost/?view=review')->assertOk()
+            ->assertSee('Carregar projetos e atividades ao revisar o período')
+            ->assertSee('data-review-catalog',false)
+            ->assertSee('name="project_id" data-default',false)
+            ->assertSee('required disabled',false)
+            ->assertDontSee('Catálogo Kimai indisponível');
     }
 
     public function test_worker_can_reject_candidate_without_credential_or_remote_write(): void

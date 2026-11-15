@@ -86,6 +86,9 @@ try {
 @if($view==='kimai')
 @include('automatic-kimai.scripts.catalog')
 @endif
+@if($view==='review')
+@include('automatic-kimai.scripts.review')
+@endif
 @if($view==='telegram')
 @include('automatic-kimai.scripts.telegram')
 @endif

@@ -98,24 +98,16 @@ final class AutomaticKimaiController extends Controller
                 $lastAnalysis=$at->format('d/m/Y').' às '.$at->format('H:i');
             } catch (Throwable) {}
         }
-        $reviewRows=[];$reviewCatalog=null;
+        $reviewRows=[];
         if ($view==='review' && $this->store->profile()!==null) {
+            // Rendering local evidence must never wait for a network request.
+            // Load the remote catalog on demand only when a review form opens.
             $queue=new ReviewQueue($this->store->reviewQueueFile());
             try {$reviewRows=$queue->rows();}
             finally {$queue->close();}
-            $creds=$this->store->credentials();
-            if (!empty($creds['KIMAI_BASE_URL'])&&!empty($creds['KIMAI_API_TOKEN'])) {
-                try {
-                    $reviewCatalog=(new KimaiClient($creds['KIMAI_BASE_URL'],
-                        $creds['KIMAI_API_TOKEN']))->catalog();
-                } catch (Throwable) {
-                    // A disconnected provider must not hide local review history.
-                }
-            }
         }
         return view('automatic-kimai.dashboard',[
             'reviewRows'=>$reviewRows,
-            'reviewCatalog'=>$reviewCatalog,
             'view'=>$view,
             'statusLabel'=>$statusLabel,
             'lastAnalysis'=>$lastAnalysis,

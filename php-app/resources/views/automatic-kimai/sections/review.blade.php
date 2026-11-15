@@ -72,9 +72,10 @@
 @if(in_array($candidate['status'] ?? '',['draft','needs_reapproval'],true))
 @if(($candidate['ongoing'] ?? true)===false && ($candidate['end_stable'] ?? false)===true &&
     ($candidate['proposed_action'] ?? null)==='new')
-@if(is_array($reviewCatalog) && count($reviewCatalog['projects'] ?? [])>0 && count($reviewCatalog['activities'] ?? [])>0)
-<form method="post" action="{{ route('kimai.review-approve') }}" class="review-approval-form">
+<form method="post" action="{{ route('kimai.review-approve') }}" class="review-approval-form" data-review-catalog>
 @csrf
+<p class="muted" data-catalog-status role="status">Carregar projetos e atividades ao revisar o período.</p>
+<button type="button" class="secondary" data-catalog-retry hidden>Tentar carregar novamente</button>
 <input type="hidden" name="candidate_id" value="{{ $candidate['id'] }}"/>
 <input type="hidden" name="source_digest" value="{{ $candidate['source_digest'] }}"/>
 <input type="hidden" name="day" value="{{ $candidate['date'] }}"/>
@@ -84,20 +85,12 @@
 <label>Fim confirmado, descontadas as pausas (HH:MM)
 <input type="time" name="end" value="{{ substr($candidate['end'] ?? '',11,5) }}" required/></label>
 <label>Projeto de destino no Kimai
-<select name="project_id" required>
-@foreach(($reviewCatalog['projects'] ?? []) as $project)
-@if(($project['visible'] ?? true)!==false)
-<option value="{{ $project['id'] }}" @selected($project['id']===$profile->get('project_id'))>{{ $project['name'] }}</option>
-@endif
-@endforeach
+<select name="project_id" data-default="{{ $profile->get('project_id') }}" required disabled>
+<option value="">Carregando projetos...</option>
 </select></label>
 <label>Tipo de atividade
-<select name="activity_id" required>
-@foreach(($reviewCatalog['activities'] ?? []) as $activity)
-@if(($activity['visible'] ?? true)!==false)
-<option value="{{ $activity['id'] }}" data-project="{{ $activity['project_id'] ?? '' }}" @selected($activity['id']===$profile->get('activity_id'))>{{ $activity['name'] }}</option>
-@endif
-@endforeach
+<select name="activity_id" data-default="{{ $profile->get('activity_id') }}" required disabled>
+<option value="">Carregando atividades...</option>
 </select></label>
 <label>Cobrança
 <select name="billable" required>
@@ -111,11 +104,8 @@
 <p><label><input type="checkbox" name="confirm_duration" value="1" required/> Confirmo que trabalhei durante o intervalo informado, descontadas as pausas.</label></p>
 <p><label><input type="checkbox" name="confirm_project" value="1" required/> Confirmei o projeto e a atividade de destino.</label></p>
 <p><label><input type="checkbox" name="confirm_billing" value="1" required/> Confirmei a decisão de cobrança.</label></p>
-<button type="submit">Aprovar somente na fila local</button>
+<button type="submit" data-catalog-submit disabled>Aprovar somente na fila local</button>
 </form>
-@else
-<p class="warn">Catálogo Kimai indisponível. Conecte sua conta para validar projeto e atividade antes de aprovar.</p>
-@endif
 @else
 <p class="warn">Período em andamento, incompleto ou com conflito remoto; não pode ser aprovado sem nova análise.</p>
 @endif
