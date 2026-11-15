@@ -227,13 +227,27 @@ final class TelegramGroupSelection
      * Validate selected groups by exact Telegram peer ID, not a 4,000-dialog
      * enumeration, not similar titles and not untrusted browser-side labels.
      */
+    public static function accountSelectionDigest(int $account,Profile $profile): string
+    {
+        if ($account<1)throw new InvalidArgumentException('Invalid Telegram account identity');
+        return CanonicalJson::digest([
+            'account'=>$account,'profile'=>$profile->get('profile_id'),
+            'selected_ids'=>$profile->get('work_messenger_dialog_ids'),
+        ],false);
+    }
+
+    public static function selectionMatchesAccount(array $stored,int $account,Profile $profile): bool
+    {
+        if ($account<1 || ($stored['account_id']??null)!==$account ||
+            !is_string($stored['selection_digest']??null))return false;
+        return hash_equals(self::accountSelectionDigest($account,$profile),
+            $stored['selection_digest']);
+    }
+
     public function select(array $requestedIds,?object $client=null): array
     {
         $profile=$this->store->profile();
         if ($profile===null)throw new RuntimeException('Conecte sua conta Kimai primeiro');
-        if (count($requestedIds)>Profile::MAX_MESSENGER_GROUPS) {
-            throw new InvalidArgumentException('Escolha até '.Profile::MAX_MESSENGER_GROUPS.' grupos profissionais');
-        }
         $ids=[];
         foreach ($requestedIds as $input) {
             if (!is_string($input)&&!is_int($input)) {
@@ -249,17 +263,38 @@ final class TelegramGroupSelection
             $ids[$id]=$id;
         }
 
-        $known=[];
-        if ($ids!==[]) {
-            $own=$client===null;
-            $client??=$this->adapter();
-            try {
-                $known=$client->groupDetails(array_values($ids));
-            } finally {
-                if ($own && method_exists($client,'close'))$client->close();
+        $known=[];$added=[];
+        $own=$client===null;
+        $client??=$this->adapter();
+        try {
+            $account=$client->selfId();
+            if (!is_int($account)||$account<1) {
+                throw new RuntimeException('Telegram account identity unavailable');
             }
+            // Reuse prior verified IDs only if an exact account/profile/ID
+            // binding was saved. A new Telegram login may have different group
+            // memberships: cached titles are not proof of authorization.
+            $bound=$this->store->read('telegram_selected_account.json');
+            $trusted=self::selectionMatchesAccount($bound,$account,$profile);
+            $previous=$trusted?array_fill_keys(
+                $profile->get('work_messenger_dialog_ids'),true):[];
+            $previousTitles=$profile->get('work_messenger_group_titles');
+            foreach ($ids as $id) {
+                if (isset($previous[$id]) &&
+                    is_string($previousTitles[(string)$id]??null)) {
+                    $known[$id]=['id'=>$id,'title'=>$previousTitles[(string)$id]];
+                } else {
+                    $added[]=$id;
+                }
+            }
+            foreach (array_chunk($added,32) as $batch) {
+                $details=$client->groupDetails($batch);
+                if (!is_array($details))throw new RuntimeException('Falha ao validar grupos');
+                $known+=$details;
+            }
+        } finally {
+            if ($own && method_exists($client,'close'))$client->close();
         }
-        if (!is_array($known))throw new RuntimeException('Falha ao validar grupos');
         $labels=[];
         $titles=[];
         foreach ($ids as $id) {
@@ -283,6 +318,11 @@ final class TelegramGroupSelection
         // explicit re-activation after every change to the group allowlist.
         $this->store->setSources(['telegram'=>false]);
         $this->store->saveProfile($updated);
+        $this->store->write('telegram_selected_account.json',[
+            'account_id'=>$account,
+            'selection_digest'=>self::accountSelectionDigest($account,$updated),
+            'verified_at_utc'=>gmdate('c'),
+        ]);
         return ['status'=>'saved','selected_count'=>count($ids),'enabled'=>false];
     }
 }

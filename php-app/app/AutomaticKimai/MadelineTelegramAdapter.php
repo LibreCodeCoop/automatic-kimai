@@ -392,6 +392,28 @@ final class MadelineTelegramAdapter
         return $result;
     }
 
+    /**
+     * Non-mutating read-state query for a selected group. Only returns the
+     * unread counter and high-water marker, never message bodies or peer data.
+     */
+    public function unreadState(int $id): array
+    {
+        if ($id===0)throw new RuntimeException('Invalid Telegram peer ID');
+        $result=$this->api->messages->getPeerDialogs(
+            peers:[['_'=>'inputDialogPeer','peer'=>$id]]);
+        $rows=$result['dialogs']??null;
+        if (!is_array($rows)||count($rows)!==1||!is_array($rows[0])||
+            !is_int($rows[0]['read_inbox_max_id']??null)||
+            !is_int($rows[0]['unread_count']??null)) {
+            throw new RuntimeException('Telegram unread state unavailable');
+        }
+        return [
+            'read_inbox_max_id'=>$rows[0]['read_inbox_max_id'],
+            'unread_count'=>$rows[0]['unread_count'],
+            'unread_mark'=>($rows[0]['unread_mark']??false)===true,
+        ];
+    }
+
     public function history(array|int|string $peer,int $limit): array
     {
         if ($limit<1||$limit>1000)throw new RuntimeException('Invalid Telegram page bound');

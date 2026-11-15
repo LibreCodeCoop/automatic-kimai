@@ -122,6 +122,72 @@ final class TelegramSource
     }
 
     /**
+     * Read only the selected peers. Never enumerate unrelated dialogs or call
+     * readHistory/readMessageContents. A batch is bounded by the collector;
+     * profiles may authorize any number of groups.
+     */
+    public function scanApprovedBatch(object $api,array $approvedIds,array $titles,
+                                      int $lookbackDays,int $limit,
+                                      ?DateTimeImmutable $now=null): array
+    {
+        if ($approvedIds===[] || $lookbackDays<1||$lookbackDays>31||
+            $limit<1||$limit>1000) {
+            throw new InvalidArgumentException('Invalid Telegram approved batch');
+        }
+        $now=($now??new DateTimeImmutable())->setTimezone(new DateTimeZone('UTC'));
+        $cutoff=$now->modify('-'.$lookbackDays.' days');
+        $out=[];
+        foreach ($approvedIds as $id) {
+            if (!is_int($id)||$id===0)throw new InvalidArgumentException('Invalid Telegram peer');
+            // These IDs were checked against Telegram during the separate,
+            // explicitly consented group selection. No read acknowledgment.
+            $rows=$api->history($id,$limit);
+            if (!is_array($rows)||count($rows)>$limit) {
+                throw new RuntimeException('Telegram history exceeded scan budget');
+            }
+            $title=trim((string)($titles[(string)$id]??'Grupo Telegram'));
+            $hint=mb_substr($title,0,80);
+            if (mb_strlen($hint)<2)$hint='Grupo Telegram';
+            $observations=[];
+            foreach ($rows as $item) {
+                if (!is_array($item)||!isset($item['date']))continue;
+                $entry=self::sanitizeMessage($item);
+                if (TimeMath::ts(TimeMath::parse($entry['timestamp_utc']))<
+                    TimeMath::ts($cutoff))continue;
+                $observations[]=$entry;
+            }
+            // getPeerDialogs is read-only. Its read-position markers can
+            // change on OTHER devices; they never attest human work duration.
+            $readState=method_exists($api,'unreadState')?$api->unreadState($id):[];
+            if (!is_array($readState)) {
+                throw new RuntimeException('Invalid Telegram dialog read state');
+            }
+            $out[]=[
+                'dialog_id'=>$id,
+                'read_inbox_max_id'=>is_int($readState['read_inbox_max_id']??null)?
+                    $readState['read_inbox_max_id']:null,
+                'unread_count'=>is_int($readState['unread_count']??null)?
+                    $readState['unread_count']:null,
+                'client_hint'=>$hint,'product_hint'=>null,
+                'kimai_project_candidates'=>[],'observations'=>$observations,
+                'last_scanned_at'=>TimeMath::iso($now),
+                'limited_to_last_days'=>$lookbackDays,
+                'max_messages_per_chat'=>$limit,'complete'=>count($rows)<$limit,
+                'billable'=>null,'eligible_for_sync'=>false,
+            ];
+        }
+        return [
+            'collected_at'=>TimeMath::iso($now),
+            'matched_dialog_count'=>count($out),
+            'scoped_client_chats'=>$out,
+            'no_message_bodies_stored'=>true,
+            'api_calls_are_read_only'=>true,
+            'read_receipts_sent'=>false,
+            'no_billing_assignments'=>true,
+        ];
+    }
+
+    /**
      * Consumes a library-independent adapter, including a FakeTelegramAdapter in
      * unit tests. Peer names and IDs exist only in process memory/private store.
      */

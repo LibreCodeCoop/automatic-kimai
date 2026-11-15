@@ -254,3 +254,49 @@ individualmente o Telegram a cada visita. Perfis legados sem esses nomes
 usam consultas pontuais limitadas e não fazem nova enumeração integral.
 O cursor de página contém o identificador da pasta, impedindo seu
 reaproveitamento para navegar por outro escopo.
+
+
+### Grupos Telegram sem limite fixo e sem marcação de leitura (15/11/2026)
+
+O seletor não impõe mais o limite arbitrário de 100 grupos. É possível
+autorizar todos os grupos profissionais escolhidos, inclusive acima de 250
+(já cobertos por testes de regressão). A validação dos novos grupos é feita
+pelos IDs exatos, em blocos, sem repetir a validação dos já aprovados.
+
+**A ausência de limite de grupos não significa varredura sem limites.**
+O coletor consulta no máximo 24 grupos e 4.800 mensagens somadas por ciclo,
+persistindo um cursor privado. Ele continua em ciclos posteriores e preserva
+o último snapshot em caso de falha. Grupos removidos do consentimento não
+continuam no novo snapshot; a revogação durante a coleta cancela o lote.
+
+Na leitura de histórico, o conector usa apenas **getHistory** e a consulta
+de estado **getPeerDialogs**. Não executa métodos que marcam mensagens como
+lidas. A verificação de uma sessão Telegram real, restrita a 3 grupos
+previamente selecionados, obteve 15 mensagens e demonstrou que o marcador
+de leitura e o contador de mensagens não lidas ficaram inalterados.
+Nenhuma mensagem foi gravada no cache durante a verificação. A coleta
+automática permaneceu desativada até a ativação explícita pelo usuário.
+A seleção autorizada também fica vinculada ao identificador da conta
+Telegram. Após uma troca de conta ou na primeira ativação de um perfil
+anterior à vinculação, é necessário salvar novamente a seleção antes
+de ativar a coleta. Isso impede aproveitar permissões de outra conta.
+
+Ainda é necessário melhorar a paginação profunda quando um grupo contém
+mais mensagens que o orçamento da sua página: o resultado é parcial e não
+pode ser confundido com ausência de trabalho.
+
+### Entrega simples dos instaladores (sob demanda)
+
+A configuração NativePHP/Electron existente prevê:
+- **Linux:** AppImage, executável de instalação simples; também há .deb.
+- **Windows:** executável setup.exe via NSIS.
+- **macOS:** imagem .dmg com aplicativo .app.
+
+O PHP será distribuído dentro do pacote NativePHP, sem exigir instalação
+manual de PHP, Composer ou Node pelo usuário final. Isso é uma **meta
+de distribuição**, ainda não a prova de um pacote autocontido válido.
+Builds devem partir de cópia limpa e não conter APP_KEY, secrets.enc,
+perfil, sessões Telegram, bancos, logs ou credenciais individuais.
+Os testes reais de instalação de cada sistema são sob demanda, não
+bloqueiam o merge deste PR, mas continuam necessários antes de anunciar
+oficialmente suporte a esses sistemas.

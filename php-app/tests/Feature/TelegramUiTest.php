@@ -53,7 +53,7 @@ final class TelegramUiTest extends TestCase
             ->assertSee('id="tg-selection-summary"',false)
             ->assertSee('id="tg-selected-empty"',false)
             ->assertSee('telegram-group-columns')
-            ->assertSee('const MAX_GROUPS=100;',false)
+            ->assertDontSee('const MAX_GROUPS=',false)
             ->assertDontSee('TELEGRAM_API_HASH');
     }
 

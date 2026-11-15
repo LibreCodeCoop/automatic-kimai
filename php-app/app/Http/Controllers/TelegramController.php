@@ -181,7 +181,7 @@ final class TelegramController extends Controller
             return self::noCache(['status'=>'error','message'=>'Conecte sua conta antes de escolher grupos'],403);
         }
         $input=$request->validate([
-            'groups'=>'present|array|max:'.Profile::MAX_MESSENGER_GROUPS,
+            'groups'=>'present|array',
             'groups.*'=>'required|string|regex:/^-?[1-9][0-9]*$/D',
         ]);
         try {

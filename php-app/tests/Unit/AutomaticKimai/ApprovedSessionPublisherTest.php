@@ -139,6 +139,28 @@ final class ApprovedSessionPublisherTest extends TestCase
         self::assertSame(1,$this->postCalls);
     }
 
+    public function test_deleted_remote_timesheet_is_not_silently_recreated(): void
+    {
+        // This regression models the destructive operation the user proposed,
+        // but it touches ONLY the fake disposable transport, never real Kimai.
+        $client=$this->client();
+        $published=$this->publisher($client)->run(true);
+        self::assertSame('posted_and_verified',$published['results'][0]['status']);
+        self::assertCount(1,$this->remote);
+        self::assertSame(1,$this->postCalls);
+        // An external user removes the earlier timesheet intentionally.
+        $this->remote=[];
+        $result=$this->publisher($client)->run(true);
+        self::assertSame(0,$result['approved']);
+        self::assertSame(0,$result['remote_writes']);
+        self::assertSame(1,$this->postCalls);
+        self::assertSame('posted',$this->queue->rows()[0]['status']);
+        // A GET-only recovery is not allowed to re-POST it either.
+        $recovered=$this->publisher($client)->reconcileUnknown();
+        self::assertSame(0,$recovered['remote_writes']);
+        self::assertSame(1,$this->postCalls);
+    }
+
     public function test_timeout_is_unknown_never_retried_and_get_only_reconciliation_recovers(): void
     {
         $client=$this->client();

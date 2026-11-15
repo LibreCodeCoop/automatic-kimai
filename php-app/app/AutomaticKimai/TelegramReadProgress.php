@@ -15,6 +15,8 @@ final class TelegramReadProgress
         foreach ($before['scoped_client_chats']??[] as $row) {
             if (is_array($row)&&is_int($row['dialog_id']??null))$oldById[$row['dialog_id']]=$row;
         }
+        if (!is_string($before['collected_at']??null)||
+            !is_string($after['collected_at']??null))return [];
         try {
             $from=TimeMath::parse($before['collected_at']);
             $until=TimeMath::parse($after['collected_at']);

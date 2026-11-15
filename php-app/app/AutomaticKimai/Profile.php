@@ -9,8 +9,8 @@ use InvalidArgumentException;
 /** Public per-worker settings. No credentials or hard-coded tenant IDs. */
 final class Profile
 {
-    // Cap authorized groups to bound Telegram scanning and profile persistence.
-    public const MAX_MESSENGER_GROUPS=100;
+    // No arbitrary ceiling on explicitly authorized groups. Telegram scanning
+    // is limited per cycle, independently of the size of the allowlist.
 
     private const DEFAULTS = [
         'profile_id' => 'user', 'timezone' => 'UTC',
@@ -89,12 +89,10 @@ final class Profile
             !is_array($settings['work_messenger_group_titles'])) {
             throw new InvalidArgumentException('Invalid approved source lists');
         }
-        if (count($settings['work_domains']) > 40 ||
-            count($settings['work_messenger_labels']) > self::MAX_MESSENGER_GROUPS ||
-            count($settings['work_messenger_dialog_ids']) > self::MAX_MESSENGER_GROUPS ||
-            count($settings['work_messenger_group_titles']) > self::MAX_MESSENGER_GROUPS) {
-            throw new InvalidArgumentException('Too many work-source approvals');
+        if (count($settings['work_domains']) > 40) {
+            throw new InvalidArgumentException('Too many work domains');
         }
+        $allowedGroupIds=array_fill_keys($settings['work_messenger_dialog_ids'],true);
         foreach ($settings['work_domains'] as $host) {
             if (!is_string($host) || !preg_match('/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,30}$/D', $host)) {
                 throw new InvalidArgumentException('Domains must be exact lowercase DNS hosts');
@@ -124,7 +122,7 @@ final class Profile
             if (!is_string($title) || mb_strlen($title)>150 || mb_strlen($title)<1 ||
                 !preg_match('/^-?[1-9][0-9]*$/D',(string)$id) ||
                 filter_var((string)$id,FILTER_VALIDATE_INT)===false ||
-                !in_array((int)$id,$settings['work_messenger_dialog_ids'],true)) {
+                !isset($allowedGroupIds[(int)$id])) {
                 throw new InvalidArgumentException('Invalid cached Telegram group titles');
             }
         }

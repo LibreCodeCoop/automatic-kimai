@@ -578,8 +578,10 @@ a reproduzir comportamentos incorretos do legado.
    antigo de áudio, incluindo operação contínua em PHP.
 4. Replay semântico com insumos congelados, pausas, presença fora da tela,
    IA, calendário, lacunas, madrugada e fontes indisponíveis.
-5. Validar distribuição NativePHP e instalação/atualização Linux, Windows
-   e macOS; testes do Electron em Linux não demonstram essas plataformas.
+5. Validar que a configuração NativePHP não incorpora segredos ao build e
+   documentar pacotes simples: AppImage (Linux), setup NSIS (Windows) e DMG
+   (macOS). Testes reais desses instaladores serão sob demanda e não bloqueiam
+   o merge, conforme a decisão de escopo de 15/11/2026.
 6. Sincronizar estados após congelar o Python, conciliar pendências, garantir
    um só escritor, monitorar e verificar rollback. Os scripts Python já foram
    excluídos **do Git da branch PHP**; os serviços em outro diretório continuam
@@ -618,3 +620,92 @@ leitura. Sem POST/PATCH real nesta execução e sem desligamento de serviços.
   replay de casos não cobertos, instaladores multiplataforma,
   sincronização final do histórico e validação por CI/revisão independente.
   O pull request continua em draft.
+
+## 15/11/2026 — Telegram sem limite artificial e escopo de distribuição
+
+- Removido o máximo de 100 grupos de perfil, formulário HTTP e seletor.
+  A conta pode autorizar quantos grupos efetivamente possui e escolhe;
+  continuam exigidos IDs exatos, pertencimento à conta e autorização
+  explícita. Seleção nova é confirmada em lotes de até 32 IDs, sem
+  reverificar todos os grupos já aprovados a cada edição.
+- O coletor lê **somente os IDs escolhidos**, sem enumerar todos os
+  diálogos por getFullDialogs na configuração por ID. Executa até
+  **24 grupos por ciclo**, máximo de 4.800 mensagens consultadas em
+  conjunto e cursor privado para distribuir a carga ao longo dos ciclos.
+  Requisições interrompidas não avançam o cursor. Remover grupos da
+  seleção impede preservar seus resultados no próximo snapshot;
+  revogar autorização durante uma consulta descarta o lote antes de
+  gravar. O material persistido continua apenas metadados sanitizados,
+  não textos nem arquivos de áudio.
+- Foi implementada a consulta **não mutante** getPeerDialogs para
+  acompanhar marcadores de leitura, separada de getHistory e sem
+  readHistory/channels.readHistory. Na sessão real, houve prova
+  controlada em grupos previamente aprovados, sem ativar a fonte
+  Telegram: três grupos, 15 mensagens consultadas, todos os
+  marcadores e contagens de não lidas **inalterados**, sem salvar
+  as mensagens no cache. O piloto Python não foi desligado.
+- Testes de 250 IDs verificam 11 lotes, limite de consultas por ciclo,
+  repetição segura de rede, seleção de 251º ID sem reverificar os 250,
+  consentimento revogado durante a leitura e proibição de buscas
+  em diálogos não autorizados. Meta: nenhuma perda de evidência por
+  truncamento silencioso; quando um grupo exceder o limite de
+  mensagens do ciclo, marcar coleta incompleta e continuar em ciclos.
+  Esse caso permanece merecendo melhoria de paginação profunda.
+- Em publicação, um teste que **apaga uma entrada confirmada** no
+  servidor simulado comprova que o PHP não recria silenciosamente
+  uma hora já postada. Uma exclusão pode ter sido deliberada;
+  reenvio exige nova autorização, nunca repetição cega do POST.
+- O serviço PHP de análise somente leitura foi iniciado novamente
+  com sucesso; o timer Python publicador permaneceu ativo/habilitado.
+  Um Kimai 2.72.0 descartável, com MariaDB separado em Docker,
+  subiu somente em 127.0.0.1. Não foi possível concluir autenticação
+  descartável/POST real com as permissões atuais. A instância, o
+  banco e a rede de testes foram **encerrados e removidos**.
+  Não houve testes de DELETE nem POST em produção real.
+
+### Requisito de instaladores alterado pelo responsável
+
+A validação real de instalação em Linux, Windows e macOS é **sob demanda**
+e não bloqueia o merge da migração de código. Continua obrigatória a
+segurança de não empacotar APP_KEY, sessões, SQLite ou credenciais.
+O electron-builder já configura **AppImage** no Linux, **NSIS setup.exe**
+no Windows e **DMG** no macOS, com runtime PHP embutido pelo NativePHP.
+Essas são opções de distribuição, não instaladores homologados:
+o launcher de avaliação atual continua dependente de PHP local.
+
+### Provas adicionais de publicação e recuperação via HTTP
+
+- Testes de transporte HTTP real (PHP cURL por loopback) contra servidor
+  isolado e descartável que reproduz **somente** os endpoints usados do
+  Kimai, com dados fictícios e autenticação própria de teste:
+  1) POST → GET exato → DELETE → novo ciclo não recria apontamento excluído;
+  2) POST que grava no servidor, mas responde HTTP 503 → outbox incerto →
+     reconciliação GET única, sem outro POST. Foram 2 testes e 18 asserções
+     nesse cenário. A instância de teste é encerrada ao final de cada caso.
+- Essa prova usa rede real e cliente HTTP real, mas **o servidor é um
+  simulador**, não o Kimai oficial. O Kimai 2.72.0 oficial em contêiner
+  próprio foi inicializado com MariaDB isolado, porém não ocorreu
+  criação de credencial de API para executar POST nele.
+  O contêiner Kimai, banco e rede QA foram limpos; sem POST real ou
+  exclusão de qualquer apontamento de produção.
+- A regressão de exclusão intencional é um requisito de segurança:
+  um horário já publicado e depois deletado não pode reaparecer
+  automaticamente. É necessário gerar outra proposta e obter nova
+  confirmação humana antes de qualquer nova publicação.
+
+### Correção complementar: aprovação vinculada à conta Telegram
+
+A seleção salva só reutiliza IDs anteriormente validados se houver vínculo
+privado contendo o ID da conta MTProto e o digest canônico do conjunto
+de grupos e do perfil. A conta autenticada é verificada antes de selecionar,
+antes de ativar a coleta e no início de cada ciclo. Mudanças de conta ou
+perfis antigos sem esse vínculo exigem confirmar novamente a seleção uma
+vez; nenhuma autorização de um usuário pode ser transferida silenciosamente
+a outro login. A coleta é interrompida antes de ler o histórico se esse
+vínculo não corresponder.
+
+Resultado da suíte local depois dessa alteração: 182 testes PHP e 1.758
+asserções, sem warnings. O replay semântico aprofundado, a paginação de
+histórico de grupos com mais mensagens que uma página, o POST contra
+Kimai oficial descartável e o cutover operacional ainda não estão
+homologados. Os instaladores OS continuam fora do gate de merge.

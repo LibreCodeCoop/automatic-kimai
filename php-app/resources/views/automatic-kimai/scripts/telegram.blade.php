@@ -61,24 +61,6 @@
   };
   const dirty=()=>selectedSelection.size!==savedSelection.size ||
     [...selectedSelection].some(id=>!savedSelection.has(id));
-  const MAX_GROUPS=@json(\App\AutomaticKimai\Profile::MAX_MESSENGER_GROUPS);
-  const clearLimit=()=>{
-    $('tg-selection-feedback').hidden=true;
-    $('tg-selection-feedback').textContent='';
-    for(const note of document.querySelectorAll('.telegram-inline-limit'))note.remove();
-  };
-  const showLimit=element=>{
-    const text='Limite de '+MAX_GROUPS+' grupos atingido. Desmarque um grupo ou remova-o da seleção antes de adicionar outro.';
-    $('tg-selection-feedback').textContent=text;
-    $('tg-selection-feedback').hidden=false;
-    for(const note of document.querySelectorAll('.telegram-inline-limit'))note.remove();
-    if(element){
-      const inline=document.createElement('small');
-      inline.className='telegram-inline-limit';
-      inline.textContent=text;
-      element.appendChild(inline);
-    }
-  };
   // Keep catalog rows and checkboxes in their original DOM positions.
   // Re-render only the lightweight selected summary after each click.
   const renderSelection=()=>{
@@ -98,7 +80,6 @@
       remove.addEventListener('click',()=>{
         selectedSelection.delete(group.id);
         if(group.recommended)manuallyExcludedSuggestions.add(group.id);
-        clearLimit();
         renderList();
       });
       chip.append(title,remove);
@@ -108,13 +89,12 @@
     $('tg-selected-empty').hidden=selectedSelection.size!==0;
     $('tg-selected-list').hidden=selectedSelection.size===0;
     $('tg-selected-count').textContent=String(selectedSelection.size);
-    $('tg-selection-summary').textContent=selectedSelection.size+' de '+MAX_GROUPS+
-      ' grupos selecionados'+(selectedSelection.size===MAX_GROUPS?' · limite atingido':'');
+    $('tg-selection-summary').textContent=selectedSelection.size+' grupos selecionados';
     $('tg-group-count').textContent=selectedSelection.size===0?
       'Nenhum grupo selecionado.':selectedSelection.size===1?
         '1 grupo selecionado.':selectedSelection.size+' grupos selecionados.';
     const hasChanges=dirty();
-    $('tg-save-groups').disabled=!initialized||selectedSelection.size>MAX_GROUPS||!hasChanges;
+    $('tg-save-groups').disabled=!initialized||!hasChanges;
     $('tg-authorized-area').hidden=enabled||savedSelection.size===0||hasChanges;
     $('tg-activate').disabled=hasChanges;
     $('tg-enabled-area').hidden=!enabled;
@@ -227,17 +207,11 @@
       };
       checkbox.addEventListener('change',()=>{
         if(checkbox.checked){
-          if(selectedSelection.size>=MAX_GROUPS){
-            checkbox.checked=false;
-            showLimit(group.element);
-            return;
-          }
           selectedSelection.add(id);
         } else {
           selectedSelection.delete(id);
           if(group.recommended)manuallyExcludedSuggestions.add(id);
         }
-        clearLimit();
         renderList();
       });
       loadedGroups.set(id,group);
@@ -276,8 +250,7 @@
       // A suggestion is selected in the local form once; a user who
       // explicitly unchecked it is never silently overridden in this view.
       // Persisting the list still requires the separate Save action.
-      if(suggestionsAllowed&&!manuallyExcludedSuggestions.has(id)&&
-         selectedSelection.size<MAX_GROUPS)selectedSelection.add(id);
+      if(suggestionsAllowed&&!manuallyExcludedSuggestions.has(id))selectedSelection.add(id);
     }
   };
   const requestJson=async (url,signal) => {
@@ -333,14 +306,7 @@
           selectAll.addEventListener('click',()=>{
             const ids=children.map(g=>String(g.id));
             const fresh=ids.filter(id=>!selectedSelection.has(id));
-            if(selectedSelection.size+fresh.length>MAX_GROUPS){
-              showLimit();
-              $('tg-communities-status').textContent='A comunidade ultrapassa o limite de '+MAX_GROUPS+
-                ' grupos. Escolha individualmente os grupos necessários.';
-              return;
-            }
             for(const id of fresh)selectedSelection.add(id);
-            clearLimit();
             renderList();
           });
           content.append(selectAll);
@@ -356,14 +322,8 @@
             input.addEventListener('change',()=>{
               const id=String(child.id);
               if(input.checked){
-                if(selectedSelection.size>=MAX_GROUPS){
-                  input.checked=false;
-                  showLimit(label);
-                  return;
-                }
                 selectedSelection.add(id);
               }else selectedSelection.delete(id);
-              clearLimit();
               renderList();
             });
             const text=document.createElement('span');
@@ -759,7 +719,6 @@
       if(loadedGroups.get(id)?.recommended)manuallyExcludedSuggestions.add(id);
     }
     selectedSelection.clear();
-    clearLimit();
     renderList();
   });
   // One more Telegram page is requested only following an actual scroll.
@@ -775,7 +734,7 @@
   });
   $('tg-groups-form').addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!initialized||!dirty()||selectedSelection.size>MAX_GROUPS)return;
+    if(!initialized||!dirty())return;
     const button=$('tg-save-groups');
     const values=Array.from(selectedSelection);
     button.disabled=true;

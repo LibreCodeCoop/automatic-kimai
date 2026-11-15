@@ -285,7 +285,8 @@ final class TelegramWebLogin
 
     public function verifyAndActivate(bool $activate=true): array
     {
-        if ($this->status()['status']!=='authorized') {
+        $state=$this->status();
+        if (($state['status']??null)!=='authorized') {
             throw new RuntimeException('Telegram ainda não autenticado neste dispositivo');
         }
         if ($activate) {
@@ -293,6 +294,16 @@ final class TelegramWebLogin
             if ($profile===null || ($profile->get('work_messenger_labels')===[] &&
                 $profile->get('work_messenger_dialog_ids')===[])) {
                 throw new RuntimeException('Escolha seus grupos profissionais autorizados');
+            }
+            if ($profile->get('work_messenger_dialog_ids')!==[]) {
+                $accountId=$state['account']['id']??null;
+                $id=is_string($accountId)&&ctype_digit($accountId)?
+                    (int)$accountId:0;
+                if (!TelegramGroupSelection::selectionMatchesAccount(
+                    $this->store->read('telegram_selected_account.json'),$id,$profile)) {
+                    throw new RuntimeException(
+                        'Confirme novamente seus grupos para esta conta antes de ativar');
+                }
             }
             $this->store->setSources(['telegram_setup'=>true,'telegram'=>true]);
         }

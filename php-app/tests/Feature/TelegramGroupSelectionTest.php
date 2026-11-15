@@ -141,11 +141,19 @@ final class TelegramGroupSelectionTest extends TestCase
             array_column((new TelegramGroupSelection($this->store))->page(null,$client)['selected_groups'],'id'));
     }
 
-    public function test_large_explicit_group_selection_allows_100_but_rejects_101(): void
+    public function test_large_explicit_group_selection_is_unlimited_and_only_new_ids_are_revalidated(): void
     {
         $client=new class {
+            public array $checked=[];
+            public int $maxChunk=0;
+            public int $account=103456;
+            public bool $denyAll=false;
+            public function selfId(): int {return $this->account;}
             public function groupDetails(array $ids): array
             {
+                $this->maxChunk=max($this->maxChunk,count($ids));
+                array_push($this->checked,...$ids);
+                if ($this->denyAll)return [];
                 $result=[];
                 foreach ($ids as $id) {
                     $result[$id]=['id'=>$id,'title'=>'Equipe '.abs($id)];
@@ -153,19 +161,38 @@ final class TelegramGroupSelectionTest extends TestCase
                 return $result;
             }
         };
-        $ids=array_map(static fn(int $n): string=>(string)(-100000-$n),range(1,100));
+        $ids=array_map(static fn(int $n): string=>(string)(-100000-$n),range(1,250));
         $selection=new TelegramGroupSelection($this->store);
         $data=$selection->select($ids,$client);
-        self::assertSame(100,$data['selected_count']);
+        self::assertSame(250,$data['selected_count']);
         self::assertFalse($data['enabled']);
-        self::assertCount(100,$this->store->profile()->get('work_messenger_dialog_ids'));
-        self::assertCount(100,$this->store->profile()->get('work_messenger_labels'));
-        self::assertCount(100,$this->store->profile()->get('work_messenger_group_titles'));
+        self::assertCount(250,$this->store->profile()->get('work_messenger_dialog_ids'));
+        self::assertCount(250,$this->store->profile()->get('work_messenger_labels'));
+        self::assertCount(250,$this->store->profile()->get('work_messenger_group_titles'));
+        self::assertLessThanOrEqual(32,$client->maxChunk);
+        $client->checked=[];
+        $data=$selection->select([...$ids,'-101000'],$client);
+        self::assertSame(251,$data['selected_count']);
+        self::assertSame([-101000],$client->checked);
+        self::assertCount(251,$this->store->profile()->get('work_messenger_dialog_ids'));
+        self::assertFalse($this->store->sources()['telegram']);
+        self::assertTrue(TelegramGroupSelection::selectionMatchesAccount(
+            $this->store->read('telegram_selected_account.json'),
+            $client->account,$this->store->profile()));
+        // An account switch must not trust old group-title cache: even the
+        // same IDs must be revalidated against the newly logged-in account.
+        $client->account=888555;
+        $client->denyAll=true;
+        $client->checked=[];
         try {
-            $selection->select([...$ids,'-100101'],$client);
-            self::fail('101st group must not bypass the bounded collector limit');
+            $selection->select($ids,$client);
+            self::fail('Another Telegram account must not inherit approvals');
         } catch (InvalidArgumentException) {
-            self::assertCount(100,$this->store->profile()->get('work_messenger_dialog_ids'));
+            self::assertNotEmpty($client->checked);
+            self::assertFalse(TelegramGroupSelection::selectionMatchesAccount(
+                $this->store->read('telegram_selected_account.json'),
+                $client->account,$this->store->profile()));
+            self::assertCount(251,$this->store->profile()->get('work_messenger_dialog_ids'));
         }
     }
 

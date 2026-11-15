@@ -117,9 +117,9 @@ representa aprovação operacional para o corte.
 Antes de desativar serviços antigos ou mesclar como migração concluída:
 homologar a fonte Telegram autorizada; testar publicação real em Kimai
 descartável com falhas e limpeza; concluir agendadores de áudio/agentes;
-comparar evidências em replay; validar instaladores multiplataforma;
-congelar a origem, repetir a transferência do histórico e comprovar
-um só escritor e rollback. A situação e os resultados estão em
+comparar evidências em replay; congelar a origem, repetir a transferência
+do histórico e comprovar um só escritor e rollback. Testes de instalação
+Windows/Linux/macOS ocorrerão sob demanda, **não bloqueiam o merge**. A situação e os resultados estão em
 [PHP_MIGRATION.md](PHP_MIGRATION.md).
 
 O Automatic Kimai é independente dos projetos Kimai, Nextcloud, GitHub,

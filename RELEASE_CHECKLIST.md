@@ -39,15 +39,26 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   human labor from automated execution.
 - [ ] Prove one writer at a time, reboot/startup continuity, rollback and
   monitoring before disabling all old Python timers.
-- [ ] Validate NativePHP builds and state/secret isolation on real Linux,
-  Windows and macOS installations.
+- [ ] Validate local NativePHP bridge and source/build-time secret isolation
+  without embedding a pilot user's credentials. Installation on Windows,
+  Linux and macOS is explicitly **not** a prerequisite for merging this
+  code migration; platform-specific install E2E occurs on demand.
 
 **Do not enable PHP unattended posting or mark the PR ready for merge
-until these checkboxes are evidenced.** Historical Python source files
-may be removed from the PHP branch independently of stopping the
-separate original Python runtime.
+until the applicable correctness, security, cutover and review gates
+are evidenced.** Historical Python source files may be removed from the
+PHP branch independently of stopping the original Python runtime.
 
-## Additional end-user installer gates
+## Additional end-user installer gates (on demand; not a PR merge blocker)
+
+The desired delivery is a **single self-contained installation per OS**,
+without requiring users to install Composer, PHP or Node separately.
+NativePHP/Electron already configures these native packaging targets:
+AppImage for Linux, NSIS .exe setup for Windows, and .dmg for macOS.
+NativePHP's packaging step downloads/embeds a suitable PHP runtime.
+These configurations are implemented but the actual installers have
+**not** been verified on the three systems. Local Linux Electron preview
+is not a substitute for a self-contained package.
 
 - [ ] Bundle the correct PHP runtime and native dependencies per OS.
 - [ ] Validate OS keyrings, encryption key creation, password handling,
