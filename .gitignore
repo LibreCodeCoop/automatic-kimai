@@ -1,10 +1,11 @@
-# Local credentials and identity
+# Individual configuration, credentials and identities
 .publication-denylist
 .env
 .env.*
 !.env.example
 profile.json
 sources.json
+auth.json
 *.key
 *.pem
 *.p12
@@ -15,7 +16,7 @@ sources.json
 *.session-shm
 *.session-wal
 
-# Runtime evidence and local state
+# Evidence, runtime storage and private databases
 .kimai_cache/
 *.sqlite
 *.sqlite3
@@ -29,15 +30,22 @@ telegram_context.json
 latest_daily_plan.json
 trial_monitor.sqlite3
 *.log
+/storage/app/private/*
+!/storage/app/private/.gitignore
+/storage/*.key
+/storage/pail
+/public/storage
+/public/hot
+/public/build
 
-# Python/build artifacts
-__pycache__/
-*.py[cod]
-.venv/
-.venv-*/
-venv/
-build/
-dist/
+# PHP, Node and local build artifacts
+/vendor/
+/node_modules/
+/.phpunit.cache
+.phpunit.result.cache
+.phpactor.json
+/build/
+/dist/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
@@ -46,15 +54,25 @@ dist/
 .coverage.*
 htmlcov/
 .tox/
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+Homestead.json
+Homestead.yaml
 
-# Local editor files
+# Editors and operating systems
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
+.fleet/
+.nova/
+.zed/
 *~
 
-
-# Public-repository safety: private credentials and application state
+# Refuse private application state anywhere in the tree
 **/secrets.enc
 **/storage/app/private/**
 !**/storage/app/private/.gitignore

@@ -1,10 +1,9 @@
-name: PHP migration verification
+name: PHP desktop verification
 
 on:
   push:
     branches:
       - main
-      - feat/php-migration
   pull_request:
   workflow_dispatch:
 
@@ -18,9 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         php: ["8.4", "8.5"]
-    defaults:
-      run:
-        working-directory: php-app
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -49,7 +45,7 @@ jobs:
           find app routes tests scripts -name '*.php' -print0 | xargs -0 -n 1 php -l > /dev/null
       - name: Exclude credentials from tracked files
         run: |
-          test ! -f ../.publication-denylist
+          test ! -f .publication-denylist
           test ! -f .env.production
           test ! -d node_modules
 
@@ -57,14 +53,14 @@ jobs:
     runs-on: ubuntu-24.04
     defaults:
       run:
-        working-directory: php-app/nativephp/electron
+        working-directory: nativephp/electron
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: php-app/nativephp/electron/package-lock.json
+          cache-dependency-path: nativephp/electron/package-lock.json
       - name: Install JavaScript build tooling (no app runtime)
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate Linux desktop preview launcher (without GUI)
@@ -82,5 +78,5 @@ jobs:
         run: npm run build
       - name: Bundle Electron bridge with explicit NativePHP APP_PATH
         env:
-          APP_PATH: ${{ github.workspace }}/php-app
+          APP_PATH: ${{ github.workspace }}
         run: npm run build

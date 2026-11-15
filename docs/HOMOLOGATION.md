@@ -32,4 +32,4 @@ This plan applies to **any user, organization, Kimai instance or operating syste
 
 **Source code can be reviewed and published once rights/attribution, secret scanning, CI and security reporting are cleared.** A native installer requires additional tests on real Windows, macOS and Linux machines, signing/notarization as relevant and a usable first-run assistant. Passing mocked platform tests is not equivalent to verifying a working installer.
 
-See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for the gates and [GUIA_INICIO_COOPERADOS.md](GUIA_INICIO_COOPERADOS.md) for the Portuguese end-user procedure.
+See [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for the gates and [GETTING_STARTED.md](GETTING_STARTED.md) for the Portuguese end-user procedure.

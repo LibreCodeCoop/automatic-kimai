@@ -1,44 +1,40 @@
 # Automatic Kimai
 
-**PHP 8.4 + Laravel 12 + NativePHP/Electron.** Software local para analisar
-evidências de atividade, identificar lacunas e revisar horas que poderão ser
-registradas em uma conta individual do [Kimai](https://www.kimai.org/).
+Ferramenta desktop local, desenvolvida em **PHP 8.4+, Laravel 12 e NativePHP/Electron**,
+para analisar atividades e conciliar períodos com lançamentos da conta pessoal
+em [Kimai](https://www.kimai.org/).
 
-**Estado:** código de desenvolvimento mesclado; a aplicação PHP funciona
-localmente em modo de revisão. O publicador PHP de sessões aprovadas está
-implementado com testes simulados, mas sua ativação está bloqueada até
-homologação completa e corte único de escritor. Não distribuir como instalador
-final nem desligar uma instalação Python ainda ativa.
+A ferramenta não presume empresa, cliente, servidor ou projeto específico.
+Cada pessoa conecta sua própria instância Kimai e escolhe quais fontes deseja
+autorizar: ActivityWatch, Nextcloud, GitHub e Telegram.
 
-O produto não presume uma empresa, domínio, cliente, projeto ou servidor
-específico. Cada usuário conecta sua própria instância Kimai e escolhe
-explicitamente projeto, atividade e fontes de dados.
+> **Estado:** código-fonte público em desenvolvimento (alpha). A interface
+> e a análise PHP estão disponíveis; a ativação da publicação automática,
+> os instaladores multiplataforma e a substituição de instalações antigas
+> requerem validação operacional independente. Não trate atividade de tela,
+> mensagens ou eventos agendados como comprovação automática de horas.
 
-## Funcionalidades disponíveis no PHP
+## Funcionalidades
 
-- Coleta local sanitizada do ActivityWatch; vigilância AFK e exclusão de contexto privado.
-- Leitura Kimai com verificação da conta, catálogo e intervalos já registrados.
-- Fontes opt-in de calendário, Talk, Activity e Mail do Nextcloud, GitHub e Telegram MTProto.
-- Conciliação automática de períodos já registrados e observações inconclusivas, sem fabricar horas.
-- Fila auditável e mecanismo de aprovação explícita para lançamentos confirmados.
-- Outbox SQLite que impede POST duplicado e reconciliação por GET para resultados incertos.
-- Importação idempotente do histórico legado, sem sobrescrever propostas do algoritmo PHP.
-- Metadados de áudio PipeWire e telemetria de agentes separados de horas humanas.
-- Interface Laravel local e prévia Electron em Linux; instaladores independentes
-  Windows, macOS e Linux ainda não foram homologados.
+- Contexto de atividade local e períodos de inatividade (AFK), com exclusão de
+  informações privadas e tratamento explícito de lacunas de observação.
+- Integrações opcionais, individualmente autorizadas, para ampliar evidências.
+- Conciliação com horários existentes no Kimai sem duplicar registros.
+  Períodos sem duração de trabalho comprovada são mantidos como observações,
+  sem criar horas fictícias ou exigir revisão manual de cada indício.
+- Registros de trabalho presencial e histórico local protegido por SQLite.
+- Outbox idempotente, verificação da identidade e controles para impedir dois
+  publicadores concorrentes durante uma migração.
 
-**Limite essencial:** janela aberta, chamada presumida, mensagem enviada,
-agenda ou agente de IA executando não comprovam trabalho humano nem autorizam
-faturamento. O modo padrão é somente leitura.
+## Desenvolvimento local
 
-## Desenvolvimento
+Requisitos: PHP 8.4+, Composer 2, extensões cURL, DOM, fileinfo, mbstring,
+OpenSSL, SQLite, XML e ZIP. Node 22+ é necessário para o frontend Electron.
+O [ActivityWatch](https://activitywatch.net/) é opcional no primeiro acesso.
 
-Requisitos: PHP 8.4+, Composer 2, Node 22+ para Electron, extensões PHP
-cURL, DOM, fileinfo, mbstring, OpenSSL, PDO SQLite, SQLite3, XML e ZIP.
-Opcionalmente, ActivityWatch local em http://127.0.0.1:5600.
+Execute **a partir da raiz do repositório**:
 
-~~~sh
-cd php-app
+```sh
 composer install --no-interaction
 cp .env.example .env
 chmod 600 .env
@@ -46,81 +42,55 @@ php artisan key:generate
 php artisan package:discover
 php vendor/bin/phpunit
 php artisan serve --host=127.0.0.1 --port=6817
-~~~
+```
 
-Abra http://127.0.0.1:6817. Não exponha o painel na rede.
-A configuração inicial requer um token Kimai individual, URL HTTPS e
-timezone compatível. O perfil privado e as credenciais nunca entram no Git.
+Acesse http://127.0.0.1:6817 **no próprio computador**. Não exponha o serviço
+à rede pública. Configure um token individual da API Kimai no aplicativo.
 
-A prévia de janela Electron em Linux utiliza:
+Para prévia do desktop no Linux, com o backend PHP local preparado:
 
-~~~sh
-cd php-app
+```sh
 ./desktop-preview/launch.sh --check
 ./desktop-preview/install-desktop.sh
-~~~
+```
 
-Essa prévia depende do backend PHP instalado localmente; não é um instalador
-autocontido. Consulte [php-app/README.md](php-app/README.md) para o
-NativePHP, os segredos na distribuição e as limitações de empacotamento.
+Para desenvolver com NativePHP/Electron:
 
-## Comandos de análise, histórico e aprovação
+```sh
+php artisan native:install --force --publish
+php artisan native:run
+```
 
-~~~sh
-cd php-app
-php artisan automatic-kimai:sync
-php artisan automatic-kimai:sync --status
-php artisan automatic-kimai:migration-audit --legacy-cache=/caminho/privado/.kimai_cache
-php artisan automatic-kimai:import-legacy --legacy-cache=/caminho/privado/.kimai_cache
-php artisan automatic-kimai:publish-approved
-php artisan automatic-kimai:publish-approved --reconcile-unknown
-php artisan automatic-kimai:audio-sample --status
-~~~
+Essa prévia não substitui a homologação de instaladores autônomos em Linux,
+macOS e Windows.
 
-A importação exige um snapshot consistente e a opção **--apply-import**
-para realmente transferir histórico ao armazenamento PHP. A migração não
-modifica bancos Python nem causa gravação remota no Kimai.
+## Qualidade e segurança
 
-O publicador faz **dry-run** por padrão. Seu modo de escrita
-**--post-approved** exige cutover supervisionado, consentimento e verificação
-recente de conta; esses controles não estão autorizados na avaliação.
-A origem antiga não pode permanecer publicando simultaneamente.
-O comando de áudio só coleta metadados se Telegram estiver explicitamente
-ativado; habilitar apenas a tela de configuração não constitui consentimento.
-
-## Desenvolvimento e privacidade
-
-~~~sh
-cd php-app
-php vendor/bin/phpunit
+```sh
+php vendor/bin/phpunit --colors=never
 php scripts/check-publication.php
 node --test desktop-preview/*.test.cjs
-~~~
+cd nativephp/electron
+npm ci --ignore-scripts --no-audit --no-fund
+npm run plugin:build
+npm run build
+```
 
-Não versione bancos, tokens, sessões Telegram, histórico de navegação,
-títulos de janelas, mensagens ou domínios confidenciais. O verificador
-de publicação falha se detectar arquivos Python legados, credenciais,
-arquivos privados ou termos definidos pelo desenvolvedor em
-**.publication-denylist** (arquivo local, modo 0600, ignorado pelo Git).
+Nunca versione `.env`, tokens, dados de atividade, sessões Telegram, bases
+SQLite privadas ou relatórios contendo informações pessoais. Os testes usam
+fontes sintéticas e armazenamento isolado. A escrita remota no Kimai permanece
+protegida por consentimento explícito e validação de identidade e histórico.
 
-O projeto propõe licença GPL-3.0-or-later, sujeita à verificação da
-titularidade e dos avisos de dependências antes da primeira release.
-Consulte [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md),
-[SECURITY.md](SECURITY.md) e [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+## Documentação
 
-## Condições para desligar uma instalação Python anterior
+- [Guia de início](docs/GETTING_STARTED.md) — conexão e uso da interface.
+- [Desenvolvimento](docs/DEVELOPMENT.md) — arquitetura local, execução e testes.
+- [Homologação](docs/HOMOLOGATION.md) — cenários de validação.
+- [Checklist de release](docs/RELEASE_CHECKLIST.md) — requisitos de distribuição
+  e da troca de uma instalação anterior.
+- [Privacidade](PRIVACY.md), [Segurança](SECURITY.md),
+  [Contribuição](CONTRIBUTING.md), [Código de conduta](CODE_OF_CONDUCT.md)
+  e [Licença GPL-3.0](LICENSE).
 
-A versão PHP pode remover o código Python versionado **sem** interromper
-o processo antigo que opera em outro diretório do computador. Isso não
-representa aprovação operacional para o corte.
-
-Antes de desativar serviços antigos ou liberar publicação PHP em produção:
-homologar a fonte Telegram autorizada; testar publicação real em Kimai
-descartável com falhas e limpeza; concluir agendadores de áudio/agentes;
-comparar evidências em replay; congelar a origem, repetir a transferência
-do histórico e comprovar um só escritor e rollback. Testes de instalação
-Windows/Linux/macOS ocorrerão sob demanda, **não bloqueiam o merge**. O procedimento está em [PHP_MIGRATION.md](PHP_MIGRATION.md).
-
-O Automatic Kimai é independente dos projetos Kimai, Nextcloud, GitHub,
-Telegram, OpenAI e Anthropic; nomes são usados apenas para descrever
-integrações opcionais.
+Automatic Kimai é um projeto independente dos serviços integrados; as marcas
+de terceiros identificam apenas integrações opcionais.

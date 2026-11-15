@@ -1,7 +1,6 @@
 # Contributing
 
-Contributions to Automatic Kimai are welcome after the source publication
-and licensing review has been completed. The application is PHP 8.4+,
+Contributions to Automatic Kimai are welcome. The application is PHP 8.4+,
 Laravel 12 and NativePHP/Electron; **the Python pilot is not part of the
 new product source tree**. Its original implementation remains a historical
 reference for migration tests, but a numerical difference alone does not
@@ -12,7 +11,6 @@ prove an error in the PHP algorithm.
 Prepare PHP 8.4+, Composer 2 and Node 22+ (for desktop preview):
 
 ~~~sh
-cd php-app
 composer install --no-interaction
 cp .env.example .env
 php artisan key:generate
@@ -51,9 +49,9 @@ Do not use the development backend or production token for publication tests.
 Describe user-visible behavior, security and privacy boundaries, test
 evidence and known limitations. Keep changes focused and add regression
 tests. Local Linux success does not establish Windows/macOS NativePHP
-support. The PR must remain draft until the release checklist and
-cutover gates are satisfied; a CI billing failure is not a test pass.
+support. PRs require relevant review and tests. Production cutover and
+installer releases have separate gates; a CI billing failure is not a test pass.
 
-See [SECURITY.md](SECURITY.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md),
-[PHP_MIGRATION.md](PHP_MIGRATION.md) and the proposed GPL-3.0-or-later
+See [SECURITY.md](SECURITY.md), [RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md),
+[GETTING_STARTED.md](docs/GETTING_STARTED.md) and the proposed GPL-3.0-or-later
 license in [LICENSE](LICENSE).
