@@ -121,6 +121,11 @@ jobs:
           for variable in CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
             if [[ -z "${!variable:-}" ]]; then unset "$variable"; fi
           done
+          # Exercise release-style macOS signing resolution in pull requests,
+          # not Electron Builder's automatic pull-request signing bypass.
+          if [[ "${{ matrix.target }}" == mac && "${{ github.event_name }}" == pull_request ]]; then
+            export CSC_FOR_PULL_REQUEST=true
+          fi
           php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
       - name: Validate embedded PHP, Laravel and installer structure
         shell: bash
