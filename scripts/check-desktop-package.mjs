@@ -6,6 +6,20 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
+// GitHub release uploads normalize whitespace in asset names. Normalize
+// *before* hashing or uploading, so SHA256SUMS.txt references the actual
+// public filenames and works with standard `sha256sum -c`.
+export function canonicalReleaseAssetName(original) {
+    if (typeof original !== 'string' || !original) {
+        throw new Error('Invalid desktop release filename');
+    }
+    const name = original.replace(/\s+/g, '.');
+    if (!/^[A-Za-z0-9._-]+$/.test(name) || name.startsWith('.')) {
+        throw new Error('Unsafe desktop release filename');
+    }
+    return name;
+}
+
 export function verifyDesktopPackage(root, os, arch) {
     const suffixes = { linux: '.AppImage', win: '-setup.exe', mac: '.dmg' };
     const suffix = suffixes[os];
@@ -81,9 +95,10 @@ export function verifyDesktopPackage(root, os, arch) {
     // caches. A release publisher may include update manifests separately.
     const output = join(root, 'release-output');
     mkdirSync(output, { recursive: true });
-    copyFileSync(artifact, join(output, files[0]));
+    const publicName = canonicalReleaseAssetName(files[0]);
+    copyFileSync(artifact, join(output, publicName));
     console.log('DESKTOP_PACKAGE_VALID=' + os + '-' + arch);
-    console.log('DESKTOP_PACKAGE_FILE=' + files[0]);
+    console.log('DESKTOP_PACKAGE_FILE=' + publicName);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
