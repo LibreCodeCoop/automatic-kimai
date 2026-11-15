@@ -79,6 +79,8 @@ return [
         'OPENAI_*',
         'ANTHROPIC_*',
         'DB_PASSWORD',
+        'MAIL_PASSWORD',
+        'MAIL_USERNAME',
         'AWS_*',
         'AZURE_*',
         'GITHUB_*',
@@ -109,6 +111,11 @@ return [
         'storage/framework/cache',
         'storage/framework/views',
         'storage/logs',
+        // Config cache can embed APP_KEY and integration credentials even
+        // after .env is cleaned; composer auth may contain registry tokens.
+        'bootstrap/cache/config.php',
+        'auth.json',
+        '.npmrc',
         'database/database.sqlite',
         'database/*.sqlite',
         'build',

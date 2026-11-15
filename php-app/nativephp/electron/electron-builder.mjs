@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { assertNoBundledCredentials } from './build/privacy-guard.mjs';
 
 const appUrl = process.env.APP_URL;
 const appId = process.env.NATIVEPHP_APP_ID;
@@ -62,8 +63,9 @@ try {
     updaterConfig = {};
 }
 
+// Never print updaterConfig: it can contain provider credentials or tokens.
 if (isBuilding) {
-    console.log('  • updater config', updaterConfig);
+    console.log('  • app updater enabled:', updaterEnabled);
 }
 
 export default {
@@ -83,6 +85,9 @@ export default {
         '!{.env,.env.*,.npmrc,pnpm-lock.yaml}',
     ],
     beforePack: async (context) => {
+        // Never copy a prepared application containing credentials or sessions
+        // into an installer, regardless of NativePHP cleanup configuration.
+        assertNoBundledCredentials(process.env.NATIVEPHP_BUILD_PATH);
         let arch = {
             1: 'x64',
             3: 'arm64',

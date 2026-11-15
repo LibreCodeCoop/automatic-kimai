@@ -76,6 +76,56 @@ final class TelegramUiTest extends TestCase
         self::assertSame(false,$this->private->sources()['telegram']);
     }
 
+    public function test_api_hash_is_never_returned_by_the_settings_page_or_status_endpoint(): void
+    {
+        $hash=str_repeat('c',32);
+        $this->private->saveCredentials([
+            'TELEGRAM_API_ID'=>'987654',
+            'TELEGRAM_API_HASH'=>$hash,
+        ]);
+        $this->get('http://localhost/?view=telegram')->assertOk()
+            ->assertDontSee($hash)
+            ->assertDontSee('987654');
+        $this->get('http://localhost/telegram/status')
+            ->assertOk()->assertDontSee($hash)->assertDontSee('987654');
+    }
+
+    public function test_validation_errors_must_not_flash_sensitive_api_hash_to_session(): void
+    {
+        $hash=str_repeat('d',32);
+        $this->post('http://localhost/telegram/configure',[
+            'telegram_api_id'=>'invalid-id',
+            'telegram_api_hash'=>$hash,
+        ])->assertRedirect()->assertSessionHasErrors();
+        $old=session('_old_input',[]);
+        self::assertArrayNotHasKey('telegram_api_hash',$old);
+        self::assertArrayNotHasKey('telegram_api_id',$old);
+        self::assertNotContains($hash,array_values($old));
+    }
+
+    public function test_native_desktop_package_filters_private_credentials_and_sessions(): void
+    {
+        $config=config('nativephp.cleanup_exclude_files',[]);
+        self::assertContains('storage/app/private',$config);
+        self::assertContains('storage/app/private/*',$config);
+        self::assertContains('storage/logs',$config);
+        self::assertContains('storage/framework/sessions',$config);
+        self::assertContains('bootstrap/cache/config.php',$config);
+        self::assertContains('auth.json',$config);
+        $keys=config('nativephp.cleanup_env_keys',[]);
+        self::assertContains('APP_KEY',$keys);
+        self::assertContains('TELEGRAM_*',$keys);
+        self::assertContains('NEXTCLOUD_*',$keys);
+        self::assertContains('KIMAI_*',$keys);
+        self::assertContains('MAIL_PASSWORD',$keys);
+    }
+
+    public function test_laravel_log_files_are_created_private(): void
+    {
+        self::assertSame(0600,config('logging.channels.single.permission'));
+        self::assertSame(0600,config('logging.channels.daily.permission'));
+    }
+
     public function test_groups_cannot_be_listed_or_selected_without_authentication(): void
     {
         $this->get('http://localhost/telegram/groups')

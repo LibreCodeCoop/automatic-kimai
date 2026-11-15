@@ -14,5 +14,12 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Invalid forms are redirected with previous input in the session.
+        // Never retain secrets from optional integrations in that input.
+        $exceptions->dontFlash([
+            'telegram_api_id', 'telegram_api_hash',
+            'nextcloud_password', 'github_token', 'kimai_token',
+            'api_token', 'api_key', 'api_secret',
+            'password', '_token',
+        ]);
     })->create();

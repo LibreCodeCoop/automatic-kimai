@@ -176,3 +176,51 @@ sources.json do desktop.
 Limite da validação: a inicialização da interface gráfica pelo duplo
 clique deve ser confirmada pelo usuário, pois a checagem remota foi realizada
 sem abrir janelas ou assumir controle de mouse/teclado.
+
+## Auditoria de credenciais Telegram e hardening (15/11/2026)
+
+- Inspecionados os objetos e caminhos do histórico Git local, as credenciais
+  reais descriptografadas exclusivamente no próprio computador e os logs
+  disponíveis. Nenhuma correspondência exata do hash de API foi encontrada
+  em arquivos versionados, em logs locais ou ativos públicos do Laravel.
+- O ID/hash identificam a aplicação Telegram, mas não substituem o login
+  individual. As sessões MadelineProto são materiais de autenticação
+  sensíveis e precisam ficar fora do Git, de qualquer instalador e dos
+  uploads de suporte.
+- Os valores são mantidos no arquivo secrets.enc criptografado pelo
+  Laravel com chave privada da instalação; a sessão MTProto é armazenada
+  separadamente em diretório com permissão 0700, arquivos 0600.
+- Reproduzido e corrigido vazamento potencial do campo telegram_api_hash
+  para a sessão de formulário quando uma validação HTTP falhava; definido
+  dontFlash para os campos de tokens e senhas de integrações.
+- Adicionada permissão 0600 aos arquivos de log Laravel (single e daily);
+  o log local existente também foi restringido.
+- O filtro de pacotes do NativePHP já removia TELEGRAM_*, APP_KEY e
+  storage/app/private. Um guard independente agora interrompe a etapa
+  Electron beforePack se segredos, sessões ou logs persistentes ainda
+  estiverem presentes; testes Node com valores fictícios integram a CI.
+- O código continua exigindo que cada instalação forneça credenciais
+  de aplicação próprias. Nenhuma credencial pessoal do usuário foi gravada
+  no código e nenhuma chave real foi transmitida para os testes.
+- Os testes validam dados temporários do Laravel, exclusões NativePHP,
+  cabeçalhos de endpoints sensíveis e proteção dos artefatos.
+- Escopo não verificado: integridade de instaladores antigos já distribuídos
+  e varredura de backups/arquivos externos não montados. Requer auditoria
+  específica caso existam instaladores publicados anteriormente.
+
+## Otimização da lista de grupos Telegram (15/11/2026)
+
+- Troca de getFullDialogs() por messages.getDialogs com limite de 30 diálogos
+  brutos por página e metadados de grupos já presentes na resposta.
+- Paginação incremental pela rolagem ou clique, busca local sobre páginas
+  carregadas e seleção persistente ao percorrer páginas.
+- Cursores criptografados, específicos da conta e expiração de 20 minutos;
+  uma resposta que não avança o cursor resulta em erro controlado.
+- Comunidades @LibreCodeCoop e @LibreSign verificadas pontualmente como
+  supergrupos dos quais a conta participa, sugeridas como itens editáveis,
+  mas sem ativar coleta ou publicar horas.
+- Seleção final validada por ID de diálogo, sem reenumerar todos os grupos.
+- Testes de 30/60 itens, catálogo simulado grande, busca, persistência de
+  marcações, cursor inválido e sugestões com username verificado passaram.
+- Pendente: testes de latência com conta real e comportamento do Telegram
+  sob volume, sem consultar conteúdo de chats sem aprovação explícita.

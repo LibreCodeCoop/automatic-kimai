@@ -145,3 +145,65 @@ não inicia uma janela nem publica horas no Kimai. Em caso de erro HTTP 500,
 investigue os logs locais de Laravel e as permissões do armazenamento privado.
 Não torne os arquivos públicos (chmod 644) e não execute o servidor desktop
 como root para contornar o problema.
+
+### Segurança das credenciais Telegram e dos pacotes distribuídos (15/11/2026)
+
+O ID/hash da API Telegram identificam o **aplicativo**, não a conta conectada.
+Um mesmo aplicativo MTProto pode autenticar várias contas separadas, mas
+compartilhar livremente o hash permitiria que terceiros utilizassem a identidade
+de desenvolvedor da aplicação. O Automatic Kimai não distribui nem embute um
+ID/hash pessoais em seu código: a configuração é local e por instalação.
+
+Os valores TELEGRAM_API_ID e TELEGRAM_API_HASH são persistidos no arquivo
+storage/app/private/automatic-kimai/secrets.enc, criptografado com a chave
+local e protegido pelo sistema de arquivos. A sessão MTProto autenticada é
+um **segredo distinto, muito mais sensível**, armazenado sob uma pasta privada
+do usuário, nunca publicada no Git. Arquivos .env, sessão, banco SQLite,
+cache, logs privados e credenciais têm exclusões de versão e de empacotamento.
+A sessão MadelineProto é protegida por permissões do sistema operacional e
+não deve ser confundida com o arquivo Laravel criptografado.
+
+No servidor PHP, erros de validação não reutilizam nem gravam telegram_api_hash
+ou demais campos de credenciais como dados temporários de formulário.
+Os logs Laravel single/daily são criados com modo 0600. O pacote NativePHP
+passa por limpeza de chaves e diretórios privados; uma verificação adicional
+em nativephp/electron/build/privacy-guard.mjs impede gerar um instalador
+quando a aplicação preparada ainda contém chave, tokens, sessões ou logs
+persistentes. Essa proteção é testada com dados fictícios no CI, sem copiar
+credenciais reais.
+
+Auditoria local: os segredos efetivamente configurados não foram encontrados
+nos objetos Git e nos logs inspecionados; isso não substitui uma revisão de
+todos os instaladores antigos, backups ou sistemas externos.
+
+**Importante:** a segurança de uma conta Telegram depende da sessão MTProto,
+2FA, dispositivos conectados e segurança do computador. Uma eventual
+suspeita de comprometimento da sessão deve ser tratada no aplicativo oficial
+Telegram, em Configurações - Dispositivos, encerrando a sessão envolvida.
+
+### Catálogo Telegram incremental e sugestões iniciais
+
+A seleção dos grupos deixou de chamar getFullDialogs() antes de mostrar a
+tela. O cliente solicita messages.getDialogs em lotes de até 30 diálogos
+brutos por consulta e filtra os metadados de grupos/supergrupos localmente,
+sem abrir histórico de mensagens. A lista avança por rolagem até o fim ou
+pelo botão Carregar mais grupos. O campo de busca filtra apenas os grupos
+já carregados, sem anunciar buscas no catálogo inteiro.
+
+Os cursores são criptografados pela chave privada da instalação, limitados a
+20 minutos e associados ao identificador da conta. Tentativas de reutilizar
+um cursor de outra conta ou repetir o mesmo cursor são recusadas. A seleção
+se mantém entre páginas e é validada por IDs exatos ao salvar, sem varrer o
+catálogo inteiro novamente.
+
+As comunidades públicas @LibreCodeCoop e @LibreSign são consultadas de forma
+pontual na primeira página. Elas só são pré-marcadas se os metadados do
+Telegram confirmarem supergrupo e participação da conta, com nome de usuário
+público exato. Essa seleção editável não significa consentimento efetivo:
+apenas Salvar grupos autorizados e depois Ativar análise dos grupos habilitam
+a coleta. Uma lista salva anteriormente nunca recebe novos itens
+automaticamente.
+
+Essa paginação foi testada com respostas Telegram simuladas. A velocidade e
+a compatibilidade com uma conta real muito grande ainda precisam de
+homologação autorizada; nenhum teste desta mudança fez login ou leu mensagens.

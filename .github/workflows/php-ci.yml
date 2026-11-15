@@ -73,6 +73,8 @@ jobs:
           test -s ../../desktop-preview/automatic-kimai.png
       - name: Compile NativePHP Electron plugin (required for #plugin import)
         run: npm run plugin:build
+      - name: Verify installer secrets guard
+        run: node --test build/privacy-guard.test.mjs
       - name: Bundle Electron bridge
         env:
           APP_PATH: ${{ github.workspace }}/php-app
