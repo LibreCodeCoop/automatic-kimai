@@ -429,3 +429,11 @@ O PHP embarcado pelo NativePHP usado nesta instalação não inclui GMP;
 atualmente o scanner MTProto usa o PHP de um contêiner de
 desenvolvimento. Não tratar esse fallback como uma release desktop
 autônoma nem interromper o Python antes da homologação de toda a coleta.
+
+Na interface **Telegram**, a opção recolhível **Quais grupos também são
+contexto profissional?** permite definir separadamente os grupos que
+podem servir como *pista* de trabalho. Esses grupos precisam estar na
+seleção já autorizada para coleta. Nenhuma seleção autoriza automaticamente
+publicação de horas ou comprova jornada. A retirada de um grupo ou o
+logout revogam sua autorização de classificação. Grupos com o mesmo
+título devem permanecer fora da classificação por título ambíguo.

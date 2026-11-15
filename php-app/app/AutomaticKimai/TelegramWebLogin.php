@@ -249,6 +249,7 @@ final class TelegramWebLogin
             $settings['work_messenger_dialog_ids']=[];
             $settings['work_messenger_group_titles']=[];
             $settings['work_messenger_labels']=[];
+            $settings['work_messenger_classification_labels']=[];
             $settings['work_messenger_recommendations_reviewed']=false;
             $this->store->saveProfile(new Profile($settings));
         }

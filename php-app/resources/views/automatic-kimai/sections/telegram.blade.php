@@ -116,6 +116,38 @@
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>
 </form>
 </div>
+@if($profile !== null && count($profile->get('work_messenger_dialog_ids'))>0)
+<details id="tg-work-evidence" class="advanced-settings">
+<summary>Quais grupos também são contexto profissional? (opcional)</summary>
+<p class="muted">A seleção anterior permite apenas consultar metadados dos grupos.
+Marque aqui somente os grupos cujas janelas em primeiro plano podem servir
+como uma pista adicional de trabalho. Isso não confirma duração, projeto,
+faturamento nem autoriza publicação. Nenhum grupo é incluído automaticamente.</p>
+<form method="post" action="{{ route('kimai.telegram.work-evidence') }}">
+@csrf
+<div class="telegram-work-labels" role="group" aria-label="Grupos com classificação profissional">
+@foreach($profile->get('work_messenger_dialog_ids') as $dialogId)
+@php($label=$profile->get('work_messenger_group_titles')[(string)$dialogId]??null)
+@if(is_string($label) && $label!=='')
+<label><input type="checkbox" name="group_ids[]" value="{{ $dialogId }}"
+    @checked(in_array(mb_substr(trim($label),0,80),$profile->get('work_messenger_classification_labels'),true)) />
+{{ $label }}</label>
+@endif
+@endforeach
+</div>
+@if(count(array_diff($profile->get('work_messenger_classification_labels'),array_map(
+    static fn($id)=>mb_substr(trim((string)($profile->get('work_messenger_group_titles')[(string)$id]??'')),0,80),
+    $profile->get('work_messenger_dialog_ids'))))>0)
+<p class="warn">Existe uma classificação profissional migrada do perfil anterior que
+não corresponde exatamente a um grupo selecionado. Ela será substituída
+pelas escolhas acima ao salvar; revise antes de alterar.</p>
+@endif
+<p class="muted">Deixar todos desmarcados remove essa permissão, sem perder a seleção de coleta do Telegram.
+Ao remover um grupo da coleta, sua classificação profissional também é revogada.</p>
+<button type="submit" class="secondary">Salvar contextos profissionais</button>
+</form>
+</details>
+@endif
 <div id="tg-authorized-area" class="activate-step" hidden>
 <h3>3. Ativar análise dos grupos selecionados</h3>
 <p>Somente depois de ativar, o aplicativo poderá consultar o histórico recente dos grupos escolhidos. Ele extrai metadados e pistas de trabalho sem armazenar o texto das mensagens; não envia mensagens nem publica horas no Kimai.</p>

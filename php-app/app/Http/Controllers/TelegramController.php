@@ -191,6 +191,47 @@ final class TelegramController extends Controller
         }
     }
 
+    /**
+     * Separate opt-in: selected groups permit metadata reads, not time
+     * classification. Never make a group's presence proof of worked hours.
+     */
+    public function workEvidence(Request $request): RedirectResponse
+    {
+        $this->local($request);
+        $this->requireSelectedSource();
+        $input=$request->validate([
+            'group_ids'=>'sometimes|array|max:2000',
+            'group_ids.*'=>['required','string','regex:/^-?[1-9][0-9]*$/D'],
+        ]);
+        try {
+            $profile=$this->store->profile();
+            if ($profile===null||$profile->get('work_messenger_dialog_ids')===[]) {
+                throw new RuntimeException('Selecione os grupos da sua conta antes de classificar o contexto.');
+            }
+            $selected=array_fill_keys($profile->get('work_messenger_dialog_ids'),true);
+            $titles=$profile->get('work_messenger_group_titles');
+            $labels=[];
+            foreach ($input['group_ids']??[] as $raw) {
+                if (filter_var($raw,FILTER_VALIDATE_INT)===false||
+                    !isset($selected[(int)$raw])||!is_string($titles[$raw]??null)) {
+                    throw new RuntimeException('Grupo não faz parte da seleção autorizada.');
+                }
+                $title=trim(mb_substr($titles[$raw],0,80));
+                if (mb_strlen($title)<2)throw new RuntimeException('Título inválido.');
+                if (isset($labels[$title])) {
+                    throw new RuntimeException('Grupos homônimos não podem ser classificados por título.');
+                }
+                $labels[$title]=$title;
+            }
+            $settings=$profile->toArray();
+            $settings['work_messenger_classification_labels']=array_values($labels);
+            $this->store->saveProfile(new Profile($settings));
+            return back()->with('ok','Contextos profissionais atualizados. A coleta continua separada da classificação e nenhuma hora foi registrada.');
+        } catch(Throwable $e) {
+            return back()->withErrors(['telegram_work'=>$e->getMessage()]);
+        }
+    }
+
     public function status(Request $request,TelegramWebLogin $login): JsonResponse
     {
         $this->local($request);

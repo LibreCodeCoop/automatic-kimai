@@ -575,3 +575,9 @@ a.button:hover { background:var(--primary-hover); }
   .review-conflict-actions { display: grid; grid-template-columns: 1fr; }
   .review-conflict-actions .button, .review-conflict-actions button { width: 100%; justify-content: center; }
 }
+
+
+/* Explicit opt-in to classify selected Telegram groups as possible work evidence. */
+.telegram-work-labels { display: grid; gap: 8px; max-height: 280px; overflow-y: auto;
+  padding: 12px; border: 1px solid var(--border, #888); border-radius: 10px; }
+.telegram-work-labels label { display: flex; gap: 10px; align-items: flex-start; overflow-wrap: anywhere; }

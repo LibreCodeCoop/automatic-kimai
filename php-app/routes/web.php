@@ -38,6 +38,8 @@ Route::post('/telegram/catalog',[TelegramController::class,'catalog'])->middlewa
 Route::get('/telegram/communities',[TelegramController::class,'communities'])->middleware('throttle:10,1')->name('kimai.telegram.communities');
 Route::get('/telegram/avatar',[TelegramController::class,'avatar'])->middleware('throttle:20,1')->name('kimai.telegram.avatar');
 Route::post('/telegram/disconnect',[TelegramController::class,'disconnect'])->middleware('throttle:5,1')->name('kimai.telegram.disconnect');
+Route::post('/telegram/work-evidence',[TelegramController::class,'workEvidence'])
+    ->middleware('throttle:10,1')->name('kimai.telegram.work-evidence');
 Route::post('/telegram/groups',[TelegramController::class,'selectGroups'])->middleware('throttle:10,1')->name('kimai.telegram.groups.save');
 Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('kimai.telegram.disable');
 

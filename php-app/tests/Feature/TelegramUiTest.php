@@ -57,6 +57,60 @@ final class TelegramUiTest extends TestCase
             ->assertDontSee('TELEGRAM_API_HASH');
     }
 
+    public function test_group_classification_consent_is_independent_of_telegram_collection(): void
+    {
+        $this->private->saveProfile(new Profile([
+            'profile_id'=>'worker_1','timezone'=>'America/Sao_Paulo',
+            'customer_id'=>2,'project_id'=>4,'activity_id'=>6,
+            'work_messenger_dialog_ids'=>[-10017,-10018],
+            'work_messenger_group_titles'=>[
+                '-10017'=>'Equipe A','-10018'=>'Equipe B'
+            ],
+            'work_messenger_labels'=>['Equipe A','Equipe B'],
+        ]));
+        $this->get('http://localhost/?view=telegram')->assertOk()
+            ->assertSee('Quais grupos também são contexto profissional?')
+            ->assertSee('Salvar contextos profissionais')
+            ->assertSee('name="group_ids[]" value="-10017"',false);
+        $this->post('http://localhost/telegram/work-evidence',[
+            'group_ids'=>['-10017'],
+        ])->assertRedirect();
+        self::assertSame(['Equipe A'],
+            $this->private->profile()->workEvidenceLabels());
+        self::assertSame([-10017,-10018],
+            $this->private->profile()->get('work_messenger_dialog_ids'));
+        self::assertFalse($this->private->sources()['telegram']);
+        self::assertFileDoesNotExist($this->private->ledgerFile());
+        $this->post('http://localhost/telegram/work-evidence',[
+            'group_ids'=>['-10019'],
+        ])->assertSessionHasErrors('telegram_work');
+        self::assertSame(['Equipe A'],
+            $this->private->profile()->workEvidenceLabels());
+        $this->post('http://localhost/telegram/work-evidence',[
+            'group_ids'=>[],
+        ])->assertRedirect();
+        self::assertSame([], $this->private->profile()->workEvidenceLabels());
+        $this->post('http://outside.invalid/telegram/work-evidence',[
+            'group_ids'=>['-10018'],
+        ])->assertForbidden();
+    }
+
+    public function test_identical_group_names_cannot_produce_ambiguous_classification(): void
+    {
+        $this->private->saveProfile(new Profile([
+            'profile_id'=>'worker_1','timezone'=>'America/Sao_Paulo',
+            'customer_id'=>2,'project_id'=>4,'activity_id'=>6,
+            'work_messenger_dialog_ids'=>[-10017,-10018],
+            'work_messenger_group_titles'=>[
+                '-10017'=>'Equipe duplicada','-10018'=>'Equipe duplicada'
+            ],
+        ]));
+        $this->post('http://localhost/telegram/work-evidence',[
+            'group_ids'=>['-10017','-10018'],
+        ])->assertSessionHasErrors('telegram_work');
+        self::assertSame([], $this->private->profile()->workEvidenceLabels());
+    }
+
     public function test_status_is_private_uncached_and_does_not_leak_secrets(): void
     {
         $response=$this->get('http://localhost/telegram/status');

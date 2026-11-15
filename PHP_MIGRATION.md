@@ -1039,3 +1039,20 @@ O CI GitHub do commit `00994bd` ainda não iniciou nenhum dos três jobs:
 as anotações registram falha de pagamentos/limite da conta responsável.
 Não contornar a restrição desligando testes; tratar a regularização como
 dependência externa de validação final do PR.
+
+### Interface de consentimento profissional por grupo
+
+Em **Telegram → Quais grupos também são contexto profissional?**, o
+usuário pode selecionar, separadamente, quais grupos já autorizados para
+coleta fornecem pistas de trabalho para o segmentador. A autorização é
+local, protegida por CSRF e válida apenas para IDs da própria lista
+persistida. Grupos homônimos não podem ser usados para classificação
+por título ambíguo. Salvar um conjunto vazio revoga a autorização de
+classificação sem desligar a coleta. Ao remover um grupo ou desconectar
+a conta, a classificação correspondente também é revogada. Uma lista
+legada não coincidente com os títulos atuais exige revisão explícita;
+não é silenciosamente expandida para todos os grupos.
+
+Testes Feature comprovam que atualizar a classificação não altera o
+consentimento de coleta, não toca o ledger e não permite selecionar IDs
+estranhos, grupos homônimos ou requisições de fora de localhost.

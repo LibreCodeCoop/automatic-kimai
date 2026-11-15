@@ -141,6 +141,24 @@ final class TelegramGroupSelectionTest extends TestCase
             array_column((new TelegramGroupSelection($this->store))->page(null,$client)['selected_groups'],'id'));
     }
 
+    public function test_removing_selected_group_revokes_its_separate_work_classification_consent(): void
+    {
+        $client=$this->groupClient();
+        $selection=new TelegramGroupSelection($this->store);
+        $selection->select(['-1009876543','-1005551234'],$client);
+        $profile=$this->store->profile();
+        $settings=$profile->toArray();
+        $settings['work_messenger_classification_labels']=[
+            'Equipe de trabalho','Projeto cliente'
+        ];
+        $this->store->saveProfile(new Profile($settings));
+        $selection->select(['-1009876543'],$client);
+        self::assertSame(['Equipe de trabalho'],
+            $this->store->profile()->workEvidenceLabels());
+        self::assertSame([-1009876543],
+            $this->store->profile()->get('work_messenger_dialog_ids'));
+    }
+
     public function test_large_explicit_group_selection_is_unlimited_and_only_new_ids_are_revalidated(): void
     {
         $client=new class {

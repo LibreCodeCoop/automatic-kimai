@@ -311,6 +311,12 @@ final class TelegramGroupSelection
         $settings=$profile->toArray();
         $settings['work_messenger_dialog_ids']=array_values($ids);
         $settings['work_messenger_labels']=array_values($labels);
+        // A removed Telegram group cannot retain a stale permission to
+        // classify its foreground context as professional work.
+        $settings['work_messenger_classification_labels']=array_values(
+            array_filter($profile->get('work_messenger_classification_labels'),
+                static fn($label)=>isset($labels[$label]))
+        );
         $settings['work_messenger_group_titles']=$titles;
         $settings['work_messenger_recommendations_reviewed']=true;
         $updated=new Profile($settings);
