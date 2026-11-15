@@ -97,6 +97,9 @@ final class LegacyCutoverAudit
         $missingProvenance=count($missingArchivedOutbox)>0||
             count($differentArchiveOutbox)>0;
 
+        // Imported audio rows alone do not prove the replacement observer is
+        // alive. Require recent, consecutive samples explicitly made by PHP.
+        $audioRuntimeReady=$audioSampleCount===0 || AudioRuntime::healthy($target);
         $checks=[
             'queue_missing'=>count($missingQueue),
             'queue_evidence_changed'=>count($divergentQueue),
@@ -113,7 +116,7 @@ final class LegacyCutoverAudit
             'legacy_unresolved_intents'=>count($pendingIntents),
             'legacy_unknown_outbox'=>count($unresolvedOutbox),
             'outbox_not_yet_mapped'=>(int)$missingProvenance,
-            'legacy_audio_metadata_needs_php_runtime'=>(int)($audioSampleCount>0),
+            'legacy_audio_metadata_needs_php_runtime'=>(int)!$audioRuntimeReady,
         ];
         // Active review differences do not block cutover when original
         // approvals and evidence are preserved in the immutable archive.
@@ -128,6 +131,7 @@ final class LegacyCutoverAudit
             'state_parity_verified'=>$blockers===[],
             'safe_to_disable_python_publisher'=>false,
             'additional_runtime_parity_required'=>true,
+            'php_audio_runtime_recent'=>$audioRuntimeReady,
             'counts'=>[
                 'python_queue'=>count($pQueue),
                 'php_queue'=>count($newQueue),

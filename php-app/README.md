@@ -328,3 +328,60 @@ mensagens ou altera seus marcadores de leitura.
 
 Teste de interface isolado, com resposta Telegram simulada (Puppeteer opcional):
 PUPPETEER_MODULE=/caminho/para/puppeteer PUPPETEER_EXECUTABLE=/usr/bin/google-chrome AUTOMATIC_KIMAI_PREVIEW_URL=http://127.0.0.1:6817/?view=telegram node tests/Browser/telegram-search.cjs.
+
+### Observador de metadados Telegram com PHP nativo (Linux)
+
+O aplicativo dispõe de um serviço de usuário que consulta apenas os
+metadados PipeWire, sem capturar áudio, textos ou contatos. A coleta só
+ocorre após ativação explícita da fonte Telegram. O runtime PHP é
+fornecido pelo pacote NativePHP e não precisa estar instalado globalmente.
+
+Instalação do monitor local, a partir da raiz do projeto:
+
+    bash php-app/scripts/install-linux-audio-timer.sh
+    systemctl --user status automatic-kimai-php-audio.timer
+
+Opcionalmente, AUTOMATIC_KIMAI_PHP_BINARY seleciona um executável
+nativo já existente. O timer não concede permissão para publicar horas
+em Kimai; o corte do escritor continua sujeito à auditoria do histórico.
+O comando php artisan automatic-kimai:audio-sample --status informa
+somente a contagem local. A auditoria requer amostras PHP recentes e
+consecutivas e não considera a simples importação de dados Python como
+prova de um runtime funcional. Para interromper o monitor:
+
+    systemctl --user disable --now automatic-kimai-php-audio.timer
+
+O serviço Python anterior deve ser mantido até o corte coordenado das
+demais rotinas para não criar lacunas no produto ainda ativo.
+
+### Serviço de sincronização PHP e coletor Telegram independentes
+
+No Linux, o runtime CLI do NativePHP pode executar a análise de horas
+diretamente, sem PHP global. A coleta MTProto fica em outro comando para
+não interromper o cálculo quando o Telegram demora ou aplica limites.
+
+    bash php-app/scripts/install-linux-core-timers.sh
+
+O comando acima instala e habilita o timer da análise **somente leitura**,
+sem afetar os serviços Python. O coletor Telegram deve ser habilitado
+apenas quando o runtime PHP suportar GMP; alguns pacotes NativePHP
+atualmente não incluem a extensão. O instalador identifica essa
+situação e não ativa um scanner potencialmente muito lento.
+
+Para homologação local com um contêiner PHP/GMP de desenvolvimento
+explicitamente selecionado e já instalado, use:
+
+    AUTOMATIC_KIMAI_TELEGRAM_DOCKER_IMAGE=automatic-kimai-native-dev:local \
+      bash php-app/scripts/install-linux-core-timers.sh --enable-telegram
+
+O contêiner é um recurso do **ambiente de homologação**, não é um
+requisito da distribuição desktop. A versão NativePHP distribuível
+precisará incorporar GMP em seu runtime estático. A autorização
+automática de escrita permanece independente do agendamento:
+somente depois do corte verificado, executa-se o instalador com --apply,
+que continua sujeito às proteções de conta, outbox e escritor único.
+
+O PHP usa somente snapshots Telegram recentes e vinculados à seleção
+confirmada; dados ausentes ou inválidos não impedem outros coletores.
+A cada ciclo da varredura independente, são consultados apenas grupos
+explicitamente autorizados, e nunca são emitidos recibos de leitura.

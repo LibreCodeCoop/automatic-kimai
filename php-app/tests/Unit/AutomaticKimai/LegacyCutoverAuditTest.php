@@ -3,8 +3,12 @@ declare(strict_types=1);
 
 namespace Tests\Unit\AutomaticKimai;
 
+use App\AutomaticKimai\AudioRuntime;
+use App\AutomaticKimai\LocalStore;
+use App\AutomaticKimai\TelegramAudio;
 use App\AutomaticKimai\LegacyCutoverAudit;
 use PDO;
+use DateTimeImmutable;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -128,6 +132,59 @@ final class LegacyCutoverAuditTest extends TestCase
         self::assertTrue($audit['state_parity_verified']);
         self::assertFalse($audit['safe_to_disable_python_publisher']);
         self::assertTrue($audit['additional_runtime_parity_required']);
+    }
+
+    public function test_recent_consecutive_php_audio_samples_satisfy_audio_runtime_inventory(): void
+    {
+        $this->insert($this->legacy.'/telegram_audio_metadata.sqlite3',
+            'INSERT INTO samples VALUES(1),(2)');
+        $store=new LocalStore($this->php);
+        $db=TelegramAudio::open($this->php.'/telegram_audio_metadata.sqlite3');
+        $now=new DateTimeImmutable('2026-11-15T16:00:31+00:00');
+        foreach (['16:00:00','16:00:15','16:00:30'] as $time) {
+            $sample=new DateTimeImmutable('2026-11-15T'.$time.'+00:00');
+            TelegramAudio::record($db,[
+                'telegram_capture'=>false,'telegram_playback'=>false,
+                'telegram_communication'=>false,
+            ],$sample);
+            AudioRuntime::record($store,$sample);
+        }
+        $db=null;
+        self::assertTrue(AudioRuntime::healthy($this->php,$now));
+        // LegacyCutoverAudit uses the actual current clock and is deliberately
+        // strict about stale audio; positive inventory coverage is below.
+        self::assertFalse(AudioRuntime::healthy($this->php,
+            new DateTimeImmutable('2026-11-15T16:02:30+00:00')));
+        $state=$store->read('telegram_audio_php_runtime.json');
+        self::assertSame(3,$state['consecutive_samples']);
+        self::assertFalse($state['human_work_attested']);
+        $state['consecutive_samples']=2;
+        $store->write('telegram_audio_php_runtime.json',$state);
+        self::assertFalse(AudioRuntime::healthy($this->php,$now));
+    }
+
+    public function test_audit_identifies_live_php_audio_without_authorizing_cutover(): void
+    {
+        $this->insert($this->legacy.'/telegram_audio_metadata.sqlite3',
+            'INSERT INTO samples VALUES(1)');
+        $store=new LocalStore($this->php);
+        $db=TelegramAudio::open($this->php.'/telegram_audio_metadata.sqlite3');
+        $now=new DateTimeImmutable('now',new \DateTimeZone('UTC'));
+        foreach ([30,15,0] as $seconds) {
+            $at=$now->modify('-'.$seconds.' seconds');
+            TelegramAudio::record($db,[
+                'telegram_capture'=>false,'telegram_playback'=>false,
+                'telegram_communication'=>false,
+            ],$at);
+            AudioRuntime::record($store,$at);
+        }
+        unset($db);
+        $report=(new LegacyCutoverAudit())->inspect($this->legacy,$this->php);
+        self::assertSame([], $report['blocker_codes']);
+        self::assertTrue($report['php_audio_runtime_recent']);
+        self::assertTrue($report['state_parity_verified']);
+        self::assertFalse($report['safe_to_disable_python_publisher']);
+        self::assertTrue($report['additional_runtime_parity_required']);
     }
 
     public function test_rejects_world_readable_legacy_database(): void

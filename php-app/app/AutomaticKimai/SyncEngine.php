@@ -170,13 +170,40 @@ final class SyncEngine
             } catch(Throwable){$sources['github']='unavailable_context_only';}
         }
         if ($enabled['telegram']) {
-            // Fail closed if the independent MadelineProto authorization is
-            // not reusable. The old Telegram history remains untouched.
-            $result=(new TelegramCollector($this->store))->scan(now:$now);
+            // MTProto calls can block or be rate-limited for minutes. Their
+            // dedicated collector runs outside the main Kimai reconciliation
+            // cycle; only a fresh, account-scoped completed batch is read here.
+            // Corrupt/stale optional metadata cannot break the main worklog
+            // cycle. Never reuse it as if collection had succeeded.
+            try {
+                $history=$this->store->read('telegram_scoped_history.json');
+                $cursor=$this->store->read('telegram_scan_cursor.json');
+                $accountBinding=$this->store->read('telegram_selected_account.json');
+            } catch (Throwable) {
+                $history=[];$cursor=[];$accountBinding=[];
+            }
+            $ids=$profile->get('work_messenger_dialog_ids');
+            $fingerprint=CanonicalJson::digest([
+                'profile'=>$profile->get('profile_id'),'ids'=>$ids,
+            ],false);
+            $fresh=false;
+            try {
+                $stamp=TimeMath::parse((string)($cursor['last_success_utc']??''));
+                $elapsed=$now->getTimestamp()-$stamp->getTimestamp();
+                $accountId=$cursor['account_id']??null;
+                $fresh=$elapsed>=-60 && $elapsed<=7200 &&
+                    $ids!==[] && is_int($accountId) &&
+                    TelegramGroupSelection::selectionMatchesAccount(
+                        $accountBinding,$accountId,$profile) &&
+                    ($cursor['selection_hash']??null)===$fingerprint &&
+                    ($history['no_message_bodies_stored']??null)===true &&
+                    is_array($history['scoped_client_chats']??null);
+            } catch(Throwable) {}
             $sources['telegram']=[
-                'status'=>$result['status'],
-                'matched_dialogs'=>$result['matched_dialogs'],
-                'read_position_advances'=>$result['read_position_advances'],
+                'status'=>$fresh?'ok':'needs_collection',
+                'matched_dialogs'=>$fresh?(int)($history['matched_dialog_count']??0):0,
+                'read_position_advances'=>0,
+                'partial_round'=>$fresh && ($history['incomplete_round']??false)===true,
                 'eligible_for_auto_publication'=>false,
             ];
         }

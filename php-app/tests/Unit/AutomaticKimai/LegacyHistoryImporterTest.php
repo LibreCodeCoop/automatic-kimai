@@ -122,6 +122,95 @@ final class LegacyHistoryImporterTest extends TestCase
             "SELECT source_digest FROM legacy_review_sessions WHERE id='aw-a'")->fetchColumn());
     }
 
+
+    public function test_incremental_catchup_preserves_prior_versions_and_verified_extension(): void
+    {
+        $this->fixture();
+        $ledger=$this->open($this->legacy.'/cooperator_agent_state/ledger.sqlite3');
+        $old=[
+            'id'=>777,'user'=>1,'project'=>41,'activity'=>25,
+            'begin'=>'2026-11-10T09:00:00-03:00',
+            'end'=>'2026-11-10T10:00:00-03:00','duration'=>3600,
+            'description'=>'Confirmed professional work','billable'=>true,'exported'=>false,
+        ];
+        $set=$ledger->prepare("UPDATE sessions SET remote_snapshot_json=? WHERE session_id='work-1'");
+        $set->execute([json_encode($old,JSON_THROW_ON_ERROR)]);
+        $importer=new LegacyHistoryImporter();
+        $importer->import($this->legacy,$this->target,1,'worker');
+
+        $next=$old;
+        $next['end']='2026-11-10T10:05:00-03:00';
+        $next['duration']=3900;
+        $ledger->prepare("UPDATE sessions SET remote_snapshot_json=?,evidence_digest=?,updated_at=?
+            WHERE session_id='work-1'")->execute([
+            json_encode($next,JSON_THROW_ON_ERROR),'evidence-v2','2026-11-10T15:00:00Z',
+        ]);
+        $queue=$this->open($this->legacy.'/session_review_queue.sqlite3');
+        $queue->exec("UPDATE sessions SET end='2026-11-10T10:05:00-03:00',
+            proposed_json='{\"date\":\"2026-11-10\",\"work_seconds\":3900}',
+            source_digest='new-evidence',updated_utc='2026-11-10T15:00:00Z'
+            WHERE id='aw-a'");
+        $validated=0;
+        $verify=static function(int $remoteId,array $snapshot)use(&$validated):bool{
+            $validated++;
+            return $remoteId===777 && $snapshot['duration']===3900 &&
+                $snapshot['billable']===true;
+        };
+        $out=$importer->import($this->legacy,$this->target,1,'worker',$verify);
+        self::assertSame(1,$validated);
+        self::assertSame(['sessions'=>1,'legacy_review_sessions'=>1],$out['updated_history']);
+        self::assertSame(0,array_sum($out['newly_imported']));
+        $newLedger=$this->open($this->target.'/ledger.sqlite3');
+        $newQueue=$this->open($this->target.'/review_queue.sqlite3');
+        self::assertSame('evidence-v2',$newLedger->query(
+            "SELECT evidence_digest FROM sessions WHERE session_id='work-1'")->fetchColumn());
+        self::assertSame('new-evidence',$newQueue->query(
+            "SELECT source_digest FROM legacy_review_sessions WHERE id='aw-a'")->fetchColumn());
+        self::assertSame(1,(int)$newLedger->query(
+            'SELECT COUNT(*) FROM legacy_session_versions')->fetchColumn());
+        self::assertSame(1,(int)$newQueue->query(
+            'SELECT COUNT(*) FROM legacy_review_versions')->fetchColumn());
+        self::assertSame(0,array_sum($importer->import(
+            $this->legacy,$this->target,1,'worker',$verify)['updated_history']));
+    }
+
+    public function test_changed_published_snapshot_is_rejected_without_verified_get(): void
+    {
+        $this->fixture();
+        $ledger=$this->open($this->legacy.'/cooperator_agent_state/ledger.sqlite3');
+        $base=[
+            'id'=>777,'user'=>1,'project'=>41,'activity'=>25,
+            'begin'=>'2026-11-10T09:00:00-03:00',
+            'end'=>'2026-11-10T10:00:00-03:00','duration'=>3600,
+            'description'=>'Confirmed professional work','billable'=>false,'exported'=>false,
+        ];
+        $ledger->prepare("UPDATE sessions SET remote_snapshot_json=? WHERE session_id='work-1'")
+            ->execute([json_encode($base,JSON_THROW_ON_ERROR)]);
+        $importer=new LegacyHistoryImporter();
+        $importer->import($this->legacy,$this->target,1,'worker');
+        $base['end']='2026-11-10T10:05:00-03:00';
+        $base['duration']=3900;
+        $ledger->prepare("UPDATE sessions SET remote_snapshot_json=?,evidence_digest=?,updated_at=?
+            WHERE session_id='work-1'")->execute([
+            json_encode($base,JSON_THROW_ON_ERROR),'evidence-v2','2026-11-10T15:00:00Z',
+        ]);
+        try {
+            $importer->import($this->legacy,$this->target,1,'worker',
+                static fn(int $id,array $snap):bool=>false);
+            self::fail('Unverified changes must not migrate');
+        } catch (RuntimeException) {
+            $target=$this->open($this->target.'/ledger.sqlite3');
+            self::assertSame('evidence',$target->query(
+                "SELECT evidence_digest FROM sessions WHERE session_id='work-1'")->fetchColumn());
+        }
+        $base['project']=999;
+        $ledger->prepare("UPDATE sessions SET remote_snapshot_json=? WHERE session_id='work-1'")
+            ->execute([json_encode($base,JSON_THROW_ON_ERROR)]);
+        $this->expectException(RuntimeException::class);
+        $importer->import($this->legacy,$this->target,1,'worker',
+            static fn(int $id,array $snap):bool=>true);
+    }
+
     public function test_conflicting_remote_mapping_is_rejected_without_new_state(): void
     {
         $this->fixture();

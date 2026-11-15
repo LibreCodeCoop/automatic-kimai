@@ -30,7 +30,8 @@ final class LegacyHistoryImporter
         'reason_code','created_utc','updated_utc',
     ];
 
-    public function import(string $legacyCache,string $target,int $userId,string $profileId): array
+    public function import(string $legacyCache,string $target,int $userId,string $profileId,
+                           ?callable $verifyRemoteExtension=null): array
     {
         if (!str_starts_with($legacyCache,'/')||!str_starts_with($target,'/')||
             $legacyCache==='/'||$target==='/'||!is_dir($legacyCache)||!is_dir($target)||
@@ -51,14 +52,15 @@ final class LegacyHistoryImporter
         }
         try {
             return $this->lockedImport(rtrim($legacyCache,'/'),rtrim($target,'/'),
-                $userId,$profileId);
+                $userId,$profileId,$verifyRemoteExtension);
         } finally {
             flock($lock,LOCK_UN);
             fclose($lock);
         }
     }
 
-    private function lockedImport(string $source,string $target,int $userId,string $profileId): array
+    private function lockedImport(string $source,string $target,int $userId,string $profileId,
+                                  ?callable $verifyRemoteExtension): array
     {
         $oldLedger=$this->openSource($source.'/cooperator_agent_state/ledger.sqlite3');
         $oldQueue=$this->openSource($source.'/session_review_queue.sqlite3');
@@ -110,10 +112,19 @@ final class LegacyHistoryImporter
             status TEXT NOT NULL,proposed_json TEXT NOT NULL,source_digest TEXT NOT NULL,
             approval_json TEXT,remote_id INTEGER,reason TEXT,
             updated_utc TEXT NOT NULL,created_utc TEXT NOT NULL)');
+        // Preserve previous snapshots before refreshing an already-imported
+        // mutable legacy row. These tables are private, append-only evidence.
+        $newLedger->exec('CREATE TABLE IF NOT EXISTS legacy_session_versions(
+            id TEXT NOT NULL,digest TEXT NOT NULL,row_json TEXT NOT NULL,
+            archived_utc TEXT NOT NULL,PRIMARY KEY(id,digest))');
+        $newQueue->exec('CREATE TABLE IF NOT EXISTS legacy_review_versions(
+            id TEXT NOT NULL,digest TEXT NOT NULL,row_json TEXT NOT NULL,
+            archived_utc TEXT NOT NULL,PRIMARY KEY(id,digest))');
 
         // All source/target conflicts are rejected rather than silently
         // replacing a newer PHP record or inventing a merged approval.
-        $this->validateImport($newLedger,'sessions',self::LEDGER_TABLES['sessions'],$sourceRows['sessions']);
+        $this->validateImport($newLedger,'sessions',self::LEDGER_TABLES['sessions'],
+            $sourceRows['sessions'],$verifyRemoteExtension);
         $this->validateImport($newLedger,'intents',self::LEDGER_TABLES['intents'],$sourceRows['intents']);
         $this->validateImport($newLedger,'human_declarations',self::LEDGER_TABLES['human_declarations'],$sourceRows['human_declarations']);
         $this->validateImport($newLedger,'legacy_publications',self::PUBLICATION_COLUMNS,$publications);
@@ -127,6 +138,8 @@ final class LegacyHistoryImporter
             }
             $imported['legacy_publications']=$this->insertMissing($newLedger,
                 'legacy_publications',self::PUBLICATION_COLUMNS,$publications);
+            $updatedLedger=$this->advanceVerifiedRows($newLedger,'sessions',
+                self::LEDGER_TABLES['sessions'],$sourceRows['sessions']);
             $newLedger->commit();
         } catch (Throwable $e) {
             if ($newLedger->inTransaction())$newLedger->rollBack();
@@ -138,6 +151,8 @@ final class LegacyHistoryImporter
         try {
             $imported['legacy_review_sessions']=$this->insertMissing($newQueue,
                 'legacy_review_sessions',self::REVIEW_COLUMNS,$reviewRows);
+            $updatedReview=$this->advanceVerifiedRows($newQueue,'legacy_review_sessions',
+                self::REVIEW_COLUMNS,$reviewRows);
             $newQueue->commit();
         } catch (Throwable $e) {
             if ($newQueue->inTransaction())$newQueue->rollBack();
@@ -164,6 +179,10 @@ final class LegacyHistoryImporter
                 'legacy_review_sessions'=>count($reviewRows),
             ],
             'newly_imported'=>$imported,
+            'updated_history'=>[
+                'sessions'=>$updatedLedger,
+                'legacy_review_sessions'=>$updatedReview,
+            ],
             'audio_metadata'=>$audioReport,
             'legacy_unknown_intents'=>count($unresolved),
             'legacy_unknown_publications'=>count($unresolvedPublications),
@@ -215,17 +234,109 @@ final class LegacyHistoryImporter
         }
     }
 
-    private function validateImport(PDO $target,string $table,array $columns,array $rows): void
+    private function validateImport(PDO $target,string $table,array $columns,array $rows,
+                                    ?callable $verifyRemoteExtension=null): void
     {
         $primary=$columns[0];
         $lookup=$target->prepare('SELECT '.implode(',',$columns).' FROM "'.$table.'" WHERE "'.$primary.'"=?');
         foreach ($rows as $source) {
             $lookup->execute([$source[$primary]]);
             $existing=$lookup->fetch();
-            if ($existing!==false && !$this->sameValues($existing,$source,$columns)) {
-                throw new RuntimeException('Existing PHP history conflicts with Python snapshot');
-            }
+            if ($existing===false||$this->sameValues($existing,$source,$columns))continue;
+            if ($table==='sessions' && $this->verifiedSessionAdvance(
+                $existing,$source,$verifyRemoteExtension))continue;
+            if ($table==='legacy_review_sessions'&&
+                self::safeReviewAdvance($existing,$source))continue;
+            throw new RuntimeException('Existing PHP history conflicts with Python snapshot');
         }
+    }
+
+    /** A confirmed Kimai record may only extend, never change identity. */
+    private function verifiedSessionAdvance(array $before,array $after,
+                                            ?callable $verifyRemote): bool
+    {
+        if ($verifyRemote===null||
+            (string)$before['remote_id']!==(string)$after['remote_id']||
+            (int)$after['remote_id']<1||
+            !self::nondecreasingTime($before['updated_at'],$after['updated_at']))return false;
+        try {
+            $old=json_decode((string)$before['remote_snapshot_json'],true,512,JSON_THROW_ON_ERROR);
+            $new=json_decode((string)$after['remote_snapshot_json'],true,512,JSON_THROW_ON_ERROR);
+            if (!is_array($old)||!is_array($new)||
+                ($new['id']??null)!==(int)$after['remote_id'])return false;
+            foreach (['id','begin','user','project','activity','billable',
+                      'exported','description'] as $field) {
+                if (!array_key_exists($field,$old)||!array_key_exists($field,$new)||
+                    $old[$field]!==$new[$field])return false;
+            }
+            $oldEnd=TimeMath::parse((string)$old['end']);
+            $newEnd=TimeMath::parse((string)$new['end']);
+            if ($newEnd<$oldEnd||!is_int($old['duration']??null)||
+                !is_int($new['duration']??null)||
+                $new['duration']<$old['duration'])return false;
+            return $verifyRemote((int)$after['remote_id'],$new)===true;
+        }catch (Throwable) {
+            return false;
+        }
+    }
+
+    /** Only unapproved hypotheses may evolve; frozen approvals never do. */
+    private static function safeReviewAdvance(array $before,array $after): bool
+    {
+        if (!in_array($before['status']??null,['draft','conflict','covered'],true)||
+            ($before['status']??null)!==($after['status']??null)||
+            $before['approval_json']!==null||$after['approval_json']!==null||
+            !self::nondecreasingTime($before['updated_utc'],$after['updated_utc']))return false;
+        foreach (['id','day','start','created_utc','remote_id'] as $fixed) {
+            if ((string)($before[$fixed]??'')!==(string)($after[$fixed]??''))return false;
+        }
+        return true;
+    }
+
+    private static function nondecreasingTime(string $before,string $after): bool
+    {
+        $older=strtotime($before);$newer=strtotime($after);
+        return $older!==false&&$newer!==false&&$newer>=$older;
+    }
+
+    /** Record earlier versions before replacing a verified mutable record. */
+    private function advanceVerifiedRows(PDO $db,string $table,array $columns,array $sourceRows): int
+    {
+        if (!in_array($table,['sessions','legacy_review_sessions'],true)) {
+            throw new RuntimeException('Unsafe legacy table update');
+        }
+        $primary=$columns[0];
+        $lookup=$db->prepare('SELECT '.implode(',',$columns).' FROM "'.$table.'" WHERE "'.$primary.'"=?');
+        $updates=array_slice($columns,1);
+        $sql='UPDATE "'.$table.'" SET '.implode(',',array_map(
+            static fn($column)=>'"'.$column.'"=?',$updates)).
+            ' WHERE "'.$primary.'"=?';
+        $update=$db->prepare($sql);
+        $versionTable=$table==='sessions'?'legacy_session_versions':'legacy_review_versions';
+        $saveVersion=$db->prepare('INSERT OR IGNORE INTO "'.$versionTable.'"
+            (id,digest,row_json,archived_utc) VALUES (?,?,?,?)');
+        $advanced=0;
+        foreach ($sourceRows as $row) {
+            $lookup->execute([$row[$primary]]);
+            $before=$lookup->fetch();
+            if ($before===false||$this->sameValues($before,$row,$columns))continue;
+            $changed=array_values(array_filter($columns,
+                static fn($key)=>(string)($before[$key]??'')!==(string)($row[$key]??'')));
+            if (array_diff($changed,['updated_utc'])!==[]) {
+                $saveVersion->execute([
+                    (string)$before[$primary],
+                    CanonicalJson::digest($before,false),
+                    CanonicalJson::encode($before),
+                    gmdate('c'),
+                ]);
+            }
+            $update->execute([
+                ...array_map(static fn($field)=>$row[$field],$updates),$row[$primary],
+            ]);
+            if ($update->rowCount()!==1)throw new RuntimeException('Legacy update race');
+            $advanced++;
+        }
+        return $advanced;
     }
 
     private function sameValues(array $a,array $b,array $columns): bool

@@ -162,6 +162,70 @@ final class OptionalNextcloudSourcesTest extends TestCase
         self::assertSame([],$anchors->invoke($engine,$profile,$disabled));
     }
 
+    public function test_telegram_network_is_decoupled_from_kimai_analysis_cycle(): void
+    {
+        $profile=new Profile([
+            'profile_id'=>'worker','timezone'=>'America/Sao_Paulo',
+            'customer_id'=>2,'project_id'=>41,'activity_id'=>25,
+            'work_messenger_dialog_ids'=>[-100123],
+            'work_messenger_group_titles'=>['-100123'=>'Authorized work group'],
+        ]);
+        $this->local->saveProfile($profile);
+        $this->local->setSources(['telegram_setup'=>true,'telegram'=>true]);
+        $at=new DateTimeImmutable('2026-11-15T13:00:00-03:00');
+        $hash=\App\AutomaticKimai\CanonicalJson::digest([
+            'profile'=>$profile->get('profile_id'),
+            'ids'=>$profile->get('work_messenger_dialog_ids'),
+        ],false);
+        $this->local->write('telegram_scan_cursor.json',[
+            'selection_hash'=>$hash,'account_id'=>103456,
+            'last_success_utc'=>$at->format('c'),
+            'next_index'=>0,'selected_groups'=>1,
+        ]);
+        $this->local->write('telegram_selected_account.json',[
+            'account_id'=>103456,
+            'selection_digest'=>\App\AutomaticKimai\TelegramGroupSelection::accountSelectionDigest(
+                103456,$profile),
+        ]);
+        $this->local->write('telegram_scoped_history.json',[
+            'no_message_bodies_stored'=>true,'matched_dialog_count'=>1,
+            'incomplete_round'=>false,'scoped_client_chats'=>[[
+                'dialog_id'=>-100123,
+                'observations'=>[[
+                    'timestamp_utc'=>'2026-11-15T15:55:00+00:00',
+                    'outgoing'=>true,
+                ]],
+            ]],
+        ]);
+        $requests=0;
+        $http=new HttpTransport(static function()use(&$requests){
+            $requests++;
+            throw new \RuntimeException('No network calls are permitted');
+        });
+        $engine=new SyncEngine($this->local,null,$http);
+        $external=new ReflectionMethod(SyncEngine::class,'external');
+        $anchors=new ReflectionMethod(SyncEngine::class,'actionAnchors');
+        $states=$external->invoke($engine,$profile,[],$at);
+        self::assertSame(0,$requests);
+        self::assertSame('ok',$states['telegram']['status']);
+        self::assertCount(1,$anchors->invoke($engine,$profile,$states));
+        $stale=$external->invoke($engine,$profile,[],$at->modify('+3 hours'));
+        self::assertSame('needs_collection',$stale['telegram']['status']);
+        self::assertSame([],$anchors->invoke($engine,$profile,$stale));
+        $different=new Profile(array_replace($profile->toArray(),[
+            'work_messenger_dialog_ids'=>[-100456],
+            'work_messenger_group_titles'=>['-100456'=>'Another group'],
+        ]));
+        $changed=$external->invoke($engine,$different,[],$at);
+        self::assertSame('needs_collection',$changed['telegram']['status']);
+        self::assertSame([],$anchors->invoke($engine,$different,$changed));
+        file_put_contents($this->local->root().'/telegram_scoped_history.json','{broken json');
+        chmod($this->local->root().'/telegram_scoped_history.json',0600);
+        $corrupt=$external->invoke($engine,$profile,[],$at);
+        self::assertSame('needs_collection',$corrupt['telegram']['status']);
+        self::assertSame([],$anchors->invoke($engine,$profile,$corrupt));
+    }
+
     public function test_source_selection_can_precede_nextcloud_login_without_creating_credentials(): void
     {
         $this->post('http://localhost/sources',['source_nextcloud_talk'=>'1'])

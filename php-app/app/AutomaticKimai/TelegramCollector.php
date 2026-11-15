@@ -87,6 +87,7 @@ final class TelegramCollector
                 $snapshot=$this->mergeSnapshot($prior,$part,$ids,$now);
                 $next=($offset+count($batch))%count($ids);
                 $nextState=['selection_hash'=>$fingerprint,
+                    'account_id'=>$account,
                     'next_index'=>$next,'selected_groups'=>count($ids),
                     'last_success_utc'=>$part['collected_at']];
                 $processed=count($batch);

@@ -823,3 +823,107 @@ and 29 *already selected*; no native community request or message-history
 query was made. The 18/minute API budget then showed a countdown (~50s)
 until the next batch. Full-dialog exhaustion remains a separate, longer
 end-to-end check; this smoke does not assert that every chat was examined.
+
+## 15/11/2026 — Observador de áudio PHP contínuo e auditoria de vivacidade
+
+- **Runtime real PHP:** o executável PHP 8.4, empacotado pelo NativePHP,
+  foi validado diretamente no Linux sem PHP instalado globalmente. Uma
+  amostra automatic-kimai:audio-sample foi obtida via pw-dump com
+  consentimento Telegram ativo, sem capturar áudio nem marcar trabalho.
+- **Serviço periódico PHP:** php-app/scripts/install-linux-audio-timer.sh
+  instala dois units systemd de usuário, um serviço de amostragem de
+  metadados e seu timer a cada aproximadamente 15 segundos. O instalador
+  extrai somente o binário CLI do pacote nativo se não houver outro
+  executável definido por AUTOMATIC_KIMAI_PHP_BINARY. A instalação
+  não inclui credenciais nem configurações de perfil dentro do binário.
+  O teste local confirmou Result=success, UnitFileState=enabled e
+  novas amostras privadas com intervalo de 15–16 segundos.
+- **Prova de vivacidade:** cada amostra PHP bem-sucedida registra um
+  marcador privado telegram_audio_php_runtime.json. A auditoria
+  só reconhece a substituição do observador quando existem pelo menos
+  três amostras consecutivas de PHP, distribuídas por pelo menos 25s,
+  com última leitura recente e correspondente a um registro probe_ok
+  do banco de metadados. **A importação de amostras antigas do Python não
+  satisfaz essa prova.** Uma interrupção de coleta torna o indicador
+  automaticamente inválido após o prazo de 75s. O indicador nunca
+  declara, por si só, seguro desligar os publicadores Python.
+- **Coexistência temporária:** o antigo serviço
+  automatic-kimai-telegram-audio.service continua ativo, gravando
+  exclusivamente na base Python. O novo timer PHP escreve em sua base
+  separada. O teste não gerou POST/PATCH em Kimai e não desativou
+  componentes Python.
+- A auditoria real com o novo observador reconheceu
+  php_audio_runtime_recent=true e eliminou o bloqueio
+  legacy_audio_metadata_needs_php_runtime. Enquanto o Python continua
+  escrevendo, novas alterações em propostas e ledger exigem novamente
+  catch-up **depois** da interrupção controlada do escritor antigo.
+- Testes de auditoria verificam marcador obsoleto, ausência de marcador,
+  registros presentes mas não originados no PHP, e amostras recentes.
+  safe_to_disable_python_publisher permanece false. Testes locais PHP,
+  Node e browser devem ser executados após a alteração.
+
+**Falta para corte 100%:** também são necessárias equivalência de
+classificação e enriquecimento semântico, captura de agentes externos,
+continuidade/reinício de todos os coletores, replay congelado de decisões,
+parada coordenada de todos os timers Python com captura final do estado,
+auditoria estrita, um único escritor PHP, rollback e monitoramento.
+O timer de áudio substitui somente uma responsabilidade do legado.
+
+## 15/11/2026 — Ciclos PHP desacoplados e problema do runtime NativePHP/GMP
+
+A primeira execução real do comando PHP nativo
+"automatic-kimai:sync" ficou aguardando MTProto por mais de dois minutos.
+Foi interrompida manualmente sem gravação no Kimai. O tempo de espera
+vinha do coletor Telegram, que estava embutido no mesmo ciclo de análise.
+
+O SyncEngine agora trata Telegram como fonte **assíncrona opcional**.
+O cálculo principal nunca inicia getHistory: utiliza apenas
+telegram_scoped_history.json, desde que o cursor tenha menos de duas
+horas, a seleção e a conta autenticada correspondam, e o snapshot
+declare no_message_bodies_stored=true. Falta ou corrupção de cache
+gera needs_collection, não uma inferência de ausência de trabalho.
+A coleta continua em AutomaticKimaiTelegramScan, comando independente;
+a identidade da conta passa a constar no cursor salvo. Em perfil
+anterior à atualização, o cursor pôde ser vinculado localmente à
+seleção já validada apenas porque seu último ciclo era posterior à
+verificação da conta. Nenhum histórico foi apagado.
+
+O ciclo completo PHP nativo sem MTProto síncrono **passou em 26,9 s**,
+com Nextcloud Calendar/Talk/Activity/Mail, GitHub e Telegram
+status=ok, 2 propostas de revisão, remote_writes=0.
+
+Uma execução real do coletor MTProto com PHP estático NativePHP
+excedeu 155 s (timeout), sem avançar indevidamente seu cursor.
+Uma execução equivalente no contêiner PHP de desenvolvimento com GMP
+processou 24 grupos em **15,7 s**, sem enviar read receipts.
+Verificação de ambiente: PHP estático NativePHP 8.4 tem BCMath e
+sockets mas **não inclui GMP**; o contêiner tem GMP e usa o motor
+BigInteger GMP. MadelineProto recomenda GMP e alerta que gerar chaves
+de autorização sem a extensão é mais lento. A diferença de runtime
+é consistente com o problema observado, mas não foi isolada em um
+experimento com todos os demais parâmetros iguais.
+
+Foi instalado um timer independente de leitura Telegram PHP:
+automatic-kimai-php-telegram-scan.timer, a cada 5 minutos,
+com TimeoutStartSec=180s. No piloto ele usa explicitamente um
+contêiner PHP com GMP já existente (somente metadados autorizados e
+sem modificar Kimai). O primeiro ciclo automático retornou success e
+o cursor encerrou a rodada no índice zero de 98 grupos. O PHP
+de análise continua nativo, sem contêiner. O coletor de áudio PHP
+também segue nativo, a cada ~15s.
+
+O instalador de units PHP de usuário fica em:
+php-app/scripts/install-linux-core-timers.sh. Por segurança,
+o modo padrão mantém o sync --apply **desligado** e o scanner
+Telegram só é habilitado com --enable-telegram. O argumento --apply
+também precisa ser opt-in e continua sujeito ao PublicationGate.
+Quando a distribuição desktop for empacotada, será necessário
+reconstruir o PHP estático com GMP ou validar outro runtime autocontido;
+o contêiner de desenvolvimento não é requisito aceitável para o
+instalador final. A homologação multiplataforma segue sob demanda.
+
+**Corte da versão antiga ainda não liberado.** Há outras responsabilidades
+dos timers Python (classificação semântica, enriquecimento, agentes,
+replay/aprovações e escritor) a verificar; o último ledger Python
+pode crescer enquanto ele opera. Nenhuma autorização de escrita PHP
+nem interrupção de timer Python foi feita nesta etapa.

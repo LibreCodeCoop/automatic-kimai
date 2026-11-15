@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\AutomaticKimai\AudioRuntime;
 use App\AutomaticKimai\LocalStore;
 use App\AutomaticKimai\TelegramAudio;
 use Illuminate\Console\Command;
+use DateTimeImmutable;
 use Throwable;
 
 /**
@@ -48,7 +50,9 @@ final class AutomaticKimaiAudioSample extends Command
                 $this->error('AUDIO_SAMPLE_UNAVAILABLE '.get_class($e));
                 return self::FAILURE;
             }
-            TelegramAudio::record(TelegramAudio::open($path),$observation);
+            $now=new DateTimeImmutable('now',new \DateTimeZone('UTC'));
+            TelegramAudio::record(TelegramAudio::open($path),$observation,$now);
+            AudioRuntime::record($store,$now);
             $this->line('AUDIO_SAMPLE_METADATA_ONLY counts_as_work=false');
             return self::SUCCESS;
         } catch (Throwable $e) {
