@@ -55,39 +55,91 @@
   };
   const dirty=()=>selectedSelection.size!==savedSelection.size ||
     [...selectedSelection].some(id=>!savedSelection.has(id));
+  const MAX_GROUPS=@json(\App\AutomaticKimai\Profile::MAX_MESSENGER_GROUPS);
+  const clearLimit=()=>{
+    $('tg-selection-feedback').hidden=true;
+    $('tg-selection-feedback').textContent='';
+    for(const note of document.querySelectorAll('.telegram-inline-limit'))note.remove();
+  };
+  const showLimit=element=>{
+    const text='Limite de '+MAX_GROUPS+' grupos atingido. Desmarque um grupo ou remova-o da seleção antes de adicionar outro.';
+    $('tg-selection-feedback').textContent=text;
+    $('tg-selection-feedback').hidden=false;
+    for(const note of document.querySelectorAll('.telegram-inline-limit'))note.remove();
+    if(element){
+      const inline=document.createElement('small');
+      inline.className='telegram-inline-limit';
+      inline.textContent=text;
+      element.appendChild(inline);
+    }
+  };
+  // Keep catalog rows and checkboxes in their original DOM positions.
+  // Re-render only the lightweight selected summary after each click.
+  const renderSelection=()=>{
+    const selected=[...loadedGroups.values()].filter(group=>selectedSelection.has(group.id));
+    selected.sort((a,b)=>collator.compare(a.title,b.title));
+    const chips=document.createDocumentFragment();
+    for(const group of selected){
+      const chip=document.createElement('div');
+      chip.className='telegram-selected-chip';
+      const title=document.createElement('span');
+      title.textContent=group.title;
+      const remove=document.createElement('button');
+      remove.type='button';
+      remove.className='secondary';
+      remove.textContent='Remover';
+      remove.setAttribute('aria-label','Remover '+group.title+' da seleção');
+      remove.addEventListener('click',()=>{
+        selectedSelection.delete(group.id);
+        if(group.recommended)manuallyExcludedSuggestions.add(group.id);
+        clearLimit();
+        renderSelection();
+      });
+      chip.append(title,remove);
+      chips.append(chip);
+    }
+    $('tg-selected-list').replaceChildren(chips);
+    $('tg-selected-area').hidden=selectedSelection.size===0;
+    $('tg-selected-count').textContent=String(selectedSelection.size);
+    $('tg-selection-summary').textContent=selectedSelection.size+' de '+MAX_GROUPS+
+      ' grupos selecionados'+(selectedSelection.size===MAX_GROUPS?' · limite atingido':'');
+    $('tg-group-count').textContent=selectedSelection.size===0?
+      'Nenhum grupo selecionado.':selectedSelection.size===1?
+        '1 grupo selecionado.':selectedSelection.size+' grupos selecionados.';
+    const hasChanges=dirty();
+    $('tg-save-groups').disabled=!initialized||selectedSelection.size>MAX_GROUPS||!hasChanges;
+    $('tg-authorized-area').hidden=enabled||savedSelection.size===0||hasChanges;
+    $('tg-activate').disabled=hasChanges;
+    $('tg-enabled-area').hidden=!enabled;
+    $('tg-suggestion-note').hidden=!(hasChanges && suggestionsAllowed &&
+      selected.some(group=>group.recommended));
+    for(const group of loadedGroups.values()){
+      group.checkbox.checked=selectedSelection.has(group.id);
+    }
+    for(const control of $('tg-communities-list').querySelectorAll('[data-community-group]')){
+      control.checked=selectedSelection.has(control.dataset.communityGroup);
+    }
+  };
   const renderList=()=>{
     const current=pages[activeFolder];
     const search=$('tg-search').value.trim().toLocaleLowerCase();
     const alphabetically=$('tg-sort').value==='name';
     const previousScroll=$('tg-group-list').scrollTop;
-    const selected=[...loadedGroups.values()].filter(group=>selectedSelection.has(group.id));
-    selected.sort((a,b)=>collator.compare(a.title,b.title));
-    const pinned=document.createDocumentFragment();
-    for(const group of selected){
-      group.checkbox.checked=true;
-      group.element.hidden=false;
-      pinned.appendChild(group.element);
-    }
-    $('tg-selected-list').replaceChildren(pinned);
-    $('tg-selected-area').hidden=selectedSelection.size===0;
-    $('tg-selected-count').textContent=String(selectedSelection.size);
-
     const searching=search.length>=2;
     const others=[...loadedGroups.values()].filter(group=>
-      !selectedSelection.has(group.id) &&
       (searching ? searchMatches.has(group.id) :
         (group.folders.has(activeFolder) || group.recommended)));
     others.sort((a,b)=>alphabetically?
       collator.compare(a.title,b.title):
       (a.orders[activeFolder]??Number.MAX_SAFE_INTEGER)-
       (b.orders[activeFolder]??Number.MAX_SAFE_INTEGER));
-    const fragment=document.createDocumentFragment();
+    const children=[];
     let visible=0;
     for(const group of others){
-      group.checkbox.checked=false;
+      group.checkbox.checked=selectedSelection.has(group.id);
       group.element.hidden=!searching&&search!==''&&!group.title.toLocaleLowerCase().includes(search);
       if(!group.element.hidden)visible++;
-      fragment.appendChild(group.element);
+      children.push(group.element);
     }
     if(others.length===0){
       const note=document.createElement('p');
@@ -102,10 +154,19 @@
         current.loaded?(current.cursor===null?'Nenhum outro grupo nesta categoria.':
           'Nenhum outro grupo nesta página. Carregue mais para continuar.'):
         'Escolha uma categoria para carregar seus grupos.';
-      fragment.appendChild(note);
+      children.push(note);
     }
-    $('tg-group-list').replaceChildren(fragment);
-    $('tg-group-list').scrollTop=previousScroll;
+    const catalog=$('tg-group-list');
+    // Incremental reconciliation: incoming search pages must not detach
+    // existing checkboxes while the person is clicking through the list.
+    for(let index=0;index<children.length;index++){
+      const node=children[index];
+      if(catalog.children[index]!==node){
+        catalog.insertBefore(node,catalog.children[index]||null);
+      }
+    }
+    while(catalog.children.length>children.length)catalog.lastElementChild.remove();
+    catalog.scrollTop=previousScroll;
     $('tg-page-status').textContent=searching ?
       visible+' grupos encontrados na busca'+(searchBusy?' · buscando…':'') :
       current.seen+' grupos carregados'+
@@ -115,21 +176,7 @@
     $('tg-reload-groups').disabled=fetchingGroups;
     $('tg-load-more').textContent=current.error?
       'Tentar carregar novamente':'Carregar mais grupos';
-    $('tg-group-count').textContent=selectedSelection.size===0?
-      'Nenhum grupo selecionado.':
-      selectedSelection.size===1?'1 grupo selecionado.':
-      selectedSelection.size+' grupos selecionados.';
-    const hasChanges=dirty();
-    $('tg-save-groups').disabled=!initialized||selectedSelection.size>40||!hasChanges;
-    $('tg-authorized-area').hidden=enabled||savedSelection.size===0||hasChanges;
-    $('tg-activate').disabled=hasChanges;
-    $('tg-enabled-area').hidden=!enabled;
-    $('tg-suggestion-note').hidden=!(hasChanges && suggestionsAllowed &&
-      selected.some(group=>group.recommended));
-    // Group checkboxes are duplicated in native community views; keep them in sync.
-    for (const control of $('tg-communities-list').querySelectorAll('[data-community-group]')) {
-      control.checked=selectedSelection.has(control.dataset.communityGroup);
-    }
+    renderSelection();
   };
   const upsertGroup=(source,folder=null)=>{
     if(!source||!Number.isSafeInteger(source.id)||
@@ -154,9 +201,9 @@
       };
       checkbox.addEventListener('change',()=>{
         if(checkbox.checked){
-          if(selectedSelection.size>=40){
+          if(selectedSelection.size>=MAX_GROUPS){
             checkbox.checked=false;
-            $('tg-groups-status').textContent='Selecione no máximo 40 grupos.';
+            showLimit(group.element);
             return;
           }
           selectedSelection.add(id);
@@ -164,7 +211,8 @@
           selectedSelection.delete(id);
           if(group.recommended)manuallyExcludedSuggestions.add(id);
         }
-        renderList();
+        clearLimit();
+        renderSelection();
       });
       loadedGroups.set(id,group);
     } else if(source.title!==group.title &&
@@ -203,7 +251,7 @@
       // explicitly unchecked it is never silently overridden in this view.
       // Persisting the list still requires the separate Save action.
       if(suggestionsAllowed&&!manuallyExcludedSuggestions.has(id)&&
-         selectedSelection.size<40)selectedSelection.add(id);
+         selectedSelection.size<MAX_GROUPS)selectedSelection.add(id);
     }
   };
   const requestJson=async (url,signal) => {
@@ -259,12 +307,15 @@
           selectAll.addEventListener('click',()=>{
             const ids=children.map(g=>String(g.id));
             const fresh=ids.filter(id=>!selectedSelection.has(id));
-            if(selectedSelection.size+fresh.length>40){
-              $('tg-groups-status').textContent='O limite é 40 grupos. Desmarque alguns antes de selecionar esta comunidade.';
+            if(selectedSelection.size+fresh.length>MAX_GROUPS){
+              showLimit();
+              $('tg-communities-status').textContent='A comunidade ultrapassa o limite de '+MAX_GROUPS+
+                ' grupos. Escolha individualmente os grupos necessários.';
               return;
             }
             for(const id of fresh)selectedSelection.add(id);
-            renderList();
+            clearLimit();
+            renderSelection();
           });
           content.append(selectAll);
           const list=document.createElement('div');
@@ -279,14 +330,15 @@
             input.addEventListener('change',()=>{
               const id=String(child.id);
               if(input.checked){
-                if(selectedSelection.size>=40){
+                if(selectedSelection.size>=MAX_GROUPS){
                   input.checked=false;
-                  $('tg-groups-status').textContent='Selecione no máximo 40 grupos.';
+                  showLimit(label);
                   return;
                 }
                 selectedSelection.add(id);
               }else selectedSelection.delete(id);
-              renderList();
+              clearLimit();
+              renderSelection();
             });
             const text=document.createElement('span');
             text.textContent=child.title;
@@ -655,7 +707,8 @@
       if(loadedGroups.get(id)?.recommended)manuallyExcludedSuggestions.add(id);
     }
     selectedSelection.clear();
-    renderList();
+    clearLimit();
+    renderSelection();
   });
   // One more Telegram page is requested only following an actual scroll.
   $('tg-group-list').addEventListener('scroll',()=>{
@@ -670,7 +723,7 @@
   });
   $('tg-groups-form').addEventListener('submit',async event=>{
     event.preventDefault();
-    if(!initialized||!dirty()||selectedSelection.size>40)return;
+    if(!initialized||!dirty()||selectedSelection.size>MAX_GROUPS)return;
     const button=$('tg-save-groups');
     const values=Array.from(selectedSelection);
     button.disabled=true;
@@ -686,7 +739,7 @@
           'Clique em ativar para iniciar a análise.');
     } catch(error){
       $('tg-groups-status').textContent=error.message;
-    } finally {renderList();}
+    } finally {renderSelection();}
   });
   $('tg-activate').addEventListener('click',async()=>{
     const button=$('tg-activate');

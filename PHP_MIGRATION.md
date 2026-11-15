@@ -372,3 +372,29 @@ sem abrir janelas ou assumir controle de mouse/teclado.
   **Ainda pendente homologar com uma comunidade Telegram real.**
   Nenhuma sessão Telegram real foi desconectada durante o desenvolvimento.
   O PHP segue em modo shadow somente leitura, sem publicação de horas.
+
+## Correção do seletor de grupos Telegram (15/11/2026)
+
+- A seleção agora mantém os checkboxes **na lista de origem**. Ao marcar ou
+  desmarcar, somente o resumo dos grupos escolhidos muda; a lista não é
+  remontada nem perde foco/posição. Os itens selecionados aparecem em uma área
+  de resumo **abaixo** do catálogo, com ação Remover, sem retirar os controles
+  de sua posição. Esse layout também evita deslocar a lista após cada clique.
+  Durante uma busca paginada, a atualização incremental preserva os nós
+  existentes e mantém os checkboxes marcados enquanto novas páginas chegam.
+- O limite de 40 grupos era silencioso: ao tentar o 41º, o checkbox voltava
+  para desligado e o aviso surgia abaixo do catálogo. O limite agora é 100,
+  centralizado na validação do perfil, serviço, endpoint e UI. Há contagem
+  visível e aviso imediatamente ao lado da opção recusada; desmarcar um grupo
+  permite selecionar outro. Nada é salvo automaticamente.
+- Para não expandir indiscriminadamente a coleta de mensagens, o histórico
+  por grupo mantém 600 itens para até 40 grupos e diminui proporcionalmente
+  em listas maiores (máximo 24.000 itens por varredura, 240/grupo com 100).
+  A análise continua como metadados somente leitura, sem publicar horas.
+- A regressão foi reproduzida em Chromium com 45 itens: a primeira seleção
+  movia fisicamente o checkbox para outro bloco e o 41º clique falhava sem
+  retorno visível. Após a alteração, os checkboxes permaneceram no catálogo,
+  100 grupos foram selecionados, o 101º recebeu aviso em linha e a remoção
+  de um item permitiu selecionar novamente. Também houve teste de marcar e
+  desmarcar um grupo com a sessão local autenticada, **sem POST ou alteração
+  persistida** na seleção do usuário.

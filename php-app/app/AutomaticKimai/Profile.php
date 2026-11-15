@@ -9,6 +9,9 @@ use InvalidArgumentException;
 /** Public per-worker settings. No credentials or hard-coded tenant IDs. */
 final class Profile
 {
+    // Cap authorized groups to bound Telegram scanning and profile persistence.
+    public const MAX_MESSENGER_GROUPS=100;
+
     private const DEFAULTS = [
         'profile_id' => 'user', 'timezone' => 'UTC',
         'lookback_days' => 3, 'long_idle_minutes' => 10,
@@ -86,9 +89,10 @@ final class Profile
             !is_array($settings['work_messenger_group_titles'])) {
             throw new InvalidArgumentException('Invalid approved source lists');
         }
-        if (count($settings['work_domains']) > 40 || count($settings['work_messenger_labels']) > 40 ||
-            count($settings['work_messenger_dialog_ids']) > 40 ||
-            count($settings['work_messenger_group_titles']) > 40) {
+        if (count($settings['work_domains']) > 40 ||
+            count($settings['work_messenger_labels']) > self::MAX_MESSENGER_GROUPS ||
+            count($settings['work_messenger_dialog_ids']) > self::MAX_MESSENGER_GROUPS ||
+            count($settings['work_messenger_group_titles']) > self::MAX_MESSENGER_GROUPS) {
             throw new InvalidArgumentException('Too many work-source approvals');
         }
         foreach ($settings['work_domains'] as $host) {

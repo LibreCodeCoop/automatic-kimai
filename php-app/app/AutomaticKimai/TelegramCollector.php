@@ -11,7 +11,18 @@ use Throwable;
 /** Persistent, isolated Telegram MTProto scope and read-position changes. */
 final class TelegramCollector
 {
+    // Maximum history entries requested across all authorized groups per scan.
+    private const MAX_HISTORY_ENTRIES=24_000;
+
     public function __construct(private readonly LocalStore $store) {}
+
+    public static function historyLimitPerGroup(int $groupCount): int
+    {
+        if ($groupCount<1 || $groupCount>Profile::MAX_MESSENGER_GROUPS) {
+            throw new InvalidArgumentException('Invalid number of authorized Telegram groups');
+        }
+        return min(600,intdiv(self::MAX_HISTORY_ENTRIES,$groupCount));
+    }
 
     public function scan(?object $client=null,?DateTimeImmutable $now=null): array
     {
@@ -38,7 +49,10 @@ final class TelegramCollector
         $first=$this->store->read('telegram_scoped_history.json');
         $days=14;
         $now??=new DateTimeImmutable();
-        $snapshot=(new TelegramSource())->scan($client,$labels,$days,600,$now,$groupIds);
+        // More selected groups must not multiply Telegram history volume.
+        $groupCount=$groupIds!==[]?count($groupIds):count($labels);
+        $perGroupLimit=self::historyLimitPerGroup($groupCount);
+        $snapshot=(new TelegramSource())->scan($client,$labels,$days,$perGroupLimit,$now,$groupIds);
         // The original history and read markers are stored privately, with
         // contents reduced to metadata. Never persist chat titles or bodies.
         $changes=TelegramReadProgress::compute($first,$snapshot);

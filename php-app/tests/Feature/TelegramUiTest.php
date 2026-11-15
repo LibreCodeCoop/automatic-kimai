@@ -49,6 +49,9 @@ final class TelegramUiTest extends TestCase
             ->assertSee('id="tg-groups-step" hidden',false)
             ->assertDontSee('name="telegram_labels"',false)
             ->assertSee('Conectar pelo QR Code')
+            ->assertSee('id="tg-selection-feedback"',false)
+            ->assertSee('id="tg-selection-summary"',false)
+            ->assertSee('const MAX_GROUPS=100;',false)
             ->assertDontSee('TELEGRAM_API_HASH');
     }
 

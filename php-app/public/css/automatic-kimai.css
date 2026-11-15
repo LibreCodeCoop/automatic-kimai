@@ -473,6 +473,14 @@ a.button:hover { background:var(--primary-hover); }
 .telegram-sort { flex:1 1 190px; }
 .telegram-sort select { width:100%; }
 .telegram-selected-area #tg-suggestion-note { margin:10px 0 0; }
+.telegram-selected-chip { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; border-radius:8px; background:var(--secondary-bg); min-height:42px; }
+.telegram-selected-chip span { overflow-wrap:anywhere; min-width:0; }
+.telegram-selected-chip button { margin:0; flex-shrink:0; }
+.telegram-selection-counter { flex:1 0 100%; margin:0; font-weight:700; color:var(--fg); }
+.telegram-selection-feedback { flex:1 0 100%; margin:0; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--secondary-bg); color:var(--fg); }
+.telegram-selection-feedback[hidden] { display:none; }
+.telegram-inline-limit { display:block; flex:1 1 100%; font-size:12px; font-weight:650; color:var(--fg); }
+.telegram-group-option:has(.telegram-inline-limit) { flex-wrap:wrap; outline:2px solid var(--secondary-fg); outline-offset:-2px; }
 .telegram-group-option[hidden] { display:none; }
 #tg-groups-step[hidden],#tg-connected-banner[hidden],#tg-communities-area[hidden],
 .nextcloud-avatar[hidden],.nextcloud-avatar-fallback[hidden] { display:none !important; }

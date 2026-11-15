@@ -141,6 +141,34 @@ final class TelegramGroupSelectionTest extends TestCase
             array_column((new TelegramGroupSelection($this->store))->page(null,$client)['selected_groups'],'id'));
     }
 
+    public function test_large_explicit_group_selection_allows_100_but_rejects_101(): void
+    {
+        $client=new class {
+            public function groupDetails(array $ids): array
+            {
+                $result=[];
+                foreach ($ids as $id) {
+                    $result[$id]=['id'=>$id,'title'=>'Equipe '.abs($id)];
+                }
+                return $result;
+            }
+        };
+        $ids=array_map(static fn(int $n): string=>(string)(-100000-$n),range(1,100));
+        $selection=new TelegramGroupSelection($this->store);
+        $data=$selection->select($ids,$client);
+        self::assertSame(100,$data['selected_count']);
+        self::assertFalse($data['enabled']);
+        self::assertCount(100,$this->store->profile()->get('work_messenger_dialog_ids'));
+        self::assertCount(100,$this->store->profile()->get('work_messenger_labels'));
+        self::assertCount(100,$this->store->profile()->get('work_messenger_group_titles'));
+        try {
+            $selection->select([...$ids,'-100101'],$client);
+            self::fail('101st group must not bypass the bounded collector limit');
+        } catch (InvalidArgumentException) {
+            self::assertCount(100,$this->store->profile()->get('work_messenger_dialog_ids'));
+        }
+    }
+
     public function test_unknown_groups_are_rejected_without_changes(): void
     {
         $this->expectException(InvalidArgumentException::class);

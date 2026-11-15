@@ -232,8 +232,8 @@ final class TelegramGroupSelection
     {
         $profile=$this->store->profile();
         if ($profile===null)throw new RuntimeException('Conecte sua conta Kimai primeiro');
-        if (count($requestedIds)>40) {
-            throw new InvalidArgumentException('Escolha até 40 grupos profissionais');
+        if (count($requestedIds)>Profile::MAX_MESSENGER_GROUPS) {
+            throw new InvalidArgumentException('Escolha até '.Profile::MAX_MESSENGER_GROUPS.' grupos profissionais');
         }
         $ids=[];
         foreach ($requestedIds as $input) {

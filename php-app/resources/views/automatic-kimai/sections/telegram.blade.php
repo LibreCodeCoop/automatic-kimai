@@ -65,16 +65,9 @@
 <p id="tg-communities-status" class="muted" role="status" aria-live="polite"></p>
 </div>
 <form id="tg-groups-form">
-<div id="tg-selected-area" class="telegram-selected-area" hidden>
-<div class="telegram-selected-heading">
-<strong>Grupos selecionados <span id="tg-selected-count">0</span></strong>
-<button type="button" id="tg-clear-selected" class="secondary">Desmarcar todos</button>
-</div>
-<div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados"></div>
-<p class="muted">Os grupos selecionados permanecem nesta área, mesmo ao alternar entre arquivados e não arquivados.</p>
-<p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram pré-selecionados como sugestões. Confira os grupos antes de salvar; nenhuma nova coleta começa automaticamente.</p>
-</div>
 <div class="group-selection-toolbar">
+<p id="tg-selection-summary" class="telegram-selection-counter" role="status" aria-live="polite">0 grupos selecionados</p>
+<p id="tg-selection-feedback" class="telegram-selection-feedback" role="alert" hidden></p>
 <label for="tg-search">Buscar em todos os grupos do Telegram</label>
 <input type="search" id="tg-search" placeholder="Ex.: LibreCode (inclui arquivados)" autocomplete="off" minlength="2" maxlength="80" aria-describedby="tg-search-status">
 <p id="tg-search-status" class="muted" role="status" aria-live="polite">Digite pelo menos 2 caracteres para pesquisar em todas as páginas.</p>
@@ -99,6 +92,15 @@
 <span id="tg-page-status" class="muted" role="status" aria-live="polite"></span>
 </div>
 <p class="muted">Na navegação, mais conversas são carregadas conforme você avança. A busca consulta as demais páginas automaticamente, incluindo arquivadas; o progresso e eventuais limites aparecem acima.</p>
+<div id="tg-selected-area" class="telegram-selected-area" hidden>
+<div class="telegram-selected-heading">
+<strong>Selecionados para análise: <span id="tg-selected-count">0</span></strong>
+<button type="button" id="tg-clear-selected" class="secondary">Desmarcar todos</button>
+</div>
+<div id="tg-selected-list" class="telegram-selected-list" role="group" aria-label="Grupos selecionados"></div>
+<p class="muted">A seleção fica nesta área mesmo ao alternar entre pastas e buscas. Desmarque na lista ou use Remover aqui.</p>
+<p id="tg-suggestion-note" class="muted" hidden>LibreCode e LibreSign foram sugeridos. Revise a seleção; nenhuma coleta começa automaticamente.</p>
+</div>
 <p id="tg-group-count" class="muted">Nenhum grupo selecionado.</p>
 <button id="tg-save-groups" type="submit" disabled>Salvar seleção de grupos</button>
 <p id="tg-groups-status" role="status" aria-live="polite" class="muted"></p>
