@@ -13,6 +13,7 @@ import { promisify } from 'util';
 import { ProcessResult } from './ProcessResult.js';
 import state from './state.js';
 import { configureSigning } from './nativeEventSignature.js';
+import { loadOrCreateLocalAppKey } from './localAppKey.js';
 
 // TODO: maybe in dev, don't go to the userData folder and stay in the Laravel app folder
 const storagePath = join(app.getPath('userData'), 'storage');
@@ -300,6 +301,7 @@ function getPath(name: string) {
 interface EnvironmentVariables {
     APP_ENV: string;
     APP_DEBUG: string;
+    APP_KEY?: string;
     LARAVEL_STORAGE_PATH: string;
     NATIVEPHP_STORAGE_PATH: string;
     NATIVEPHP_DATABASE_PATH: string;
@@ -353,6 +355,12 @@ function getDefaultEnvironmentVariables(secret?: string, apiPort?: number): Envi
             : join(process.env.APP_PATH, 'extras'),
     };
 
+    // NativePHP's packaged Laravel app must never reuse a build-time APP_KEY.
+    // Create the key on first launch, then reuse it across upgrades and restarts.
+    if (app.isPackaged) {
+        variables.APP_KEY = loadOrCreateLocalAppKey(app.getPath('userData'));
+    }
+
     // Only if the server has already started
     if (secret && apiPort) {
         variables.NATIVEPHP_API_URL = `http://127.0.0.1:${apiPort}/api/`;
@@ -362,7 +370,7 @@ function getDefaultEnvironmentVariables(secret?: string, apiPort?: number): Envi
     // Tell PHP to enforce native-event signatures, but only once we have a key
     // to sign them with. Without a key we leave this off and the endpoint keeps
     // accepting events as before, rather than rejecting everything.
-    if (configureSigning(getAppPath())) {
+    if (configureSigning(getAppPath(), variables.APP_KEY)) {
         variables.NATIVEPHP_EVENTS_SIGNED = '1';
     }
 

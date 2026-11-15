@@ -1,10 +1,10 @@
 {
     "name": "automatic-kimai",
-    "version": "0.4.0-alpha",
+    "version": "0.4.0-alpha.1",
     "description": "Local-first Kimai work-activity review",
     "main": "./out/main/index.js",
-    "author": null,
-    "homepage": "https://nativephp.com",
+    "author": "LibreCode coop",
+    "homepage": "https://github.com/LibreCodeCoop/automatic-kimai",
     "type": "module",
     "engines": {
         "node": ">=22.0.0"

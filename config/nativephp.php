@@ -8,7 +8,7 @@ return [
      * It is used to determine if the app needs to be updated.
      * Increment this value every time you release a new version of your app.
      */
-    'version' => env('NATIVEPHP_APP_VERSION', '0.4.0-alpha'),
+    'version' => env('NATIVEPHP_APP_VERSION', '0.4.0-alpha.1'),
 
     /**
      * The ID of your application. This should be a unique identifier
@@ -31,7 +31,7 @@ return [
     /**
      * The author of your application.
      */
-    'author' => env('NATIVEPHP_APP_AUTHOR'),
+    'author' => env('NATIVEPHP_APP_AUTHOR', 'LibreCode coop'),
 
     /**
      * The copyright notice for your application.
@@ -46,7 +46,7 @@ return [
     /**
      * The Website of your application.
      */
-    'website' => env('NATIVEPHP_APP_WEBSITE', 'https://nativephp.com'),
+    'website' => env('NATIVEPHP_APP_WEBSITE', 'https://github.com/LibreCodeCoop/automatic-kimai'),
 
     /**
      * The repository information used by electron-builder when publishing.
@@ -54,7 +54,7 @@ return [
      */
     'repository' => [
         'type' => env('NATIVEPHP_REPOSITORY_TYPE', 'git'),
-        'url' => env('NATIVEPHP_REPOSITORY_URL'),
+        'url' => env('NATIVEPHP_REPOSITORY_URL', 'https://github.com/LibreCodeCoop/automatic-kimai'),
     ],
 
     /**
@@ -79,6 +79,7 @@ return [
         'OPENAI_*',
         'ANTHROPIC_*',
         'DB_PASSWORD',
+        'REDIS_PASSWORD',
         'MAIL_PASSWORD',
         'MAIL_USERNAME',
         'AWS_*',
@@ -154,19 +155,19 @@ return [
          * Supported: "github", "s3", "spaces"
          * Note: The "s3" provider is compatible with S3-compatible services like Cloudflare R2.
          */
-        'default' => env('NATIVEPHP_UPDATER_PROVIDER', 'spaces'),
+        'default' => env('NATIVEPHP_UPDATER_PROVIDER', 'github'),
 
         'providers' => [
             'github' => [
                 'driver' => 'github',
-                'repo' => env('GITHUB_REPO'),
-                'owner' => env('GITHUB_OWNER'),
+                'repo' => env('GITHUB_REPO', 'automatic-kimai'),
+                'owner' => env('GITHUB_OWNER', 'LibreCodeCoop'),
                 'token' => env('GITHUB_TOKEN'),
                 'vPrefixedTagName' => env('GITHUB_V_PREFIXED_TAG_NAME', true),
                 'private' => env('GITHUB_PRIVATE', false),
                 'autoupdate_token' => env('GITHUB_AUTOUPDATE_TOKEN'), // Read-only token used by the updater for private repos
                 'channel' => env('GITHUB_CHANNEL', 'latest'),
-                'releaseType' => env('GITHUB_RELEASE_TYPE', 'draft'),
+                'releaseType' => env('GITHUB_RELEASE_TYPE', 'release'),
             ],
 
             's3' => [
@@ -213,7 +214,9 @@ return [
      * Define your own scripts to run before and after the build process.
      */
     'prebuild' => [
-        // 'npm run build',
+        // NativePHP's upstream prebuild runner logs failures but may continue.
+        // CI also runs this command directly with a checked exit code.
+        'php artisan automatic-kimai:package-preflight',
     ],
 
     'postbuild' => [

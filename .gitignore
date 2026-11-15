@@ -46,6 +46,7 @@ trial_monitor.sqlite3
 .phpactor.json
 /build/
 /dist/
+/release-output/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
