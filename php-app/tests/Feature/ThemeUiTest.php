@@ -11,16 +11,31 @@ use Tests\TestCase;
  */
 final class ThemeUiTest extends TestCase
 {
-    public function test_user_can_choose_system_light_or_dark_without_server_secrets(): void
+    public function test_user_can_toggle_theme_without_server_secrets(): void
     {
         $this->get('http://localhost/')->assertOk()
-            ->assertSee('id="theme-select"',false)
-            ->assertSee('<option value="system">Sistema</option>',false)
-            ->assertSee('<option value="light">Claro</option>',false)
-            ->assertSee('<option value="dark">Escuro</option>',false)
+            ->assertSee('id="theme-switch"',false)
+            ->assertSee('Alternar tema')
+            ->assertDontSee('id="theme-select"',false)
             ->assertSee('automatic-kimai:theme')
             ->assertSee('css/automatic-kimai.css')
-            ->assertSee('id="telegram-setup"',false);
+            ->assertSee('Revisar horas');
+    }
+
+    public function test_icon_theme_switch_follows_system_until_manual_override(): void
+    {
+        $view=file_get_contents(resource_path('views/automatic-kimai/dashboard.blade.php'));
+        self::assertIsString($view);
+        foreach ([
+            "button.addEventListener('click'",
+            "window.matchMedia('(prefers-color-scheme: dark)')",
+            "document.documentElement.dataset.theme = next",
+            "localStorage.setItem(key, next)",
+            "system.addEventListener('change',paint)",
+            "button.dataset.icon = icon",
+        ] as $code) {
+            self::assertStringContainsString($code,$view);
+        }
     }
 
     private static function variables(string $stylesheet,string $selector): array
@@ -87,6 +102,8 @@ final class ThemeUiTest extends TestCase
             '.notice.error','button:disabled','input::placeholder',
             'select option','details[open]',':focus-visible',
             'color-scheme: dark','--line-strong',
+            '.theme-switch','.theme-switch:focus-visible','.app-nav',
+            '.nav-link.is-current','width: 44px;',
         ] as $rule) {
             self::assertStringContainsString($rule,$stylesheet);
         }

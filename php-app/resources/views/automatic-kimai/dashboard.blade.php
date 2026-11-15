@@ -15,33 +15,63 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=3">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=5">
 </head>
 <body>
 <header>
 <div class="header-inner">
 <div><h1>Automatic Kimai</h1><p>Horas sob controle, com privacidade e confirmação humana.</p></div>
-<div class="theme-control">
-<label for="theme-select">Aparência</label>
-<select id="theme-select" aria-label="Aparência do aplicativo">
-<option value="system">Sistema</option>
-<option value="light">Claro</option>
-<option value="dark">Escuro</option>
-</select>
-</div>
+<nav class="app-nav" aria-label="Menu principal">
+<a href="{{ route('kimai.home', ['view'=>'overview']) }}" class="nav-link @if($view==='overview') is-current @endif" @if($view==='overview') aria-current="page" @endif>Início</a>
+<a href="{{ route('kimai.home', ['view'=>'review']) }}" class="nav-link @if($view==='review') is-current @endif" @if($view==='review') aria-current="page" @endif>Revisar horas</a>
+<a href="{{ route('kimai.home', ['view'=>'settings']) }}" class="nav-link @if($view==='settings') is-current @endif" @if($view==='settings') aria-current="page" @endif>Configurações</a>
+<a href="{{ route('kimai.home', ['view'=>'integrations']) }}" class="nav-link @if($view==='integrations') is-current @endif" @if($view==='integrations') aria-current="page" @endif>Integrações</a>
+</nav>
+<button type="button" id="theme-switch" class="theme-switch" aria-label="Alternar entre tema claro e escuro" title="Alternar tema" aria-pressed="false">
+<svg class="theme-icon moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg>
+<svg class="theme-icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+</button>
 </div>
 </header>
 <main>
 @if (session('ok'))<div class="notice" role="status">{{session('ok')}}</div>@endif
 @if ($errors->any())<div class="notice error" role="alert"><strong>Não foi possível concluir a operação.</strong>
 <ul>@foreach($errors->all() as $message)<li>{{$message}}</li>@endforeach</ul></div>@endif
+<div class="page-intro"><div>
+<p class="eyebrow">Automatic Kimai</p>
+<h2>
+@if($view==='overview')
+Visão geral
+@elseif($view==='review')
+Revisar minhas horas
+@elseif($view==='settings')
+Configurações
+@else
+Integrações
+@endif
+</h2>
+<p class="muted">
+@if($view==='overview')
+Acompanhe a análise do seu tempo e identifique o que precisa de atenção.
+@elseif($view==='review')
+Confira lacunas e informe atividades que ocorreram longe do computador.
+@elseif($view==='settings')
+Ajuste sua conta e escolha quais fontes podem ser usadas.
+@else
+Conecte serviços opcionais de forma privada.
+@endif
+</p>
+</div>
+@if(!$profile)<a class="button" href="{{ route('kimai.home',['view'=>'settings']) }}">Configurar minha conta</a>@endif
+</div>
+@if($view==='overview')
 <div class="notice">
 <strong>Versão PHP de avaliação — somente leitura.</strong>
 O lançamento automático e o registro manual no Kimai permanecem bloqueados durante a migração.
 O piloto Python continua ativo para impedir perda ou duplicação de horas.
 </div>
 <section>
-<h2>Estado do monitoramento</h2>
+<h2>Resumo do trabalho</h2>
 <div class="grid">
 <div><div class="muted">Situação</div><div class="metrics" style="font-size:20px">{{ $status['result'] ?? 'never_ran' }}</div></div>
 <div><div class="muted">Lacunas observadas</div><div class="metrics">{{ $status['coverage_gap_count'] ?? 0 }}</div></div>
@@ -51,109 +81,22 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <p class="muted">Última análise: {{ $status['at_local'] ?? 'ainda não executada' }}. Horários de agenda e navegador não comprovam trabalho humano.</p>
 @if ($profile)
 <form method="post" action="{{route('kimai.analyze')}}">@csrf
-<button type="submit">Atualizar análise em PHP (somente leitura)</button>
-<button class="secondary" name="capture_only" value="1" type="submit">Coletar somente ActivityWatch</button>
+<button type="submit">Atualizar análise</button>
+<button class="secondary" name="capture_only" value="1" type="submit">Atualizar dados do computador</button>
 </form>
 @endif
 </section>
+<section class="next-action">
+<h2>O que deseja fazer?</h2>
+<div class="action-links">
+<a href="{{ route('kimai.home',['view'=>'review']) }}">Revisar intervalos e lacunas <span aria-hidden="true">›</span></a>
+<a href="{{ route('kimai.home',['view'=>'settings']) }}">Configurar minha conta <span aria-hidden="true">›</span></a>
+<a href="{{ route('kimai.home',['view'=>'integrations']) }}">Conectar outros serviços <span aria-hidden="true">›</span></a>
+</div>
+</section>
+@elseif($view==='review')
 <section>
-<h2>1. Conectar sua conta Kimai</h2>
-<form method="post" action="{{route('kimai.setup')}}">@csrf
-<div class="grid">
-<div><label>Identificação local</label><input name="profile_id" value="{{old('profile_id',$profile?->get('profile_id') ?? 'user')}}" required></div>
-<div><label>Endereço HTTPS do Kimai</label><input id="kimai-url" name="kimai_url" placeholder="https://kimai.exemplo.org" value="{{old('kimai_url',$creds['KIMAI_BASE_URL'] ?? '')}}" required></div>
-<div><label>Token pessoal de API</label><input id="kimai-token" type="password" name="kimai_token" autocomplete="off" placeholder="{{empty($creds['KIMAI_API_TOKEN'])?'Informe um token individual':'Deixe vazio para manter o existente'}}"></div>
-<div><label>Fuso horário (igual ao Kimai)</label><input name="timezone" value="{{old('timezone',$profile?->get('timezone') ?? date_default_timezone_get())}}" required></div>
-<div><label>Cliente (ID)</label><input id="customer-id" type="number" min="1" name="customer_id" value="{{old('customer_id',$profile?->get('customer_id') ?? '')}}" required></div>
-<div><label>Projeto (ID)</label><input id="project-id" type="number" min="1" name="project_id" value="{{old('project_id',$profile?->get('project_id') ?? '')}}" required></div>
-<div><label>Atividade (ID)</label><input id="activity-id" type="number" min="1" name="activity_id" value="{{old('activity_id',$profile?->get('activity_id') ?? '')}}" required></div>
-<div><label>Domínios profissionais explicitamente autorizados (separados por vírgula)</label><input name="work_domains" value="{{old('work_domains',implode(', ',$profile?->get('work_domains') ?? []))}}" placeholder="projetos.exemplo.org"></div>
-</div>
-<div class="notice">
-<button type="button" id="catalog-load" class="secondary">1. Listar clientes, projetos e atividades pelo nome</button>
-<p id="catalog-message" class="muted" role="status">Digite o endereço e o token do Kimai para procurar suas opções.</p>
-<div class="grid">
-<div><label>Cliente</label><select id="catalog-customers"><option>Carregue o catálogo primeiro</option></select></div>
-<div><label>Projeto</label><select id="catalog-projects"><option>Carregue o catálogo primeiro</option></select></div>
-<div><label>Atividade</label><select id="catalog-activities"><option>Carregue o catálogo primeiro</option></select></div>
-</div>
-</div>
-<button type="submit">2. Testar conexão e salvar perfil em modo revisão</button>
-</form>
-<p class="warn">Não use o token de outra pessoa. A conexão valida os IDs informados e o fuso horário. O token não aparece nas telas nem é enviado a terceiros.</p>
-</section>
-<section><h2>2. Fontes de informação</h2>
-<form method="post" action="{{route('kimai.sources')}}">@csrf
-@foreach($sources as $name=>$enabled)
-@if ($name==='telegram') @continue @endif
-<div class="source"><input type="checkbox" name="source_{{$name}}" value="1" id="source-{{$name}}" @checked($enabled) @disabled($name==='activitywatch')><label for="source-{{$name}}">{{[
-'activitywatch'=>'ActivityWatch — aplicativos e inatividade (local)',
-'github'=>'GitHub — metadados de eventos',
-'nextcloud_talk'=>'Nextcloud Talk — ações próprias',
-'nextcloud_calendar'=>'Nextcloud Calendar — compromissos previstos',
-'telegram'=>'Telegram — ainda indisponível na versão PHP',
-'chatgpt_browser'=>'ChatGPT — categoria da aba, não histórico privado',
-'claude_browser'=>'Claude — categoria da aba, não histórico privado'
-][$name]??$name}}</label></div>
-@endforeach
-<button type="submit">Salvar consentimentos</button>
-</form>
-<p class="muted">Ative somente as fontes que deseja utilizar. Se ativar calendário ou Talk, informe as credenciais Nextcloud na seção seguinte. Uma atividade agendada não comprova participação.</p>
-</section>
-<section><h2>2.1. Credenciais das integrações opcionais</h2>
-<p class="muted">Todas as credenciais são armazenadas localmente, criptografadas e nunca incluídas nos relatórios. Deixe a senha vazia para manter a anterior.</p>
-<form method="post" action="{{route('kimai.connectors')}}">@csrf
-<div class="grid">
-<div><label>Servidor Nextcloud (HTTPS)</label><input name="nextcloud_url" value="{{ $creds['NEXTCLOUD_URL']??'' }}" placeholder="https://nuvem.exemplo.org"></div>
-<div><label>Usuário Nextcloud</label><input name="nextcloud_user" value="{{ $creds['NEXTCLOUD_USERNAME']??'' }}"></div>
-<div><label>Senha de aplicativo Nextcloud</label><input name="nextcloud_password" type="password" autocomplete="off" placeholder="Deixe em branco para manter"></div>
-<div><label>Token pessoal GitHub</label><input name="github_token" type="password" autocomplete="off" placeholder="Deixe em branco para manter"></div>
-</div>
-<button type="submit">Salvar conexões opcionais</button>
-</form>
-</section>
-<section id="telegram-setup" aria-labelledby="telegram-heading">
-<h2 id="telegram-heading">2.2. Telegram — autenticação MTProto</h2>
-<p class="muted">A conexão usa MadelineProto no próprio computador. Apenas as conversas profissionais que você indicar poderão ser analisadas. Mensagens particulares não serão consultadas e nenhuma mensagem será enviada.</p>
-<form method="post" action="{{route('kimai.telegram.configure')}}">@csrf
-<div class="grid">
-<div><label for="tg-api-id">ID da API do Telegram</label><input id="tg-api-id" name="telegram_api_id" inputmode="numeric" pattern="[0-9]{4,13}" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_ID']) ? 'Já configurado; deixe vazio para manter' : 'Obtido em my.telegram.org' }}"></div>
-<div><label for="tg-api-hash">Hash da API do Telegram</label><input id="tg-api-hash" name="telegram_api_hash" type="password" maxlength="32" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_HASH']) ? 'Já configurado; deixe vazio para manter' : 'Hash de 32 caracteres' }}"></div>
-<div><label for="tg-labels">Conversas profissionais autorizadas</label><input id="tg-labels" name="telegram_labels" maxlength="3000" value="{{ old('telegram_labels',implode(', ', $profile?->get('work_messenger_labels') ?? [])) }}" placeholder="Nome do grupo A, Nome do grupo B" required></div>
-</div>
-<p class="muted">A instalação Python anterior já possui credenciais da API; não é necessário copiá-las novamente se os campos acima mostrarem que estão configurados. Os nomes servem apenas para delimitar o que pode ser consultado.</p>
-<button type="submit" class="secondary">Salvar configuração e conversas permitidas</button>
-</form>
-<div class="notice" style="margin-top:16px">
-<p id="tg-status" role="status" aria-live="polite">Consultando o estado de autenticação...</p>
-<div id="tg-controls">
-<button type="button" id="tg-start">Gerar QR Code para entrar no Telegram</button>
-<button type="button" id="tg-refresh" class="secondary">Verificar autenticação</button>
-</div>
-<div id="tg-qr-area" style="display:none">
-<p><strong>1.</strong> Abra o Telegram no celular. Em <strong>Configurações → Dispositivos → Conectar dispositivo</strong>, escaneie o código abaixo.</p>
-<img id="tg-qr-img" width="320" height="320" alt="QR Code temporário para autenticar esta instalação">
-<p id="tg-qr-expiry" class="muted"></p>
-</div>
-<form id="tg-2fa-form" style="display:none" autocomplete="off">
-<p><strong>2.</strong> O Telegram solicitou a senha de verificação em duas etapas da sua conta.</p>
-<label for="tg-2fa-password">Senha de duas etapas</label>
-<input id="tg-2fa-password" type="password" maxlength="1024" autocomplete="off">
-<button type="submit">Concluir autenticação</button>
-<p class="muted">A senha é utilizada somente na comunicação local com o Telegram, não fica gravada no aplicativo e não deve ser compartilhada neste chat.</p>
-</form>
-<div id="tg-authorized-area" style="display:none">
-<p>Conta Telegram autenticada neste computador. Habilite a leitura apenas das conversas profissionais informadas acima.</p>
-<button type="button" id="tg-activate">Ativar coleta Telegram em modo de revisão</button>
-</div>
-</div>
-<form method="post" action="{{route('kimai.telegram.disable')}}">@csrf
-<button type="submit" class="secondary">Desativar coleta Telegram (preservar login)</button>
-</form>
-<p class="warn">A autenticação do Telegram não ativa publicação de horas. A versão PHP continua somente leitura até a substituição segura do piloto Python.</p>
-</section>
-<section>
-<h2>3. Revisar intervalos e lacunas</h2>
+<h2>Intervalos que precisam de revisão</h2>
 @forelse(($report['days'] ?? []) as $day)
 <details @if($loop->last) open @endif>
 <summary><strong>{{ $day['day'] }}</strong> — {{count($day['sessions']??[])}} sugestões;
@@ -179,7 +122,7 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <p class="muted">Não há relatório. Salve um perfil válido e execute uma análise. O aplicativo não cria horas a partir da ausência de dados.</p>
 @endforelse
 </section>
-<section><h2>4. Prévia de trabalho presencial (sem lançamento)</h2>
+<section><h2>Trabalho presencial</h2>
 <p>Informe a participação real e as pausas. O aplicativo mostra os intervalos descontados antes de qualquer integração com o Kimai.</p>
 <form method="post" action="{{route('kimai.attendance-preview')}}">@csrf
 <div class="grid">
@@ -194,7 +137,7 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <button type="submit" class="secondary">Conferir períodos (não grava no Kimai)</button>
 </form>
 </section>
-<section><h2>5. Declaração manual de horas</h2>
+<section><h2>Informar horas manualmente</h2>
 <p class="warn">O formulário está preparado, mas a publicação no Kimai está bloqueada até a troca controlada do runtime. Seus horários no Python continuam sendo registrados pela instalação anterior.</p>
 <form method="post" action="{{route('kimai.manual')}}">@csrf
 <div class="grid">
@@ -207,26 +150,149 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <button type="submit" disabled title="Disponível somente após migração segura de ledger e serviços">Registrar (aguardando homologação)</button>
 </form>
 </section>
+@elseif($view==='settings')
+<section>
+<h2>Conectar ao Kimai</h2>
+<form method="post" action="{{route('kimai.setup')}}">@csrf
+<p class="muted">Conecte sua conta e escolha onde suas horas serão organizadas. São três passos; você não precisa descobrir códigos de cliente ou projeto.</p>
+<div class="setup-fields">
+<div><label for="kimai-url">Endereço do Kimai</label><input id="kimai-url" name="kimai_url" type="url" placeholder="https://kimai.exemplo.org" value="{{old('kimai_url',$creds['KIMAI_BASE_URL'] ?? '')}}" required></div>
+<div><label for="kimai-token">Chave de acesso pessoal</label><input id="kimai-token" type="password" name="kimai_token" autocomplete="off" placeholder="{{empty($creds['KIMAI_API_TOKEN'])?'Cole aqui o token da sua conta':'Já conectada; deixe vazio para manter'}}"></div>
+</div>
+<details class="advanced-settings">
+<summary>Opções avançadas de identificação e fuso horário</summary>
+<div class="grid">
+<div><label for="profile-id">Identificação local</label><input id="profile-id" name="profile_id" value="{{old('profile_id',$profile?->get('profile_id') ?? 'user')}}" required></div>
+<div><label for="timezone">Fuso horário da conta</label><input id="timezone" name="timezone" value="{{old('timezone',$profile?->get('timezone') ?? date_default_timezone_get())}}" required></div>
+<div><label for="work-domains">Sites profissionais autorizados</label><input id="work-domains" name="work_domains" value="{{old('work_domains',implode(', ',$profile?->get('work_domains') ?? []))}}" placeholder="projetos.exemplo.org"></div>
+</div>
+</details>
+<input type="hidden" id="customer-id" name="customer_id" value="{{old('customer_id',$profile?->get('customer_id') ?? '')}}">
+<input type="hidden" id="project-id" name="project_id" value="{{old('project_id',$profile?->get('project_id') ?? '')}}">
+<input type="hidden" id="activity-id" name="activity_id" value="{{old('activity_id',$profile?->get('activity_id') ?? '')}}">
+<div class="catalog-step">
+<button type="button" id="catalog-load" class="secondary">Buscar meus projetos</button>
+<p id="catalog-message" class="muted" role="status">Informe o endereço e a chave acima. Depois selecione onde registrar suas horas.</p>
+<div class="grid">
+<div><label for="catalog-customers">Cliente</label><select id="catalog-customers"><option>Carregue o catálogo primeiro</option></select></div>
+<div><label for="catalog-projects">Projeto</label><select id="catalog-projects"><option>Carregue o catálogo primeiro</option></select></div>
+<div><label for="catalog-activities">Tipo de atividade</label><select id="catalog-activities"><option>Carregue o catálogo primeiro</option></select></div>
+</div>
+</div>
+<button type="submit">Salvar conexão</button>
+</form>
+<p class="warn">Use apenas a chave de acesso da sua própria conta. Os dados são guardados localmente.</p>
+</section>
+<section><h2>Fontes de informação</h2>
+<form method="post" action="{{route('kimai.sources')}}">@csrf
+@foreach($sources as $name=>$enabled)
+@if ($name==='telegram') @continue @endif
+<div class="source"><input type="checkbox" name="source_{{$name}}" value="1" id="source-{{$name}}" @checked($enabled) @disabled($name==='activitywatch')><label for="source-{{$name}}">{{[
+'activitywatch'=>'ActivityWatch — aplicativos e inatividade (local)',
+'github'=>'GitHub — metadados de eventos',
+'nextcloud_talk'=>'Nextcloud Talk — ações próprias',
+'nextcloud_calendar'=>'Nextcloud Calendar — compromissos previstos',
+'telegram'=>'Telegram — ainda indisponível na versão PHP',
+'chatgpt_browser'=>'ChatGPT — categoria da aba, não histórico privado',
+'claude_browser'=>'Claude — categoria da aba, não histórico privado'
+][$name]??$name}}</label></div>
+@endforeach
+<button type="submit">Salvar consentimentos</button>
+</form>
+<p class="muted">Escolha somente as fontes que deseja usar. Conecte as contas na aba Integrações. Compromissos de agenda não comprovam trabalho.</p>
+</section>
+@elseif($view==='integrations')
+<section><h2>Nextcloud e GitHub</h2>
+<p class="muted">Todas as credenciais são armazenadas localmente, criptografadas e nunca incluídas nos relatórios. Deixe a senha vazia para manter a anterior.</p>
+<form method="post" action="{{route('kimai.connectors')}}">@csrf
+<div class="grid">
+<div><label>Servidor Nextcloud (HTTPS)</label><input name="nextcloud_url" value="{{ $creds['NEXTCLOUD_URL']??'' }}" placeholder="https://nuvem.exemplo.org"></div>
+<div><label>Usuário Nextcloud</label><input name="nextcloud_user" value="{{ $creds['NEXTCLOUD_USERNAME']??'' }}"></div>
+<div><label>Senha de aplicativo Nextcloud</label><input name="nextcloud_password" type="password" autocomplete="off" placeholder="Deixe em branco para manter"></div>
+<div><label>Token pessoal GitHub</label><input name="github_token" type="password" autocomplete="off" placeholder="Deixe em branco para manter"></div>
+</div>
+<button type="submit">Salvar conexões opcionais</button>
+</form>
+</section>
+<section id="telegram-setup" aria-labelledby="telegram-heading">
+<h2 id="telegram-heading">Telegram</h2>
+<p class="muted">Conecte seu Telegram pelo celular, escolhendo antes quais conversas de trabalho podem ser consultadas. Nenhuma mensagem será enviada.</p>
+<form method="post" action="{{route('kimai.telegram.configure')}}">@csrf
+<p class="muted">Se o aplicativo já tiver credenciais de conexão configuradas, basta indicar as conversas e seguir para o QR Code.</p>
+<details class="advanced-settings" @if(empty($creds['TELEGRAM_API_ID']) || empty($creds['TELEGRAM_API_HASH'])) open @endif>
+<summary>Credenciais de conexão do Telegram (necessárias uma vez por instalação)</summary>
+<p>O Telegram exige uma identificação de aplicativo para criar o QR Code. Você pode gerar a sua em <a href="https://my.telegram.org/apps" target="_blank" rel="noopener noreferrer">my.telegram.org/apps</a>. Não é sua senha nem seu número de telefone.</p>
+<div class="grid">
+<div><label for="tg-api-id">ID da API do Telegram</label><input id="tg-api-id" name="telegram_api_id" inputmode="numeric" pattern="[0-9]{4,13}" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_ID']) ? 'Já configurado; deixe vazio para manter' : 'Obtido em my.telegram.org' }}"></div>
+<div><label for="tg-api-hash">Hash da API do Telegram</label><input id="tg-api-hash" name="telegram_api_hash" type="password" maxlength="32" autocomplete="off" placeholder="{{ !empty($creds['TELEGRAM_API_HASH']) ? 'Já configurado; deixe vazio para manter' : 'Hash de 32 caracteres' }}"></div>
+</div>
+</details>
+<div class="setup-fields">
+<div><label for="tg-labels">Conversas profissionais autorizadas</label><input id="tg-labels" name="telegram_labels" maxlength="3000" value="{{ old('telegram_labels',implode(', ', $profile?->get('work_messenger_labels') ?? [])) }}" placeholder="Nome do grupo A, Nome do grupo B" required></div>
+</div>
+<p class="muted">Informe os nomes dos grupos de trabalho separados por vírgula. Sem autorização explícita, essas conversas não serão coletadas.</p>
+<button type="submit" class="secondary">Salvar configuração e conversas permitidas</button>
+</form>
+<div class="notice" style="margin-top:16px">
+<p id="tg-status" role="status" aria-live="polite">Consultando o estado de autenticação...</p>
+<div id="tg-controls">
+<button type="button" id="tg-start">Conectar pelo QR Code</button>
+<button type="button" id="tg-refresh" class="secondary">Verificar autenticação</button>
+</div>
+<div id="tg-qr-area" style="display:none">
+<p><strong>1.</strong> Abra o Telegram no celular. Em <strong>Configurações → Dispositivos → Conectar dispositivo</strong>, escaneie o código abaixo.</p>
+<img id="tg-qr-img" width="320" height="320" alt="QR Code temporário para autenticar esta instalação">
+<p id="tg-qr-expiry" class="muted"></p>
+</div>
+<form id="tg-2fa-form" style="display:none" autocomplete="off">
+<p><strong>2.</strong> O Telegram solicitou a senha de verificação em duas etapas da sua conta.</p>
+<label for="tg-2fa-password">Senha de duas etapas</label>
+<input id="tg-2fa-password" type="password" maxlength="1024" autocomplete="off">
+<button type="submit">Concluir autenticação</button>
+<p class="muted">A senha é utilizada somente na comunicação local com o Telegram, não fica gravada no aplicativo e não deve ser compartilhada neste chat.</p>
+</form>
+<div id="tg-authorized-area" style="display:none">
+<p>Conta Telegram autenticada neste computador. Habilite a leitura apenas das conversas profissionais informadas acima.</p>
+<button type="button" id="tg-activate">Ativar conversas autorizadas</button>
+</div>
+</div>
+<form method="post" action="{{route('kimai.telegram.disable')}}">@csrf
+<button type="submit" class="secondary">Desativar coleta Telegram (preservar login)</button>
+</form>
+<p class="warn">A autenticação do Telegram não ativa publicação de horas. A versão PHP continua somente leitura até a substituição segura do piloto Python.</p>
+</section>
+@endif
 <footer class="muted" style="margin:30px 0">Automatic Kimai · aplicativo local e privado · relatórios não aprovam remuneração nem faturamento.</footer>
 </main>
 <script>
 (() => {
-  const selector = document.getElementById('theme-select');
-  if (!selector) return;
-  try {
-    const saved = localStorage.getItem('automatic-kimai:theme');
-    selector.value = saved === 'light' || saved === 'dark' ? saved : 'system';
-  } catch (_error) { selector.value = 'system'; }
-  selector.addEventListener('change', () => {
-    const theme = selector.value;
-    if (theme === 'light' || theme === 'dark') {
-      document.documentElement.dataset.theme = theme;
-      try { localStorage.setItem('automatic-kimai:theme', theme); } catch (_error) {}
-    } else {
-      delete document.documentElement.dataset.theme;
-      try { localStorage.removeItem('automatic-kimai:theme'); } catch (_error) {}
-    }
+  const button = document.getElementById('theme-switch');
+  if (!button) return;
+  const system = window.matchMedia('(prefers-color-scheme: dark)');
+  const key = 'automatic-kimai:theme';
+  const preference = () => {
+    try { return localStorage.getItem(key); }
+    catch (_error) { return null; }
+  };
+  const paint = () => {
+    const stored = preference();
+    const dark = stored === 'dark' || (stored !== 'light' && system.matches);
+    const icon = dark ? 'sun' : 'moon';
+    button.dataset.icon = icon;
+    button.setAttribute('aria-label', dark ? 'Ativar tema claro' : 'Ativar tema escuro');
+    button.setAttribute('title', dark ? 'Ativar tema claro' : 'Ativar tema escuro');
+    button.setAttribute('aria-pressed', stored === 'light' || stored === 'dark' ? 'true' : 'false');
+  };
+  button.addEventListener('click', () => {
+    const dark = document.documentElement.dataset.theme === 'dark' ||
+      (!document.documentElement.dataset.theme && system.matches);
+    const next = dark ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem(key, next); } catch (_error) {}
+    paint();
   });
+  if (system.addEventListener) system.addEventListener('change',paint);
+  paint();
 })();
 (() => {
   const button = document.getElementById('catalog-load');
@@ -267,7 +333,7 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
   });
   button.addEventListener('click', async () => {
     const message = $('catalog-message');
-    message.textContent = 'Consultando sua instância Kimai...';
+    message.textContent = 'Procurando seus projetos no Kimai...';
     button.disabled = true;
     try {
       const response = await fetch(@json(route('kimai.catalog-preview')), {
@@ -296,7 +362,7 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
         const timeField = document.querySelector('input[name="timezone"]');
         timeField.value = answer.timezone;
       }
-      message.textContent = 'Catálogo carregado. Escolha cliente, projeto e atividade pelo nome.';
+      message.textContent = 'Projetos encontrados. Escolha cliente, projeto e tipo de atividade abaixo.';
     } catch (error) {
       message.textContent = error.message;
     } finally {

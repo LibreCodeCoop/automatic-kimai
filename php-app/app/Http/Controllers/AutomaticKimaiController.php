@@ -33,7 +33,10 @@ final class AutomaticKimaiController extends Controller
     public function home(Request $request): View
     {
         $this->local($request);
+        $view=(string)$request->query('view','overview');
+        if (!in_array($view,['overview','review','settings','integrations'],true))$view='overview';
         return view('automatic-kimai.dashboard',[
+            'view'=>$view,
             'profile'=>$this->store->profile(),
             'creds'=>$this->store->credentials(),
             'sources'=>$this->store->sources(),
