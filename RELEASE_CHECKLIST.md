@@ -20,12 +20,8 @@ A passing PHP unit suite does not prove operational cutover or billing safety.
   containing any forbidden customer-specific domain/name and rerun the scan.
 - [ ] Confirm no credential, session, encrypted secret, private SQLite,
   personal browsing record or other runtime state exists in Git or builds.
-- [ ] Review **all historical commits, old PR refs, author metadata,
-  artifacts and forks**; if needed, create a separate clean root history
-  before switching repository visibility. A source-code PR does NOT purge
-  the existing GitHub history. See docs/PUBLICATION_SECURITY.md.
-- [ ] Run Gitleaks on all reachable refs and verify the signed clean
-  public tree. Keep any scan reports/private search terms off GitHub.
+- [ ] Verify past commits, PR references, CI logs and artifacts for
+  sensitive information before making this repository public.
 - [ ] Obtain an independent code review and working CI; do not waive
   a failing/missing check because a GitHub Actions billing limit blocks it.
 - [ ] Avoid hardcoded organizations, customers, instance URLs and paths.

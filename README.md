@@ -106,12 +106,7 @@ arquivos privados ou termos definidos pelo desenvolvedor em
 O projeto propõe licença GPL-3.0-or-later, sujeita à verificação da
 titularidade e dos avisos de dependências antes da primeira release.
 Consulte [CONTRIBUTING.md](CONTRIBUTING.md), [PRIVACY.md](PRIVACY.md),
-[SECURITY.md](SECURITY.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md)
-e [docs/PUBLICATION_SECURITY.md](docs/PUBLICATION_SECURITY.md), incluindo
-o procedimento independente para criar um histórico público limpo.
-**Não torne o repositório atual público antes de revisar e substituir o
-histórico Git**: um PR não elimina commits anteriores, referências de PR
-ou caches do GitHub.
+[SECURITY.md](SECURITY.md) e [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
 
 ## Condições para desligar uma instalação Python anterior
 
