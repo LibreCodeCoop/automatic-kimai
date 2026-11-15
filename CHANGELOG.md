@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.0-alpha.2 — Release signing configuration (November 2026)
+
+- Fixed an empty-certificate release-only failure in the macOS builder:
+  unsigned previews no longer interpret an empty certificate URL as a file.
+- Added CI coverage for missing signing credentials and preserved normal
+  certificate-based signing when secrets are configured.
+
+
 ## 0.4.0-alpha.1 — Desktop packaging (November 2026)
 
 - NativePHP installer pipelines for Linux AppImage, Windows NSIS and macOS

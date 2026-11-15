@@ -47,7 +47,7 @@ jobs:
     env:
       CI: 'true'
       NODE_ENV: 'development'
-      NATIVEPHP_APP_VERSION: '0.4.0-alpha.1'
+      NATIVEPHP_APP_VERSION: '0.4.0-alpha.2'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # No signing credentials are available to untrusted pull requests.
       CSC_LINK: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
@@ -110,9 +110,23 @@ jobs:
           done
           iconutil -c icns public/icon.iconset -o public/icon.icns
           rm -rf public/icon.iconset
+      - name: Validate unsigned and signed release configuration
+        shell: bash
+        working-directory: nativephp/electron
+        run: node --test build/release-signing.test.mjs
       - name: Compile platform-native installer
         shell: bash
-        run: php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
+        run: |
+          # Do not present absent secrets as empty file paths to electron-builder.
+          for variable in CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
+            if [[ -z "${!variable:-}" ]]; then unset "$variable"; fi
+          done
+          # Exercise release-style macOS signing resolution in pull requests,
+          # not Electron Builder's automatic pull-request signing bypass.
+          if [[ "${{ matrix.target }}" == mac && "${{ github.event_name }}" == pull_request ]]; then
+            export CSC_FOR_PULL_REQUEST=true
+          fi
+          php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
       - name: Validate embedded PHP, Laravel and installer structure
         shell: bash
         run: node scripts/check-desktop-package.mjs ${{ matrix.target }} ${{ matrix.arch }}

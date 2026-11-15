@@ -7,6 +7,16 @@ const appUrl = process.env.APP_URL;
 const appId = process.env.NATIVEPHP_APP_ID;
 const appName = process.env.NATIVEPHP_APP_NAME;
 const isBuilding = process.env.NATIVEPHP_BUILDING;
+
+// GitHub Actions represents unset signing secrets as empty environment
+// variables. On non-PR/tag builds electron-builder interprets CSC_LINK=""
+// as a path to the current project directory, then fails "not a file".
+// Treat empty values as truly absent, never as a certificate or a password.
+const macCertificateConfigured = Boolean(process.env.CSC_LINK?.trim());
+for (const name of ['CSC_LINK', 'CSC_KEY_PASSWORD', 'WIN_CSC_LINK', 'WIN_CSC_KEY_PASSWORD']) {
+    if (!process.env[name]?.trim()) delete process.env[name];
+}
+
 const appAuthor = process.env.NATIVEPHP_APP_AUTHOR;
 const repositoryType = process.env.NATIVEPHP_REPOSITORY_TYPE || 'git';
 const repositoryUrl = process.env.NATIVEPHP_REPOSITORY_URL;
@@ -149,6 +159,11 @@ export default {
         schemes: [deepLinkProtocol],
     },
     mac: {
+        // An explicitly unsigned preview must not accidentally enter the
+        // tag/release signing path. A real supplied certificate restores
+        // normal signing and notarization behavior.
+        identity: macCertificateConfigured ? undefined : null,
+        hardenedRuntime: macCertificateConfigured,
         entitlementsInherit: 'build/entitlements.mac.plist',
         artifactName: appName + '-${version}-${arch}.${ext}',
         extendInfo: {
