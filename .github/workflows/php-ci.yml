@@ -64,6 +64,8 @@ jobs:
           cache-dependency-path: php-app/nativephp/electron/package-lock.json
       - name: Install JavaScript build tooling (no app runtime)
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile NativePHP Electron plugin (required for #plugin import)
+        run: npm run plugin:build
       - name: Bundle Electron bridge
         env:
           APP_PATH: ${{ github.workspace }}/php-app
