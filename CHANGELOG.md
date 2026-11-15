@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0-alpha.1 — Desktop packaging (November 2026)
+
+- NativePHP installer pipelines for Linux AppImage, Windows NSIS and macOS
+  Intel/Apple Silicon DMG, with embedded PHP and release checksums.
+- A separate, persistent encryption key per OS user profile; no install-wide
+  encryption key or source credentials inside downloadable packages.
+- Product-focused download and integration information in the README.
+- Prepared public GitHub release distribution. Unsigned packages and update
+  behavior require validation before promotion to a stable signed release.
+
+
 ## [0.3.0a1] — source-release candidate (2026-11)
 
 - Separated the portable ActivityWatch implementation from the earlier local pilot importer.

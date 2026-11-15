@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { join } from 'path';
+import { existsSync, statSync } from 'fs';
 import { assertNoBundledCredentials } from './build/privacy-guard.mjs';
 
 const appUrl = process.env.APP_URL;
@@ -115,6 +116,12 @@ export default {
                 }
             });
         });
+        const binary = join(process.env.NATIVEPHP_BUILD_PATH, 'php',
+            targetOs === 'win' ? 'php.exe' : 'php');
+        if (!existsSync(binary) || !statSync(binary).isFile() ||
+            statSync(binary).size < 5_000_000) {
+            throw new Error('Packaging refused: the embedded PHP runtime is missing');
+        }
     },
     afterSign: 'build/notarize.js',
     win: {
@@ -156,12 +163,12 @@ export default {
         artifactName: appName + '-${version}-${arch}.${ext}',
     },
     linux: {
-        target: ['AppImage', 'deb'],
+        target: ['AppImage'],
         maintainer: appUrl,
         category: 'Utility',
     },
     appImage: {
-        artifactName: appName + '-${version}.${ext}',
+        artifactName: appName + '-${version}-${arch}.${ext}',
     },
     npmRebuild: false,
     extraMetadata: {
@@ -178,12 +185,10 @@ export default {
             filter: ['**/*', '!{.git}'],
         },
     ],
-    extraFiles: [
-        {
-            from: join(process.env.APP_PATH, 'extras'),
-            to: 'extras',
-            filter: ['**/*'],
-        },
-    ],
+    // Optional extras are omitted rather than causing a failed distribution
+    // when an application does not ship supplemental resources.
+    extraFiles: process.env.APP_PATH && existsSync(join(process.env.APP_PATH, 'extras'))
+        ? [{ from: join(process.env.APP_PATH, 'extras'), to: 'extras', filter: ['**/*'] }]
+        : [],
     ...(updaterEnabled ? { publish: updaterConfig } : {}),
 };

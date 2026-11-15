@@ -37,7 +37,8 @@ export default async (context) => {
             tool: 'notarytool',
         });
     } catch (error) {
-        console.error(error);
+        // Never publish a package that merely *appears* notarized.
+        throw new Error('Apple notarization failed', { cause: error });
     }
 
     console.log(`done notarizing ${appId}.`);

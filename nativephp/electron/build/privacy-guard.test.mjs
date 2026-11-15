@@ -48,7 +48,7 @@ test('cached Laravel config and external package auth cannot ship', () => {
 test('application key or API credentials cannot enter bundle env', () => {
     for (const key of ['APP_KEY', 'TELEGRAM_API_ID', 'TELEGRAM_API_HASH',
         'KIMAI_API_TOKEN', 'NEXTCLOUD_APP_PASSWORD', 'GITHUB_TOKEN',
-        'AWS_SECRET_ACCESS_KEY', 'MAIL_PASSWORD']) {
+        'AWS_SECRET_ACCESS_KEY', 'MAIL_PASSWORD', 'REDIS_PASSWORD']) {
         withFixture((root, app) => {
             writeFileSync(join(app, '.env'), key + '=fixture-credential-not-real\n');
             assert.throws(() => assertNoBundledCredentials(root), new RegExp(key));

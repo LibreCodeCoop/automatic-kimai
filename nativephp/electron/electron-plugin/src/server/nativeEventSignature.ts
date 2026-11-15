@@ -32,9 +32,9 @@ let signingKey: Buffer | null = null;
  * is available (an exotic build, or APP_KEY missing) signing stays off and the
  * app keeps working unsigned, exactly as before this change.
  */
-export function configureSigning(appPath: string): boolean {
+export function configureSigning(appPath: string, localAppKey?: string): boolean {
     if (!loaded) {
-        signingKey = loadRawAppKey(appPath);
+        signingKey = loadRawAppKey(appPath, localAppKey);
         loaded = true;
     }
 
@@ -78,13 +78,13 @@ export function signEventBody(body: string): SignedHeaders | null {
  * `base64:...`, otherwise the literal bytes. Mirrors Laravel's own handling so
  * the two sides derive the same key.
  */
-function loadRawAppKey(appPath: string): Buffer | null {
-    let appKey: string | undefined = process.env.APP_KEY;
+function loadRawAppKey(appPath: string, localAppKey?: string): Buffer | null {
+    let appKey: string | undefined = localAppKey || process.env.APP_KEY;
 
     try {
         const envPath = join(appPath, '.env');
 
-        if (existsSync(envPath)) {
+        if (!appKey && existsSync(envPath)) {
             const match = readFileSync(envPath, 'utf8').match(/^\s*APP_KEY\s*=\s*(.*)\s*$/m);
 
             if (match) {
@@ -103,5 +103,5 @@ function loadRawAppKey(appPath: string): Buffer | null {
         ? Buffer.from(appKey.slice('base64:'.length), 'base64')
         : Buffer.from(appKey, 'utf8');
 
-    return key.length > 0 ? key : null;
+    return key.length === 32 ? key : null;
 }
