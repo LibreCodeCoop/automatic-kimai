@@ -43,6 +43,16 @@ Depois, abra **Automatic Kimai** pelo menu de aplicativos ou pelo ícone da áre
 
 **Não confundir com uma release instalável:** este é um inicializador Electron para o backend local PHP já instalado. Um instalador independente NativePHP/Electron, com PHP embutido e chaves individuais, ainda exige a auditoria de empacotamento. Não distribuir como release a outros cooperados.
 
+## Aparência: modo claro e escuro
+
+No canto superior direito da janela Electron ou da interface web local, use **Aparência**:
+
+- **Sistema**: segue automaticamente o tema atual do KDE/sistema operacional;
+- **Claro**: fixa a paleta clara;
+- **Escuro**: fixa a paleta escura com contrastes consistentes em campos, botões, avisos e tabelas.
+
+Sua escolha fica salva apenas no armazenamento local da interface (`localStorage`, chave `automatic-kimai:theme`) e é restaurada ao abrir novamente o aplicativo. A preferência de cor não altera credenciais, fontes autorizadas, períodos de trabalho nem os timers. A página CSS está em `public/css/automatic-kimai.css`, com tokens para as duas paletas; testes em `tests/Feature/ThemeUiTest.php` verificam contraste WCAG AA. A interface foi conferida com Chrome em modo headless, em ambos os temas, sem acessar dados privados.
+
 ## Configurar Telegram pelo navegador (ambiente de avaliação)
 
 1. Abra **http://127.0.0.1:6817/#telegram-setup** **no mesmo computador** onde o aplicativo está rodando.

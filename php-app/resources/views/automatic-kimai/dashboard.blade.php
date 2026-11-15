@@ -5,29 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <meta name="color-scheme" content="light dark"/>
 <title>Automatic Kimai — Revisão local de horas</title>
-<style>
-:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:light;--bg:#f3f5f8;--fg:#24314a;--card:#fff;--muted:#627187;--line:#d7dfeb;--blue:#2451a6}
-*{box-sizing:border-box}body{background:var(--bg);color:var(--fg);margin:0}
-header{padding:24px 5vw;background:#173b6e;color:#fff}header h1{font-size:25px;margin:0 0 6px}
-header p{margin:0;color:#c7defd}main{max-width:1200px;margin:24px auto;padding:0 18px}
-section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin:15px 0;box-shadow:0 2px 8px #20334e0a}
-h2{margin:0 0 14px;font-size:20px}h3{font-size:16px}.muted,small{color:var(--muted)}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:14px}
-label{display:block;font-weight:600;font-size:13px;margin:7px 0 4px}
-input,select,textarea{width:100%;border:1px solid #aabbcd;border-radius:7px;padding:10px;background:#fff;color:#20334e;font:inherit}
-input[type=checkbox]{width:16px;height:16px;vertical-align:middle}
-.button,button{background:var(--blue);border:0;color:#fff;padding:11px 15px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;margin-top:10px}
-.button.secondary,button.secondary{background:#e7eefb;color:#274b85}
-.notice{padding:12px 16px;border-radius:9px;background:#e7eefb;margin:10px 0}.notice.error{background:#fee7e7;color:#84272b}
-.warn{font-size:12px;color:#85510b;border-left:3px solid #e4ad45;padding-left:10px}
-table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:9px;border-bottom:1px solid var(--line);text-align:left}
-.tablewrap{overflow-x:auto}.metrics{font-size:30px;font-weight:700}.source{display:flex;align-items:center;gap:12px;padding:8px;border-bottom:1px solid var(--line)}
-.source label{display:inline;font-weight:500;margin:0}code{font-size:12px}details{margin:6px 0}
-@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111823;--fg:#ebf0f7;--card:#1a2636;--muted:#afbdd0;--line:#3a4d64;--blue:#436ac8}input,select,textarea{background:#182536;color:#eee;border-color:#5f7288}.button.secondary,button.secondary{background:#23395a;color:#dae6ff}}
-</style>
+<meta name="theme-color" content="#17365e"/>
+<script>
+/* Set an explicit preference before painting to avoid a light-theme flash. */
+try {
+  const theme = localStorage.getItem('automatic-kimai:theme');
+  if (theme === 'light' || theme === 'dark') {
+    document.documentElement.dataset.theme = theme;
+  }
+} catch (_error) { /* Browser storage is optional. */ }
+</script>
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=3">
 </head>
 <body>
-<header><h1>Automatic Kimai</h1><p>Horas sob controle, com privacidade e confirmação humana.</p></header>
+<header>
+<div class="header-inner">
+<div><h1>Automatic Kimai</h1><p>Horas sob controle, com privacidade e confirmação humana.</p></div>
+<div class="theme-control">
+<label for="theme-select">Aparência</label>
+<select id="theme-select" aria-label="Aparência do aplicativo">
+<option value="system">Sistema</option>
+<option value="light">Claro</option>
+<option value="dark">Escuro</option>
+</select>
+</div>
+</div>
+</header>
 <main>
 @if (session('ok'))<div class="notice" role="status">{{session('ok')}}</div>@endif
 @if ($errors->any())<div class="notice error" role="alert"><strong>Não foi possível concluir a operação.</strong>
@@ -129,7 +132,7 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 </div>
 <div id="tg-qr-area" style="display:none">
 <p><strong>1.</strong> Abra o Telegram no celular. Em <strong>Configurações → Dispositivos → Conectar dispositivo</strong>, escaneie o código abaixo.</p>
-<img id="tg-qr-img" width="320" height="320" style="max-width:100%;background:white;border-radius:8px;padding:10px" alt="QR Code temporário para autenticar esta instalação">
+<img id="tg-qr-img" width="320" height="320" alt="QR Code temporário para autenticar esta instalação">
 <p id="tg-qr-expiry" class="muted"></p>
 </div>
 <form id="tg-2fa-form" style="display:none" autocomplete="off">
@@ -207,6 +210,24 @@ O piloto Python continua ativo para impedir perda ou duplicação de horas.
 <footer class="muted" style="margin:30px 0">Automatic Kimai · aplicativo local e privado · relatórios não aprovam remuneração nem faturamento.</footer>
 </main>
 <script>
+(() => {
+  const selector = document.getElementById('theme-select');
+  if (!selector) return;
+  try {
+    const saved = localStorage.getItem('automatic-kimai:theme');
+    selector.value = saved === 'light' || saved === 'dark' ? saved : 'system';
+  } catch (_error) { selector.value = 'system'; }
+  selector.addEventListener('change', () => {
+    const theme = selector.value;
+    if (theme === 'light' || theme === 'dark') {
+      document.documentElement.dataset.theme = theme;
+      try { localStorage.setItem('automatic-kimai:theme', theme); } catch (_error) {}
+    } else {
+      delete document.documentElement.dataset.theme;
+      try { localStorage.removeItem('automatic-kimai:theme'); } catch (_error) {}
+    }
+  });
+})();
 (() => {
   const button = document.getElementById('catalog-load');
   if (!button) return;
