@@ -2,19 +2,24 @@
 <summary>Como seus registros estão sendo protegidos durante a migração</summary>
 <p>O sincronizador Python continua ativo para registrar o tempo trabalhado. Esta interface PHP permite analisar e revisar dados, mas ainda não publica novos apontamentos. Essa separação evita duplicidade enquanto a equivalência entre os programas é validada.</p>
 </details>
-@if(($sources['nextcloud_calendar'] || $sources['nextcloud_talk']) &&
+@if(($sources['nextcloud_calendar'] || $sources['nextcloud_talk'] ||
+    $sources['nextcloud_activity'] || $sources['nextcloud_mail']) &&
     (empty($creds['NEXTCLOUD_URL']) || empty($creds['NEXTCLOUD_APP_PASSWORD'])))
 <div class="notice">
-<strong>Nextcloud ainda não conectado.</strong> Para incluir compromissos da agenda ou ações no Talk,
+<strong>Nextcloud ainda não conectado.</strong> Para consultar as fontes Nextcloud selecionadas,
 <a href="{{route('kimai.home',['view'=>'nextcloud'])}}">conecte sua conta pelo navegador</a>.
 As outras fontes continuam sendo analisadas normalmente.
 </div>
 @endif
 @if(($sources['nextcloud_calendar'] && ($report['sources']['nextcloud_calendar']['status']??null)==='unavailable') ||
-    ($sources['nextcloud_talk'] && ($report['sources']['nextcloud_talk']['status']??null)==='unavailable'))
+    ($sources['nextcloud_talk'] && ($report['sources']['nextcloud_talk']['status']??null)==='unavailable') ||
+    ($sources['nextcloud_activity'] && ($report['sources']['nextcloud_activity']['status']??null)==='unavailable') ||
+    ($sources['nextcloud_mail'] && in_array(
+        $report['sources']['nextcloud_mail']['status']??null,
+        ['unavailable','partial','not_configured'],true)))
 <div class="notice">
 <strong>Não foi possível consultar todas as fontes do Nextcloud.</strong>
-O monitoramento continua funcionando, mas Agenda ou Talk podem estar incompletos.
+O monitoramento continua funcionando, mas uma das fontes selecionadas pode estar incompleta.
 <a href="{{route('kimai.home',['view'=>'nextcloud'])}}">Verificar conexão Nextcloud</a>.
 </div>
 @endif

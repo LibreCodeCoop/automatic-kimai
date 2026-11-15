@@ -32,6 +32,14 @@
 <input type="checkbox" name="source_nextcloud_talk" id="source-nextcloud_talk" value="1" @checked($sources['nextcloud_talk'])>
 <div><label for="source-nextcloud_talk">Talk</label><p>Metadados de ações próprias, sem conteúdo de mensagens.</p></div>
 </div>
+<div class="source-option">
+<input type="checkbox" name="source_nextcloud_activity" id="source-nextcloud_activity" value="1" @checked($sources['nextcloud_activity'])>
+<div><label for="source-nextcloud_activity">Activity</label><p>Atividades da própria conta Nextcloud; sem caminhos e nomes de arquivos.</p></div>
+</div>
+<div class="source-option">
+<input type="checkbox" name="source_nextcloud_mail" id="source-nextcloud_mail" value="1" @checked($sources['nextcloud_mail'])>
+<div><label for="source-nextcloud_mail">Mail</label><p>Horários de e-mails enviados no app Mail; sem persistir conteúdo ou destinatários.</p></div>
+</div>
 @if($connectionVisibility['nextcloud'])
 <p class="source-connection">@include('automatic-kimai.components.icon',['name'=>'link-2'])
 <a href="{{route('kimai.home',['view'=>'nextcloud'])}}">{{ !empty($creds['NEXTCLOUD_APP_PASSWORD']) ? 'Ver conexão Nextcloud' : 'Conectar Nextcloud' }}</a></p>

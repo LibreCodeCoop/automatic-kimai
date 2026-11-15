@@ -487,6 +487,36 @@ a.button:hover { background:var(--primary-hover); }
 .source-option .source-connection,.source-connection { display:flex; align-items:center; gap:8px; margin:9px 0 0; font-size:13px; }
 .source-state { display:flex; justify-content:space-between; gap:12px; padding:12px 0; border-bottom:1px solid var(--line); }
 .source-state strong { color:var(--secondary-fg); }
+/* Account identity and per-app switches on the dedicated Nextcloud page. */
+.nextcloud-account-card { display:grid; gap:18px; }
+.nextcloud-account-header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+.nextcloud-avatar-wrap { position:relative; width:68px; height:68px; flex:0 0 68px; }
+.nextcloud-avatar,.nextcloud-avatar-fallback {
+  width:68px; height:68px; border-radius:50%; object-fit:cover;
+  border:2px solid var(--line); background:var(--secondary-bg); color:var(--secondary-fg);
+}
+.nextcloud-avatar-fallback { display:grid; place-items:center; font-size:29px; font-weight:750; }
+.nextcloud-account-identity { flex:1 1 175px; min-width:0; overflow-wrap:anywhere; }
+.nextcloud-account-identity h2 { margin:3px 0; }
+.nextcloud-account-identity p { margin:4px 0; }
+.nextcloud-account-status { display:flex; align-items:center; gap:6px; color:var(--secondary-fg); font-size:13px; font-weight:750; }
+.nextcloud-account-status .icon { width:19px; height:19px; }
+.nextcloud-account-actions { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.nc-source-switch-row { display:flex; align-items:center; justify-content:space-between; gap:18px; border-bottom:1px solid var(--line); padding:16px 0; }
+.nc-source-switch-row:last-of-type { border-bottom:0; }
+.nc-source-copy { min-width:0; }
+.nc-source-copy label { font-size:15px; margin:0; }
+.nc-source-copy p { font-size:13px; color:var(--muted); margin:5px 0 0; }
+.nc-switch { position:relative; flex:0 0 54px; width:54px; height:30px; margin:0; cursor:pointer; }
+.nc-switch input { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:inherit; margin:0; z-index:1; }
+.nc-switch-track { display:block; width:54px; height:30px; border-radius:18px; background:var(--line-strong); transition:background .15s ease; }
+.nc-switch-track::after { content:''; position:absolute; top:4px; left:4px; width:22px; height:22px; background:var(--header-fg); border-radius:50%; box-shadow:0 1px 3px #0004; transition:transform .15s ease; }
+.nc-switch input:checked + .nc-switch-track { background:var(--secondary-fg); }
+.nc-switch input:checked + .nc-switch-track::after { transform:translateX(24px); }
+.nc-switch input:focus-visible + .nc-switch-track { outline:3px solid var(--focus); outline-offset:3px; }
+.nc-switch input:disabled + .nc-switch-track { opacity:.55; cursor:wait; }
+@media (max-width:450px) { .nextcloud-account-status { width:100%; } }
+
 .secondary-link { display:inline-flex; gap:8px; align-items:center; margin-top:18px; font-weight:650; }
 @media (max-width:450px) {
   .source-category { padding:12px; }

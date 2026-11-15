@@ -77,7 +77,7 @@ Documentação oficial consultada:
 ## Hierarquia da interface e visibilidade por fonte (15/11/2026)
 
 - Menu recolhível com três níveis de indentação: Trabalho; Fontes de dados → Conexões habilitadas → serviços; Preferências. No desktop fica compacto com ícones e títulos acessíveis, com preferência local persistida; no celular abre/fecha por botão único.
-- A seleção de Fontes de dados determina a exibição das conexões. **Nextcloud** só se Agenda/Talk ativo, **GitHub** só se ativo, **Telegram** só com pedido explícito de configuração ou scanner autorizado. URLs de configuração desabilitadas retornam à tela de fontes; endpoints de autenticação Nextcloud e Telegram bloqueiam chamadas quando a fonte não está selecionada.
+- A seleção de Fontes de dados determina a exibição das conexões. **Nextcloud** se Agenda, Talk, Activity ou Mail estiver ativo, ou enquanto existir uma conta vinculada, **GitHub** só se ativo, **Telegram** só com pedido explícito de configuração ou scanner autorizado. URLs de configuração desabilitadas retornam à tela de fontes; endpoints de autenticação Nextcloud e Telegram bloqueiam chamadas quando a fonte não está selecionada.
 - O flag telegram_setup separa **desejo de configurar** do estado operacional telegram (leitura autenticada após QR/2FA). Desabilitar telegram_setup cancela coleta e oculta sua conexão; as sessões antigas permanecem guardadas localmente. Perfis legados com Telegram ativo continuam encontrando a configuração.
 - O botão Conectar só aparece depois que o usuário salva uma fonte selecionada. Credenciais individuais permanecem criptografadas, mas não são reutilizadas por fontes desabilitadas, nem revogadas sem ação do usuário.
 - Substituídos os símbolos de marca, conexão, setas e tema desenhados manualmente por 17 ícones **Lucide Static 1.72.0** em SVG local, com licença ISC. Nenhuma dependência de rede ou fonte proprietária.
@@ -283,3 +283,45 @@ sem abrir janelas ou assumir controle de mouse/teclado.
 - Testes Node simulam a verificação e o abridor do SO (incluindo URLs
   não autorizadas, erro de rede e múltiplos cliques), sem mexer no mouse
   ou abrir abas reais do usuário.
+
+## Conta Nextcloud e coletores Activity/Mail (15/11/2026)
+
+- A tela da conexão mostra a conta e o servidor vinculados. O nome visível
+  vem da API OCS do **próprio usuário autenticado**, com validação de UID, e
+  o avatar é obtido por proxy local restrito a PNG/JPEG/WebP para impedir
+  que o Electron carregue páginas ou SVG de uma origem externa. Sem rede,
+  permanece o nome de login e a inicial do usuário como alternativa.
+- **Entrar com outra conta** apenas revela o fluxo de autorização.
+  **Desconectar deste computador** exige confirmação e elimina as credenciais
+  Nextcloud criptografadas e a autorização pendente no armazenamento local,
+  preservando Kimai, GitHub, Telegram e as preferências das fontes.
+  Isso **não revoga automaticamente** a senha de aplicativo no servidor:
+  o usuário deve invalidá-la em Nextcloud → Segurança → Dispositivos e sessões.
+- Agenda, Talk, Activity e Mail possuem **switches independentes** na
+  própria página Nextcloud, salvos por requisição local autenticada com CSRF.
+  Cada switch altera somente sua fonte; não muda preferências de outro serviço.
+  Activity e Mail ficam **desativados por padrão** até consentimento explícito.
+- Activity lê o endpoint OCS v2 documentado com filtro `actor` do usuário
+  autenticado, interpreta `datetime` (o campo atual da resposta OCS)
+  em páginas limitadas de até 100 eventos (máximo 5 páginas), preservando
+  apenas horários e tipos de evento. Não grava assunto, caminho ou nome
+  de arquivo. Metadados do Activity podem incluir operações automáticas
+  (sincronização de arquivos); não equivalem a trabalho humano comprovado.
+- Mail consulta **somente leitura** as rotas internas do aplicativo Mail
+  para identificar pastas Enviados das contas **não delegadas** e suas
+  mensagens recentes. Persistem apenas timestamps de envio, nunca assunto,
+  corpo, prévia, remetentes ou destinatários. Limite de 10 contas e
+  100 mensagens por pasta; resultados incompletos ou ausência de conta são
+  sinalizados e não são convertidos em horas automaticamente.
+- As rotas do Mail são internas ao aplicativo, sem contrato público estável
+  comparável ao OCS Activity. Compatibilidade e retorno de dados em
+  Nextcloud/Mail reais permanecem pendentes de teste explícito com consentimento.
+  Falhas produzem status indisponível/parcial, sem reutilizar contexto antigo.
+- Os eventos das novas fontes são **âncoras fracas para revisão**, nunca
+  certificados de duração ou permissão para POST/PATCH no Kimai. O PHP continua
+  em shadow read-only e o Python original permanece ativo.
+- Testes automatizados exercitam isolamento por fonte, datas, permissão da
+  própria conta, privacidade, falhas de rede e a desconexão local. A interface
+  foi verificada em Chromium headless em quatro larguras; o perfil e o avatar
+  da conta já vinculada responderam HTTP 200 no servidor autorizado, mas as
+  novas coletas Activity/Mail não foram executadas contra dados reais.

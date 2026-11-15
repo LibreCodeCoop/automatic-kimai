@@ -103,12 +103,109 @@ final class NextcloudLoginTest extends TestCase
             ->assertSee('Conta Nextcloud conectada')
             ->assertSee('member@example.com')
             ->assertSee('https://cloud.example.com')
-            ->assertSee('Trocar conta Nextcloud')
+            ->assertSee('Entrar com outra conta')
             ->assertSee('id="nc-reconnect"',false)
             ->assertDontSee('private-test-app-password');
         $this->get('http://localhost/?view=integrations')->assertOk()
             ->assertSee('Conectada: member@example.com')
             ->assertDontSee('private-test-app-password');
+    }
+
+    public function test_nextcloud_switches_save_individually_and_preserve_unrelated_sources(): void
+    {
+        $this->local->setSources(['github'=>true,'nextcloud_talk'=>true]);
+        foreach (['nextcloud_activity','nextcloud_mail'] as $key) {
+            $this->postJson('http://localhost/nextcloud/source',[
+                'source'=>$key,'enabled'=>true,
+            ])->assertOk()->assertJsonPath('sources.'.$key,true);
+        }
+        self::assertTrue($this->local->sources()['github']);
+        self::assertTrue($this->local->sources()['nextcloud_calendar']);
+        self::assertTrue($this->local->sources()['nextcloud_talk']);
+        $this->postJson('http://localhost/nextcloud/source',[
+            'source'=>'nextcloud_talk','enabled'=>false,
+        ])->assertOk()->assertJsonPath('sources.nextcloud_talk',false)
+            ->assertJsonPath('sources.nextcloud_activity',true)
+            ->assertJsonPath('sources.nextcloud_mail',true);
+        self::assertTrue($this->local->sources()['github']);
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Coletar dados do Activity')
+            ->assertSee('Coletar dados do Mail')
+            ->assertSee('role="switch"',false)
+            ->assertDontSee('Alterar fontes de dados');
+    }
+
+    public function test_source_switch_rejects_invalid_choices_and_remote_hosts(): void
+    {
+        $this->postJson('http://localhost/nextcloud/source',[
+            'source'=>'telegram','enabled'=>true,
+        ])->assertUnprocessable();
+        $this->postJson('http://localhost/nextcloud/source',[
+            'source'=>'nextcloud_activity','enabled'=>'not-a-boolean',
+        ])->assertUnprocessable();
+        $this->postJson('http://public.example/nextcloud/source',[
+            'source'=>'nextcloud_mail','enabled'=>true,
+        ])->assertForbidden();
+        self::assertFalse($this->local->sources()['nextcloud_mail']);
+        self::assertFalse($this->local->sources()['nextcloud_activity']);
+    }
+
+    public function test_disconnect_removes_only_local_nextcloud_credentials_and_pending_login(): void
+    {
+        $this->local->setSources(['nextcloud_activity'=>true,'nextcloud_mail'=>true,'github'=>true]);
+        $this->local->saveCredentials([
+            'NEXTCLOUD_URL'=>'https://cloud.example.com',
+            'NEXTCLOUD_USERNAME'=>'worker',
+            'NEXTCLOUD_LOGIN_NAME'=>'worker@example.com',
+            'NEXTCLOUD_APP_PASSWORD'=>'private-test-password',
+            'GITHUB_TOKEN'=>'github-test-not-real',
+            'KIMAI_API_TOKEN'=>'kimai-test-not-real',
+        ]);
+        $this->local->write('nextcloud-login.json',['login_url'=>'https://example.com/pending']);
+        $this->postJson('http://localhost/nextcloud/disconnect')->assertOk()
+            ->assertJsonPath('status','disconnected')
+            ->assertDontSee('private-test-password');
+        $credentials=$this->local->credentials();
+        self::assertArrayNotHasKey('NEXTCLOUD_URL',$credentials);
+        self::assertArrayNotHasKey('NEXTCLOUD_APP_PASSWORD',$credentials);
+        self::assertArrayNotHasKey('NEXTCLOUD_LOGIN_NAME',$credentials);
+        self::assertSame('github-test-not-real',$credentials['GITHUB_TOKEN']);
+        self::assertSame('kimai-test-not-real',$credentials['KIMAI_API_TOKEN']);
+        self::assertTrue($this->local->sources()['nextcloud_mail']);
+        self::assertTrue($this->local->sources()['nextcloud_activity']);
+        self::assertSame([],$this->local->read('nextcloud-login.json'));
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Conectar pelo navegador')->assertDontSee('id="nc-connected"',false);
+    }
+
+    public function test_missing_account_profile_and_avatar_fail_without_network_or_secrets(): void
+    {
+        $this->get('http://localhost/nextcloud/profile')->assertStatus(503)
+            ->assertDontSee('password');
+        $this->get('http://localhost/nextcloud/avatar')->assertNotFound();
+        $this->get('http://public.example/nextcloud/avatar')->assertForbidden();
+    }
+
+    public function test_existing_account_remains_manageable_with_all_nextcloud_sources_disabled(): void
+    {
+        $this->local->saveCredentials([
+            'NEXTCLOUD_URL'=>'https://cloud.example.com',
+            'NEXTCLOUD_USERNAME'=>'worker',
+            'NEXTCLOUD_APP_PASSWORD'=>'test-only-password',
+        ]);
+        $this->local->setSources([
+            'nextcloud_calendar'=>false,'nextcloud_talk'=>false,
+            'nextcloud_activity'=>false,'nextcloud_mail'=>false,
+        ]);
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Entrar com outra conta');
+        $this->get('http://localhost/nextcloud/status')->assertOk()
+            ->assertJsonPath('connected',true);
+        Http::fake(['https://cloud.example.com/index.php/login/v2'=>
+            Http::response($this->flowResponse())]);
+        $this->postJson('http://localhost/nextcloud/start',[
+            'url'=>'https://cloud.example.com',
+        ])->assertOk()->assertJsonPath('status','waiting');
     }
 
     public function test_refuses_unsafe_origins_and_cross_site_login_links(): void

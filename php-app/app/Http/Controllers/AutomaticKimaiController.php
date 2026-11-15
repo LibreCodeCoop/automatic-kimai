@@ -66,7 +66,9 @@ final class AutomaticKimaiController extends Controller
         if (!array_key_exists($view,$titles))$view='overview';
         $sources=$this->store->sources();
         $connectionVisibility=[
-            'nextcloud'=>$sources['nextcloud_calendar']||$sources['nextcloud_talk'],
+            'nextcloud'=>$sources['nextcloud_calendar']||$sources['nextcloud_talk']||
+                $sources['nextcloud_activity']||$sources['nextcloud_mail']||
+                (!empty($this->store->credentials()['NEXTCLOUD_APP_PASSWORD'])),
             'github'=>$sources['github'],
             // Requesting setup does NOT start Telegram collection. Its
             // authenticated scanner requires an independent authorization.
@@ -219,8 +221,10 @@ final class AutomaticKimaiController extends Controller
                 isset($input['nextcloud_password']);
             if ($manual) {
                 $enabled=$this->store->sources();
-                if (!$enabled['nextcloud_calendar'] && !$enabled['nextcloud_talk']) {
-                    throw new RuntimeException('Ative Agenda ou Talk em Fontes de dados antes de conectar o Nextcloud.');
+                if (!$enabled['nextcloud_calendar'] && !$enabled['nextcloud_talk'] &&
+                    !$enabled['nextcloud_activity'] && !$enabled['nextcloud_mail'] &&
+                    empty($this->store->credentials()['NEXTCLOUD_APP_PASSWORD'])) {
+                    throw new RuntimeException('Ative ao menos um aplicativo Nextcloud antes de conectar.');
                 }
                 $existing=$this->store->credentials();
                 $server=NextcloudLoginFlow::normalizeServer((string)($input['nextcloud_url']??''));

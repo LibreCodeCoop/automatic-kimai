@@ -53,8 +53,11 @@ final class SourcesNavigationTest extends TestCase
 
     public function test_nextcloud_becomes_visible_if_either_calendar_or_talk_is_enabled(): void
     {
-        foreach (['nextcloud_calendar','nextcloud_talk'] as $key) {
-            $this->store->setSources(['nextcloud_calendar'=>false,'nextcloud_talk'=>false]);
+        foreach (['nextcloud_calendar','nextcloud_talk','nextcloud_activity','nextcloud_mail'] as $key) {
+            $this->store->setSources([
+                'nextcloud_calendar'=>false,'nextcloud_talk'=>false,
+                'nextcloud_activity'=>false,'nextcloud_mail'=>false,
+            ]);
             $this->store->setSources([$key=>true]);
             $html=$this->get('http://localhost/?view=integrations')->assertOk()->getContent();
             self::assertStringContainsString($this->href('nextcloud'),$html);

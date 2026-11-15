@@ -118,6 +118,40 @@ final class SyncEngine
                 }
             }
         }
+        if ($enabled['nextcloud_activity']) {
+            if (!$nextcloudReady) {
+                $sources['nextcloud_activity']=['status'=>'needs_connection','own_actions'=>0];
+            } else {
+                try {
+                    $result=(new NextcloudActivitySource($http))->collect($profile,$creds,$now);
+                    $this->store->write('nextcloud_activity_context.json',$result);
+                    $sources['nextcloud_activity']=[
+                        'status'=>'ok','own_actions'=>count($result['own_actions']),
+                        'truncated'=>$result['truncated'],
+                    ];
+                } catch(Throwable) {
+                    $sources['nextcloud_activity']=['status'=>'unavailable','own_actions'=>0];
+                }
+            }
+        }
+        if ($enabled['nextcloud_mail']) {
+            if (!$nextcloudReady) {
+                $sources['nextcloud_mail']=['status'=>'needs_connection','sent_actions'=>0];
+            } else {
+                try {
+                    $result=(new NextcloudMailSource($http))->collect($profile,$creds,$now);
+                    $this->store->write('nextcloud_mail_context.json',$result);
+                    $sources['nextcloud_mail']=[
+                        'status'=>$result['accounts_scanned']===0 ? 'not_configured' :
+                            ($result['partial'] ? 'partial' : 'ok'),
+                        'sent_actions'=>count($result['sent_actions']),
+                        'partial'=>$result['partial'],
+                    ];
+                } catch(Throwable) {
+                    $sources['nextcloud_mail']=['status'=>'unavailable','sent_actions'=>0];
+                }
+            }
+        }
         if ($enabled['github']) {
             try {
                 $result=(new GitHubSource($http))->collect((string)($creds['GITHUB_TOKEN']??''));
@@ -152,6 +186,19 @@ final class SyncEngine
         foreach (array_slice($talk['own_actions']??[],0,20_000) as $item) {
             try {$actions[]=TimeMath::parse((string)$item['utc'],$profile->zone);}
             catch(Throwable){}
+        }
+        // Weak temporal context only: an Activity event or sent-mail timestamp
+        // can prompt review of an observed gap, never attest worked duration.
+        foreach ([
+            'nextcloud_activity'=>['nextcloud_activity_context.json','own_actions'],
+            'nextcloud_mail'=>['nextcloud_mail_context.json','sent_actions'],
+        ] as $source=>$config) {
+            if (($providerStatuses[$source]['status']??'')!=='ok')continue;
+            $context=$this->store->read($config[0]);
+            foreach (array_slice($context[$config[1]]??[],0,500) as $item) {
+                try {$actions[]=TimeMath::parse((string)$item['utc'],$profile->zone);}
+                catch(Throwable){}
+            }
         }
         $telegram=(($providerStatuses['telegram']['status']??'')==='ok')?
             $this->store->read('telegram_scoped_history.json'):[];

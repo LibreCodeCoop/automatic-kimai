@@ -125,6 +125,28 @@ final class LocalStore
         chmod($path,0600);
     }
 
+    /** Discard only this device's Nextcloud app password, preserving all other integrations. */
+    public function disconnectNextcloud(): void
+    {
+        $credentials=$this->credentials();
+        foreach (['NEXTCLOUD_URL','NEXTCLOUD_USERNAME','NEXTCLOUD_LOGIN_NAME',
+            'NEXTCLOUD_APP_PASSWORD'] as $key) {
+            unset($credentials[$key]);
+        }
+        $path=$this->path('secrets.enc');
+        $tmp=$path.'.'.bin2hex(random_bytes(6)).'.tmp';
+        $file=fopen($tmp,'x');
+        if (!$file)throw new RuntimeException('Cannot clear Nextcloud credentials');
+        chmod($tmp,0600);
+        try {
+            fwrite($file,Crypt::encryptString(json_encode($credentials,JSON_THROW_ON_ERROR)));
+            fflush($file);
+        } finally {fclose($file);}
+        if (!rename($tmp,$path))throw new RuntimeException('Cannot publish cleared credentials');
+        chmod($path,0600);
+        $this->write('nextcloud-login.json',[]);
+    }
+
     public function sources(): array
     {
         $saved=$this->read('sources.json');
@@ -132,7 +154,8 @@ final class LocalStore
         // the UI introduces its separate, non-collecting setup preference.
         return array_replace([
             'activitywatch'=>true,'github'=>false,'nextcloud_talk'=>false,
-            'nextcloud_calendar'=>false,'telegram'=>false,
+            'nextcloud_calendar'=>false,'nextcloud_activity'=>false,
+            'nextcloud_mail'=>false,'telegram'=>false,
             'telegram_setup'=>(bool)($saved['telegram']??false),
             'chatgpt_browser'=>true,'claude_browser'=>true,
         ],$saved);

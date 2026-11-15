@@ -60,6 +60,73 @@
       ? 'Navegador solicitado. Autorize o acesso ao Nextcloud e volte ao Automatic Kimai.'
       : 'Autorização pendente. Se necessário, clique em Reabrir navegador.');
   };
+  // The backend proxies only the linked account's own raster avatar and
+  // display name. Never load arbitrary Nextcloud images in Electron.
+  const avatar=$('nc-avatar');
+  if (avatar) {
+    const fallback=() => {
+      avatar.hidden=true;
+      $('nc-avatar-fallback').hidden=false;
+    };
+    avatar.addEventListener('error',fallback);
+    if (avatar.complete && !avatar.naturalWidth) fallback();
+    fetch(@json(route('kimai.nextcloud.profile')),{
+      credentials:'same-origin',cache:'no-store'
+    }).then(response => response.ok ? response.json() : null)
+      .then(profile => {
+        if (profile && typeof profile.display_name==='string') {
+          $('nc-display-name').textContent=profile.display_name;
+          $('nc-account-health').textContent='Conta verificada';
+        } else {
+          $('nc-account-health').textContent='Conta vinculada · não verificada agora';
+        }
+      }).catch(() => {
+        $('nc-account-health').textContent='Conta vinculada · não verificada agora';
+      });
+  }
+  const sourceSwitches=[...document.querySelectorAll('[data-nc-source]')];
+  const sourceStatus=$('nc-sources-status');
+  for (const control of sourceSwitches) {
+    control.addEventListener('change',async () => {
+      const enabled=control.checked;
+      for (const toggle of sourceSwitches) toggle.disabled=true;
+      $('nc-sources').setAttribute('aria-busy','true');
+      sourceStatus.textContent='Salvando preferência…';
+      try {
+        const result=await post(@json(route('kimai.nextcloud.source')),{
+          source:control.dataset.ncSource,enabled
+        });
+        if (result.status!=='ok' || result.sources[control.dataset.ncSource]!==enabled) {
+          throw new Error('Não foi possível confirmar a preferência.');
+        }
+        sourceStatus.textContent=$('nc-connected')
+          ? 'Preferência salva. A mudança será aplicada na próxima análise.'
+          : 'Preferência salva. Conecte sua conta Nextcloud para iniciar a coleta.';
+      } catch (_error) {
+        control.checked=!enabled;
+        sourceStatus.textContent='Não foi possível salvar a preferência. Tente novamente.';
+      } finally {
+        for (const toggle of sourceSwitches) toggle.disabled=false;
+        $('nc-sources').removeAttribute('aria-busy');
+      }
+    });
+  }
+  const disconnect=$('nc-disconnect');
+  if (disconnect) disconnect.addEventListener('click',async () => {
+    if (!window.confirm('Desconectar esta conta do Automatic Kimai? As fontes e outras integrações serão preservadas. A senha de aplicativo poderá ser revogada no Nextcloud.')) return;
+    disconnect.disabled=true;
+    const status=$('nc-disconnect-status');
+    status.textContent='Desconectando a conta local…';
+    try {
+      const result=await post(@json(route('kimai.nextcloud.disconnect')));
+      if (result.status!=='disconnected')throw new Error('Falha ao desconectar');
+      status.textContent=result.message;
+      window.location.reload();
+    } catch (_error) {
+      status.textContent='Não foi possível desconectar. Tente novamente.';
+      disconnect.disabled=false;
+    }
+  });
   const reconnect=$('nc-reconnect');
   if (reconnect) reconnect.addEventListener('click',() => {
     $('nc-connect-section').hidden=false;

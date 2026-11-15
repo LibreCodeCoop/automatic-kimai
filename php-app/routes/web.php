@@ -28,5 +28,9 @@ Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('ki
 
 // Local-only Nextcloud Login Flow v2. Each client gets a revocable app password.
 Route::get('/nextcloud/status',[NextcloudLoginController::class,'status'])->name('kimai.nextcloud.status');
+Route::get('/nextcloud/profile',[NextcloudLoginController::class,'profile'])->middleware('throttle:20,1')->name('kimai.nextcloud.profile');
+Route::get('/nextcloud/avatar',[NextcloudLoginController::class,'avatar'])->middleware('throttle:30,1')->name('kimai.nextcloud.avatar');
+Route::post('/nextcloud/source',[NextcloudLoginController::class,'source'])->middleware('throttle:30,1')->name('kimai.nextcloud.source');
+Route::post('/nextcloud/disconnect',[NextcloudLoginController::class,'disconnect'])->middleware('throttle:5,1')->name('kimai.nextcloud.disconnect');
 Route::post('/nextcloud/start',[NextcloudLoginController::class,'start'])->middleware('throttle:5,1')->name('kimai.nextcloud.start');
 Route::post('/nextcloud/poll',[NextcloudLoginController::class,'poll'])->middleware('throttle:25,1')->name('kimai.nextcloud.poll');
