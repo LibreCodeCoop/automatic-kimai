@@ -28,5 +28,3 @@ Route::post('/telegram/disable',[TelegramController::class,'disable'])->name('ki
 Route::get('/nextcloud/status',[NextcloudLoginController::class,'status'])->name('kimai.nextcloud.status');
 Route::post('/nextcloud/start',[NextcloudLoginController::class,'start'])->middleware('throttle:5,1')->name('kimai.nextcloud.start');
 Route::post('/nextcloud/poll',[NextcloudLoginController::class,'poll'])->middleware('throttle:25,1')->name('kimai.nextcloud.poll');
-
-Route::post('/nextcloud/sources',[AutomaticKimaiController::class,'nextcloudSources'])->name('kimai.nextcloud.sources');

@@ -18,6 +18,7 @@ final class TelegramUiTest extends TestCase
         $this->privateDir=sys_get_temp_dir().'/kimai-telegram-ui-'.bin2hex(random_bytes(8));
         $this->private=new LocalStore($this->privateDir);
         $this->app->instance(LocalStore::class,$this->private);
+        $this->private->setSources(['telegram_setup'=>true]);
     }
 
     protected function tearDown(): void
@@ -81,6 +82,14 @@ final class TelegramUiTest extends TestCase
         $this->postJson('http://localhost/telegram/activate')
             ->assertStatus(422);
         self::assertFalse($this->private->sources()['telegram']);
+    }
+
+    public function test_disabled_telegram_source_prevents_authentication_requests(): void
+    {
+        $this->private->setSources(['telegram_setup'=>false]);
+        $this->postJson('http://localhost/telegram/qr')->assertForbidden();
+        $this->postJson('http://localhost/telegram/activate')->assertForbidden();
+        $this->post('http://localhost/telegram/configure')->assertForbidden();
     }
 
     public function test_telegram_endpoints_block_nonlocal_requests(): void

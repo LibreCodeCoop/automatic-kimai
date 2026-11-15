@@ -1,6 +1,6 @@
 @if(!empty($creds['NEXTCLOUD_URL']) && !empty($creds['NEXTCLOUD_USERNAME']) && !empty($creds['NEXTCLOUD_APP_PASSWORD']))
 <section class="connection-summary">
-<div class="connected-icon" aria-hidden="true">✓</div>
+<div class="connected-icon" aria-hidden="true">@include('automatic-kimai.components.icon',['name'=>'circle-check'])</div>
 <div>
 <h2>Conta Nextcloud configurada</h2>
 <p class="muted">{{ $creds['NEXTCLOUD_USERNAME'] }} · {{ parse_url($creds['NEXTCLOUD_URL'], PHP_URL_HOST) }}. Você pode reconectar para renovar a autorização do aplicativo.</p>
@@ -26,17 +26,13 @@
 <button id="nc-check" type="button" class="secondary">Já autorizei, verificar</button>
 </div>
 </section>
-@if(!empty($creds['NEXTCLOUD_APP_PASSWORD']))
 <section>
-<h2>Quais informações posso utilizar?</h2>
-<p class="muted">Ative apenas o que fizer sentido. A agenda não comprova presença, e mensagens não comprovam uma jornada inteira.</p>
-<form method="post" action="{{ route('kimai.nextcloud.sources') }}">@csrf
-<div class="source"><input type="checkbox" id="nc-calendar" name="calendar" value="1" @checked($sources['nextcloud_calendar'])><label for="nc-calendar">Agenda — consultar horários de compromissos</label></div>
-<div class="source"><input type="checkbox" id="nc-talk" name="talk" value="1" @checked($sources['nextcloud_talk'])><label for="nc-talk">Nextcloud Talk — consultar metadados de minhas ações</label></div>
-<button type="submit">Salvar permissões</button>
-</form>
+<h2>Fontes de dados habilitadas</h2>
+<p class="muted">A configuração das fontes é feita em um único lugar. Essas opções não são alteradas ao reconectar uma conta.</p>
+<div class="source-state"><span>Agenda</span><strong>{{ $sources['nextcloud_calendar'] ? 'Habilitada' : 'Desativada' }}</strong></div>
+<div class="source-state"><span>Talk</span><strong>{{ $sources['nextcloud_talk'] ? 'Habilitado' : 'Desativado' }}</strong></div>
+<a class="secondary-link" href="{{ route('kimai.home',['view'=>'sources']) }}">@include('automatic-kimai.components.icon',['name'=>'settings-2']) Alterar fontes de dados</a>
 </section>
-@endif
 <details class="settings-collapsible">
 <summary>Configuração manual (opcional)</summary>
 <p class="muted">Use somente se o Login Flow v2 não estiver disponível no servidor. Gere uma senha de aplicativo em Nextcloud → Configurações pessoais → Segurança → Dispositivos e sessões.</p>

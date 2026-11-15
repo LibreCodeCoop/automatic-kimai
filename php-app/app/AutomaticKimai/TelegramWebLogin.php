@@ -171,7 +171,7 @@ final class TelegramWebLogin
             if ($profile===null||$profile->get('work_messenger_labels')===[]) {
                 throw new RuntimeException('Escolha as conversas profissionais autorizadas');
             }
-            $this->store->setSources(['telegram'=>true]);
+            $this->store->setSources(['telegram_setup'=>true,'telegram'=>true]);
         }
         return ['status'=>'authorized','enabled'=>$this->store->sources()['telegram']];
     }

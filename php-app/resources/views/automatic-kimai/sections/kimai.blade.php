@@ -1,6 +1,6 @@
 @if(!empty($creds['KIMAI_API_TOKEN']) && $profile)
 <section class="connection-summary">
-<div class="connected-icon" aria-hidden="true">✓</div>
+<div class="connected-icon" aria-hidden="true">@include('automatic-kimai.components.icon',['name'=>'circle-check'])</div>
 <div><h2>Kimai configurado</h2><p class="muted">Sua conta já está conectada a {{ parse_url($creds['KIMAI_BASE_URL']??'', PHP_URL_HOST) ?: 'seu servidor Kimai' }}. Você não precisa configurar novamente para usar o monitoramento.</p></div>
 </section>
 <details class="settings-collapsible">

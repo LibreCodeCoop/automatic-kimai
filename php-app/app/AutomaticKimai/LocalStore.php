@@ -127,11 +127,15 @@ final class LocalStore
 
     public function sources(): array
     {
+        $saved=$this->read('sources.json');
+        // Existing authenticated Telegram profiles remain discoverable after
+        // the UI introduces its separate, non-collecting setup preference.
         return array_replace([
             'activitywatch'=>true,'github'=>false,'nextcloud_talk'=>false,
             'nextcloud_calendar'=>false,'telegram'=>false,
+            'telegram_setup'=>(bool)($saved['telegram']??false),
             'chatgpt_browser'=>true,'claude_browser'=>true,
-        ],$this->read('sources.json'));
+        ],$saved);
     }
 
     public function setSources(array $sources): void
@@ -141,6 +145,8 @@ final class LocalStore
         foreach ($sources as $enabled)if (!is_bool($enabled))throw new RuntimeException('Source opt-in must be boolean');
         $merged=array_replace($initial,$sources);
         if (!$merged['activitywatch'])throw new RuntimeException('ActivityWatch is required for automatic classification');
+        // Hiding Telegram setup is also an explicit opt-out of collection.
+        if (!$merged['telegram_setup'])$merged['telegram']=false;
         $this->write('sources.json',$merged);
     }
 

@@ -74,6 +74,17 @@ Documentação oficial consultada:
 - **Navegador padrão no Electron:** o processo principal agora abre links externos HTTPS usando shell.openExternal e impede que navegações externas substituam a janela local; isso permite reutilizar a sessão web do navegador padrão durante Login Flow v2. APP_PATH apontando para php-app e npm run build compilou a ponte Electron; não foi homologado o instalador final.
 - **Status de migração:** o Python segue ativo para publicação legítima; o PHP permanece shadow. Não habilitar POST/PATCH, não desligar timers Python, não mesclar PR como versão final. A homologação de todas as fontes, aprovação/ledger, migração de pendências, retomada e distribuição nativa é exigida para paridade integral.
 
+## Hierarquia da interface e visibilidade por fonte (15/11/2026)
+
+- Menu recolhível com três níveis de indentação: Trabalho; Fontes de dados → Conexões habilitadas → serviços; Preferências. No desktop fica compacto com ícones e títulos acessíveis, com preferência local persistida; no celular abre/fecha por botão único.
+- A seleção de Fontes de dados determina a exibição das conexões. **Nextcloud** só se Agenda/Talk ativo, **GitHub** só se ativo, **Telegram** só com pedido explícito de configuração ou scanner autorizado. URLs de configuração desabilitadas retornam à tela de fontes; endpoints de autenticação Nextcloud e Telegram bloqueiam chamadas quando a fonte não está selecionada.
+- O flag telegram_setup separa **desejo de configurar** do estado operacional telegram (leitura autenticada após QR/2FA). Desabilitar telegram_setup cancela coleta e oculta sua conexão; as sessões antigas permanecem guardadas localmente. Perfis legados com Telegram ativo continuam encontrando a configuração.
+- O botão Conectar só aparece depois que o usuário salva uma fonte selecionada. Credenciais individuais permanecem criptografadas, mas não são reutilizadas por fontes desabilitadas, nem revogadas sem ação do usuário.
+- Substituídos os símbolos de marca, conexão, setas e tema desenhados manualmente por 20 ícones **Lucide Static 1.72.0** em SVG local, com licença ISC. Nenhuma dependência de rede ou fonte proprietária.
+- Correção adicional encontrada na verificação visual: status do monitoramento antes exibia tokens do template após Atualizado; corrigidos o estado e a data/hora para formato brasileiro (dd/mm/aaaa HH:mm). Links visitados receberam cor consistente com tema claro/escuro.
+- Testes de regressão cobrem estados de fonte isolados, ausência de conexão, proteções contra autenticação de fonte desligada, URLs diretas, legado Telegram, licenciamento dos ícones e status legível. Navegador headless verificou menu compacto, persistência, hierarquia e responsividade em quatro larguras.
+- **A edição/aprovação de registros e o publicador PHP seguem pendentes; runtime PHP permanece shadow read-only.** A melhoria de interface não elimina bloqueios de migração.
+
 ## Bloqueio de segurança para empacotamento (detectado em 14/11)
 
 Um teste local de `native:build` identificou que o NativePHP, por padrão, copia também `storage/app/private` e a chave `APP_KEY` do ambiente de desenvolvimento para o instalador. Essa cópia incluiu o perfil de avaliação e suas credenciais criptografadas. **Os instaladores de teste não foram publicados**; os arquivos compilados e o diretório de estágio foram imediatamente apagados, preservando o armazenamento local original.

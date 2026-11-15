@@ -81,12 +81,14 @@ final class OptionalNextcloudSourcesTest extends TestCase
         $response->assertSee('conecte sua conta pelo navegador');
     }
 
-    public function test_nextcloud_cannot_be_enabled_from_ui_without_a_connected_account(): void
+    public function test_source_selection_can_precede_nextcloud_login_without_creating_credentials(): void
     {
-        $this->post('http://localhost/nextcloud/sources',[
-            'calendar'=>'1','talk'=>'1',
-        ])->assertRedirect()->assertSessionHasErrors();
-        self::assertFalse($this->local->sources()['nextcloud_calendar']);
-        self::assertFalse($this->local->sources()['nextcloud_talk']);
+        $this->post('http://localhost/sources',['source_nextcloud_talk'=>'1'])
+            ->assertRedirect();
+        self::assertTrue($this->local->sources()['nextcloud_talk']);
+        self::assertSame([], $this->local->credentials());
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Conectar pelo navegador');
     }
+
 }

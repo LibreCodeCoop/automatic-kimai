@@ -15,42 +15,24 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=6">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=7">
 </head>
 <body>
 <header class="app-header">
 <div class="header-inner">
-<a class="brand" href="{{ route('kimai.home',['view'=>'overview']) }}"><span class="brand-mark" aria-hidden="true">◷</span><span><strong>Automatic Kimai</strong><small>Seu tempo de trabalho</small></span></a>
+<a class="brand" href="{{ route('kimai.home',['view'=>'overview']) }}">
+<span class="brand-mark">@include('automatic-kimai.components.icon',['name'=>'clock-3'])</span>
+<span><strong>Automatic Kimai</strong><small>Seu tempo de trabalho</small></span>
+</a>
 <button type="button" id="theme-switch" class="theme-switch" aria-label="Alternar entre tema claro e escuro" title="Alternar tema" aria-pressed="false">
-<svg class="theme-icon moon-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14A9 9 0 0 1 10 3.5 9 9 0 1 0 20.5 14Z"/></svg>
-<svg class="theme-icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+@include('automatic-kimai.components.icon',['name'=>'moon','class'=>'theme-icon moon-icon'])
+@include('automatic-kimai.components.icon',['name'=>'sun','class'=>'theme-icon sun-icon'])
 </button>
 </div>
 </header>
-<div class="workspace-shell">
+<div class="workspace-shell" id="workspace-shell">
 <aside id="app-sidebar" class="sidebar">
-<div class="sidebar-mobile-head"><strong>Menu</strong><button id="menu-switch" type="button" aria-controls="sidebar-navigation" aria-expanded="false" aria-label="Abrir menu">☰</button></div>
-<div id="sidebar-navigation" class="sidebar-navigation">
-<nav class="sidebar-nav" aria-label="Navegação do aplicativo">
-<div class="nav-group"><p class="nav-caption">Meu trabalho</p>
-<a href="{{ route('kimai.home', ['view'=>'overview']) }}" class="nav-item @if($view==='overview') is-current @endif" @if($view==='overview') aria-current="page" @endif>Visão geral</a>
-<a href="{{ route('kimai.home', ['view'=>'review']) }}" class="nav-item @if($view==='review') is-current @endif" @if($view==='review') aria-current="page" @endif>Revisar horas</a>
-<a href="{{ route('kimai.home', ['view'=>'attendance']) }}" class="nav-item @if($view==='attendance') is-current @endif" @if($view==='attendance') aria-current="page" @endif>Trabalho presencial</a>
-<a href="{{ route('kimai.home', ['view'=>'manual']) }}" class="nav-item @if($view==='manual') is-current @endif" @if($view==='manual') aria-current="page" @endif>Informar horas</a>
-</div>
-<div class="nav-group"><p class="nav-caption">Conexões</p>
-<a href="{{ route('kimai.home', ['view'=>'integrations']) }}" class="nav-item @if($view==='integrations') is-current @endif" @if($view==='integrations') aria-current="page" @endif>Contas conectadas</a>
-<a href="{{ route('kimai.home', ['view'=>'nextcloud']) }}" class="nav-item @if($view==='nextcloud') is-current @endif" @if($view==='nextcloud') aria-current="page" @endif>Nextcloud</a>
-<a href="{{ route('kimai.home', ['view'=>'telegram']) }}" class="nav-item @if($view==='telegram') is-current @endif" @if($view==='telegram') aria-current="page" @endif>Telegram</a>
-<a href="{{ route('kimai.home', ['view'=>'github']) }}" class="nav-item @if($view==='github') is-current @endif" @if($view==='github') aria-current="page" @endif>GitHub</a>
-</div>
-<div class="nav-group"><p class="nav-caption">Preferências</p>
-<a href="{{ route('kimai.home', ['view'=>'kimai']) }}" class="nav-item @if($view==='kimai') is-current @endif" @if($view==='kimai') aria-current="page" @endif>Conta Kimai</a>
-<a href="{{ route('kimai.home', ['view'=>'sources']) }}" class="nav-item @if($view==='sources') is-current @endif" @if($view==='sources') aria-current="page" @endif>Fontes de dados</a>
-<a href="{{ route('kimai.home', ['view'=>'about']) }}" class="nav-item @if($view==='about') is-current @endif" @if($view==='about') aria-current="page" @endif>Migração e segurança</a>
-</div>
-</nav>
-</div>
+@include('automatic-kimai.sections.navigation')
 </aside>
 <main id="main-content" class="main-content">
 @if(session('ok'))<div class="notice" role="status">{{session('ok')}}</div>@endif
@@ -100,16 +82,7 @@ try {
 </div>
 <script>
 @include('automatic-kimai.scripts.theme')
-(() => {
-  const menu=document.getElementById('menu-switch');
-  const sidebar=document.getElementById('app-sidebar');
-  if(!menu||!sidebar)return;
-  menu.addEventListener('click',()=>{
-    const expanded=sidebar.classList.toggle('is-open');
-    menu.setAttribute('aria-expanded',expanded?'true':'false');
-    menu.setAttribute('aria-label',expanded?'Fechar menu':'Abrir menu');
-  });
-})();
+@include('automatic-kimai.scripts.sidebar')
 @if($view==='kimai')
 @include('automatic-kimai.scripts.catalog')
 @endif

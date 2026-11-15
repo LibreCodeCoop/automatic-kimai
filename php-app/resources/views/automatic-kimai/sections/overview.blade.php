@@ -10,8 +10,8 @@
 As outras fontes continuam sendo analisadas normalmente.
 </div>
 @endif
-@if(($report['sources']['nextcloud_calendar']['status']??null)==='unavailable' ||
-    ($report['sources']['nextcloud_talk']['status']??null)==='unavailable')
+@if(($sources['nextcloud_calendar'] && ($report['sources']['nextcloud_calendar']['status']??null)==='unavailable') ||
+    ($sources['nextcloud_talk'] && ($report['sources']['nextcloud_talk']['status']??null)==='unavailable'))
 <div class="notice">
 <strong>Não foi possível consultar todas as fontes do Nextcloud.</strong>
 O monitoramento continua funcionando, mas Agenda ou Talk podem estar incompletos.
@@ -20,13 +20,13 @@ O monitoramento continua funcionando, mas Agenda ou Talk podem estar incompletos
 @endif
 <section>
 <h2>Resumo do trabalho</h2>
-<div class="grid">
-<div><div class="muted">Situação</div><div class="metrics" style="font-size:20px">@if(($status['result']??'')==='success')Atualizado@else{{ ($status['result']??'never_ran')==='never_ran'?'Sem análise':'Verificar' }}@endif</div></div>
+<div class="grid overview-metrics">
+<div><div class="muted">Situação</div><div class="metrics" style="font-size:20px">{{ $statusLabel }}</div></div>
 <div><div class="muted">Lacunas observadas</div><div class="metrics">{{ $status['coverage_gap_count'] ?? 0 }}</div></div>
 <div><div class="muted">Períodos para conferir</div><div class="metrics">{{ $status['manual_review_interval_count'] ?? 0 }}</div></div>
 <div><div class="muted">Alertas de agenda</div><div class="metrics">{{ $status['calendar_gap_count'] ?? 0 }}</div></div>
 </div>
-<p class="muted">Última análise: {{ $status['at_local'] ?? 'ainda não executada' }}. Horários de agenda e navegador não comprovam trabalho humano.</p>
+<p class="muted">Última análise: {{ $lastAnalysis }}. Horários de agenda e navegador não comprovam trabalho humano.</p>
 @if ($profile)
 <form method="post" action="{{route('kimai.analyze')}}">@csrf
 <button type="submit">Atualizar análise</button>
@@ -37,8 +37,11 @@ O monitoramento continua funcionando, mas Agenda ou Talk podem estar incompletos
 <section class="next-action">
 <h2>O que deseja fazer?</h2>
 <div class="action-links">
-<a href="{{ route('kimai.home',['view'=>'review']) }}">Revisar intervalos e lacunas <span aria-hidden="true">›</span></a>
-<a href="{{ route('kimai.home',['view'=>'kimai']) }}">Conta Kimai <span aria-hidden="true">›</span></a>
-<a href="{{ route('kimai.home',['view'=>'integrations']) }}">Conectar outros serviços <span aria-hidden="true">›</span></a>
+<a href="{{ route('kimai.home',['view'=>'review']) }}">Revisar intervalos e lacunas @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
+<a href="{{ route('kimai.home',['view'=>'kimai']) }}">Conta Kimai @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
+<a href="{{ route('kimai.home',['view'=>in_array(true,$connectionVisibility,true)?'integrations':'sources']) }}">
+{{ in_array(true,$connectionVisibility,true)?'Ver conexões habilitadas':'Escolher fontes de dados' }}
+@include('automatic-kimai.components.icon',['name'=>'chevron-right'])
+</a>
 </div>
 </section>

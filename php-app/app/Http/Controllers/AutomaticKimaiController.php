@@ -64,16 +64,51 @@ final class AutomaticKimaiController extends Controller
             'about'=>'O que já funciona e o que falta validar para migrar com segurança.',
         ];
         if (!array_key_exists($view,$titles))$view='overview';
+        $sources=$this->store->sources();
+        $connectionVisibility=[
+            'nextcloud'=>$sources['nextcloud_calendar']||$sources['nextcloud_talk'],
+            'github'=>$sources['github'],
+            // Requesting setup does NOT start Telegram collection. Its
+            // authenticated scanner requires an independent authorization.
+            'telegram'=>$sources['telegram_setup']||$sources['telegram'],
+        ];
+        $hiddenConnection=null;
+        if (array_key_exists($view,$connectionVisibility) && !$connectionVisibility[$view]) {
+            $hiddenConnection=$titles[$view];
+            $view='sources';
+        }
+        if ($view==='integrations' && !in_array(true,$connectionVisibility,true)) {
+            $hiddenConnection='Conexões';
+            $view='sources';
+        }
+        $status=$this->store->status();
+        $statusLabel=match($status['result']??'never_ran') {
+            'success'=>'Atualizado',
+            'capture_only'=>'Dados coletados',
+            'never_ran'=>'Sem análise',
+            default=>'Verificar análise',
+        };
+        $lastAnalysis='ainda não executada';
+        if (is_string($status['at_local']??null)) {
+            try {
+                $at=new DateTimeImmutable($status['at_local']);
+                $lastAnalysis=$at->format('d/m/Y').' às '.$at->format('H:i');
+            } catch (Throwable) {}
+        }
         return view('automatic-kimai.dashboard',[
             'view'=>$view,
+            'statusLabel'=>$statusLabel,
+            'lastAnalysis'=>$lastAnalysis,
             'pageTitles'=>$titles,
             'pageHints'=>$hints,
-            'desktopNextcloudServers'=>NextcloudDesktopDiscovery::discover(),
+            'desktopNextcloudServers'=>$view==='nextcloud'?NextcloudDesktopDiscovery::discover():[],
             'profile'=>$this->store->profile(),
             'creds'=>$this->store->credentials(),
-            'sources'=>$this->store->sources(),
+            'sources'=>$sources,
+            'connectionVisibility'=>$connectionVisibility,
+            'hiddenConnection'=>$hiddenConnection,
             'report'=>$this->store->report(),
-            'status'=>$this->store->status(),
+            'status'=>$status,
         ]);
     }
 
@@ -183,6 +218,10 @@ final class AutomaticKimaiController extends Controller
             $manual=isset($input['nextcloud_url']) || isset($input['nextcloud_user']) ||
                 isset($input['nextcloud_password']);
             if ($manual) {
+                $enabled=$this->store->sources();
+                if (!$enabled['nextcloud_calendar'] && !$enabled['nextcloud_talk']) {
+                    throw new RuntimeException('Ative Agenda ou Talk em Fontes de dados antes de conectar o Nextcloud.');
+                }
                 $existing=$this->store->credentials();
                 $server=NextcloudLoginFlow::normalizeServer((string)($input['nextcloud_url']??''));
                 $login=trim((string)($input['nextcloud_user']??''));
@@ -200,7 +239,12 @@ final class AutomaticKimaiController extends Controller
                     'NEXTCLOUD_APP_PASSWORD'=>$pass,
                 ];
             }
-            if (!empty($input['github_token']))$credentials['GITHUB_TOKEN']=$input['github_token'];
+            if (!empty($input['github_token'])) {
+                if (!$this->store->sources()['github']) {
+                    throw new RuntimeException('Ative GitHub em Fontes de dados antes de conectar.');
+                }
+                $credentials['GITHUB_TOKEN']=$input['github_token'];
+            }
             if ($credentials===[])return back()->with('ok','Nenhuma conexão foi alterada.');
             $this->store->saveCredentials($credentials);
             return back()->with('ok','Conexões verificadas e salvas localmente.');
@@ -249,20 +293,6 @@ final class AutomaticKimaiController extends Controller
         }
     }
 
-    public function nextcloudSources(Request $request): RedirectResponse
-    {
-        $this->local($request);
-        $creds=$this->store->credentials();
-        if (empty($creds['NEXTCLOUD_APP_PASSWORD'])||empty($creds['NEXTCLOUD_USERNAME'])) {
-            return back()->withErrors(['nextcloud'=>'Conecte sua conta Nextcloud antes de ativar essas fontes.']);
-        }
-        $this->store->setSources([
-            'nextcloud_calendar'=>$request->boolean('calendar'),
-            'nextcloud_talk'=>$request->boolean('talk'),
-        ]);
-        return back()->with('ok','Permissões do Nextcloud salvas.');
-    }
-
     public function sources(Request $request): RedirectResponse
     {
         $this->local($request);
@@ -270,8 +300,8 @@ final class AutomaticKimaiController extends Controller
             $current=$this->store->sources();
             $next=[];
             foreach ($current as $key=>$value) {
-                // Telegram is enabled only by the dedicated authenticated
-                // QR / 2FA flow, not by a generic opt-in checkbox.
+                // Telegram's scanner remains separately activated by the QR/2FA
+                // flow; selecting it here only reveals the setup screen.
                 $next[$key]=$key==='telegram' ? $value :
                     ($key==='activitywatch'||$request->boolean('source_'.$key));
             }

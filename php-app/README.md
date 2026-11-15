@@ -98,3 +98,18 @@ Para conectar Nextcloud, abra **Conexões → Nextcloud**, informe o endereço H
 Quando o cliente Nextcloud Desktop está instalado na mesma conta local, o aplicativo pode sugerir somente a URL conhecida no arquivo de configuração. Em contêiner isolado, esse arquivo não fica automaticamente acessível; nesse caso, informe a URL manualmente. O usuário sempre precisa confirmar o acesso.
 
 Durante a migração, o registro automático pelo PHP permanece bloqueado. O serviço Python ativo não pode ser desligado até que todos os coletores, a fila de aprovações, o publicador, o ledger e a retomada após falhas tenham comprovado paridade. Consulte ../PHP_MIGRATION.md.
+
+
+### Navegação, permissões e ícones (15/11/2026)
+
+O menu lateral tem hierarquia com recuos: Trabalho → páginas de revisão; Fontes de dados → Conexões habilitadas → serviços; Preferências → Conta Kimai e Migração. Em telas largas o botão recolhe para uma barra de ícones; em telas pequenas abre/fecha o menu. A escolha de recolher fica somente no armazenamento local do aplicativo/navegador.
+
+A tela **Fontes de dados** controla a visibilidade e a leitura:
+- Nextcloud só aparece quando Agenda ou Talk estiver marcado. Selecionar a fonte não basta para coletar: é preciso autorizar a conta no navegador.
+- GitHub só aparece quando sua fonte estiver marcada. A leitura exige a chave apropriada.
+- Telegram tem a opção **Exibir conexão** separada da autorização efetiva do scanner: o checkbox não substitui QR/2FA, nem inicia leitura de conversas automaticamente.
+- Desativar uma fonte oculta a conexão, bloqueia novas autenticações por essa interface e impede sua coleta; credenciais existentes são preservadas localmente, não são revogadas no serviço remoto. Para revogar senha de aplicativo Nextcloud, acesse Segurança no próprio Nextcloud.
+
+Os ícones são um subconjunto do **Lucide Static 1.72.0** (licença ISC), servido localmente em public/icons/lucide.svg, com licença em public/icons/LUCIDE-LICENSE. Nenhum CDN ou pacote de fontes é necessário em runtime. O conjunto contém apenas os ícones utilizados pela interface, não todo o catálogo Lucide.
+
+A interface continua **somente leitura** para publicação no Kimai. Ocultar a conexão não apaga credenciais; a prevenção de coleta é aplicada também no coletor e nos endpoints de autorização.

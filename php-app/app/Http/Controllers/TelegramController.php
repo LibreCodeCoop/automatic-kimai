@@ -26,6 +26,14 @@ final class TelegramController extends Controller
         }
     }
 
+    private function requireSelectedSource(): void
+    {
+        $sources=$this->store->sources();
+        if (!$sources['telegram_setup'] && !$sources['telegram']) {
+            abort(403,'Habilite Telegram em Fontes de dados antes de conectar a conta.');
+        }
+    }
+
     private static function noCache(array $data,int $status=200): JsonResponse
     {
         return response()->json($data,$status)
@@ -38,6 +46,7 @@ final class TelegramController extends Controller
     public function configure(Request $request): RedirectResponse
     {
         $this->local($request);
+        $this->requireSelectedSource();
         $input=$request->validate([
             'telegram_api_id'=>'nullable|regex:/^[1-9][0-9]{3,12}$/D',
             'telegram_api_hash'=>'nullable|regex:/^[a-fA-F0-9]{32}$/D',
@@ -86,6 +95,7 @@ final class TelegramController extends Controller
     public function status(Request $request,TelegramWebLogin $login): JsonResponse
     {
         $this->local($request);
+        $this->requireSelectedSource();
         try {
             $state=$login->status();
             $state['enabled']=$this->store->sources()['telegram'];
@@ -98,6 +108,7 @@ final class TelegramController extends Controller
     public function qr(Request $request,TelegramWebLogin $login): JsonResponse
     {
         $this->local($request);
+        $this->requireSelectedSource();
         try {
             return self::noCache($login->startQr());
         } catch(Throwable $e) {
@@ -108,6 +119,7 @@ final class TelegramController extends Controller
     public function twoFactor(Request $request,TelegramWebLogin $login): JsonResponse
     {
         $this->local($request);
+        $this->requireSelectedSource();
         $input=$request->validate(['password'=>'required|string|max:1024']);
         try {
             $state=$login->complete2fa($input['password']);
@@ -120,6 +132,7 @@ final class TelegramController extends Controller
     public function activate(Request $request,TelegramWebLogin $login): JsonResponse
     {
         $this->local($request);
+        $this->requireSelectedSource();
         try {
             return self::noCache($login->verifyAndActivate());
         } catch(Throwable $e) {

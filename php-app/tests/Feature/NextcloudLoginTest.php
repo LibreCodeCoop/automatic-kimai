@@ -19,6 +19,7 @@ final class NextcloudLoginTest extends TestCase
         $this->dir=sys_get_temp_dir().'/kimai-nextcloud-login-'.bin2hex(random_bytes(6));
         $this->local=new LocalStore($this->dir);
         $this->app->instance(LocalStore::class,$this->local);
+        $this->local->setSources(['nextcloud_calendar'=>true]);
     }
 
     protected function tearDown(): void
@@ -83,7 +84,7 @@ final class NextcloudLoginTest extends TestCase
         self::assertSame('person@example.com',$creds['NEXTCLOUD_LOGIN_NAME']);
         self::assertSame('secure-app-password',$creds['NEXTCLOUD_APP_PASSWORD']);
         self::assertSame([], $this->local->read('nextcloud-login.json'));
-        self::assertFalse($this->local->sources()['nextcloud_calendar']);
+        self::assertTrue($this->local->sources()['nextcloud_calendar']);
         self::assertFalse($this->local->sources()['nextcloud_talk']);
         $this->get('http://localhost/nextcloud/status')->assertOk()
             ->assertJsonPath('connected',true)->assertDontSee('secure-app-password')
@@ -159,6 +160,17 @@ final class NextcloudLoginTest extends TestCase
             'started_at'=>time()-1210,
         ]);
         $this->postJson('http://localhost/nextcloud/poll')->assertStatus(422);
+        Http::assertNothingSent();
+    }
+
+    public function test_unselected_sources_cannot_start_nextcloud_authentication(): void
+    {
+        $this->local->setSources(['nextcloud_calendar'=>false,'nextcloud_talk'=>false]);
+        Http::fake();
+        $this->postJson('http://localhost/nextcloud/start',['url'=>'https://cloud.example.com'])
+            ->assertForbidden();
+        $this->postJson('http://localhost/nextcloud/poll')->assertForbidden();
+        $this->get('http://localhost/nextcloud/status')->assertForbidden();
         Http::assertNothingSent();
     }
 
