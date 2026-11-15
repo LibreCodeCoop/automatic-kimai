@@ -6,6 +6,7 @@ const {
   isSafeNextcloudApprovalUrl,
   isCurrentNextcloudApproval,
   createExternalApprovalHandler,
+  createPendingApprovalOpener,
 } = require('./external-approval.cjs');
 
 const valid = 'https://cloud.example.org/index.php/login/v2/flow/' + 'A'.repeat(40);
@@ -94,6 +95,43 @@ test('failed authorization and external opener exceptions never enable a popup',
   });
   assert.deepEqual(failsOpen({ url: valid }), { action: 'deny' });
   await new Promise(resolve => setImmediate(resolve));
+});
+
+test('auto opener validates pending URL, prevents overlap and fails closed', async () => {
+  let release;
+  const opened = [];
+  const validState = { waiting: true, login_url: valid };
+  const open = createPendingApprovalOpener({
+    getStatus: async () => validState,
+    openExternal: async url => {
+      opened.push(url);
+      await new Promise(resolve => { release = resolve; });
+    },
+  });
+  const first = open();
+  assert.equal(await open(), false);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [valid]);
+  release();
+  assert.equal(await first, true);
+  for (const state of [
+    null,
+    { waiting: false, login_url: valid },
+    { waiting: true, login_url: 'javascript:alert(1)' },
+    { waiting: true, login_url: 'https://evil.example/login/v2/flow/short' },
+  ]) {
+    const attempt = createPendingApprovalOpener({
+      getStatus: async () => state,
+      openExternal: async url => { opened.push(url); },
+    });
+    assert.equal(await attempt(), false);
+  }
+  const broken = createPendingApprovalOpener({
+    getStatus: async () => validState,
+    openExternal: async () => { throw new Error('No browser'); },
+  });
+  assert.equal(await broken(), false);
+  assert.deepEqual(opened, [valid]);
 });
 
 test('concurrent attempts do not open multiple browser tabs', async () => {

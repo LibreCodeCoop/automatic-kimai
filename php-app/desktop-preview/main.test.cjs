@@ -37,7 +37,10 @@ test('Electron main wires approved LoginFlow links to the OS browser, keeping al
         setPermissionRequestHandler: () => {},
         setPermissionCheckHandler: () => {},
         on: () => {},
-        webRequest: { onBeforeRequest: (_filter, callback) => { registered.networkFilter = callback; } },
+        webRequest: {
+          onBeforeRequest: (_filter, callback) => { registered.networkFilter = callback; },
+          onCompleted: (_filter, callback) => { registered.completed = callback; },
+        },
       },
     },
     shell: {
@@ -54,6 +57,10 @@ test('Electron main wires approved LoginFlow links to the OS browser, keeping al
         return {
           ...real,
           isCurrentNextcloudApproval: async url => url === approved,
+          createPendingApprovalOpener: ({ openExternal }) => real.createPendingApprovalOpener({
+            getStatus: async () => ({ waiting: true, login_url: approved }),
+            openExternal,
+          }),
         };
       }
       if (name === './security.cjs') return require('./security.cjs');
@@ -64,6 +71,16 @@ test('Electron main wires approved LoginFlow links to the OS browser, keeping al
   await new Promise(resolve => setImmediate(resolve));
 
   assert.equal(typeof registered.open, 'function');
+  assert.equal(typeof registered.completed, 'function');
+  // Only a successful, deliberate login start causes automatic browser opening.
+  registered.completed({ method: 'GET', statusCode: 200 });
+  registered.completed({ method: 'POST', statusCode: 422 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, []);
+  registered.completed({ method: 'POST', statusCode: 200 });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [approved]);
+  opened.length = 0;
   assert.equal(registered.url, 'http://127.0.0.1:6817/');
   assert.equal(typeof registered.networkFilter, 'function');
   assert.equal(typeof registered['will-navigate'], 'function');

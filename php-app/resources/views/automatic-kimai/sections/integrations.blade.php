@@ -5,7 +5,7 @@
 @if($connectionVisibility['nextcloud'])
 <a class="hub-card" href="{{ route('kimai.home',['view'=>'nextcloud']) }}">
 <div class="hub-icon">@include('automatic-kimai.components.brand-icon',['name'=>'nextcloud'])</div>
-<div><h3>Nextcloud</h3><p>Agenda e ações realizadas no Talk</p><small>{{ !empty($creds['NEXTCLOUD_APP_PASSWORD']) ? 'Conta configurada' : 'Conectar pelo navegador' }}</small></div>
+<div><h3>Nextcloud</h3><p>Agenda e ações realizadas no Talk</p><small>{{ !empty($creds['NEXTCLOUD_URL']) && !empty($creds['NEXTCLOUD_USERNAME']) && !empty($creds['NEXTCLOUD_APP_PASSWORD']) ? 'Conectada: '.($creds['NEXTCLOUD_LOGIN_NAME'] ?? $creds['NEXTCLOUD_USERNAME']) : 'Conectar pelo navegador' }}</small></div>
 @include('automatic-kimai.components.icon',['name'=>'chevron-right','class'=>'hub-arrow'])
 </a>
 @endif

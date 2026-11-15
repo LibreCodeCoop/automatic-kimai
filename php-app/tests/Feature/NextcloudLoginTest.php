@@ -91,6 +91,26 @@ final class NextcloudLoginTest extends TestCase
             ->assertDontSee('abcdefghijklmnopqrstuvwxyz1234567890');
     }
 
+    public function test_connected_account_is_primary_and_reconnection_is_collapsed(): void
+    {
+        $this->local->saveCredentials([
+            'NEXTCLOUD_URL'=>'https://cloud.example.com',
+            'NEXTCLOUD_USERNAME'=>'member-uid',
+            'NEXTCLOUD_LOGIN_NAME'=>'member@example.com',
+            'NEXTCLOUD_APP_PASSWORD'=>'private-test-app-password',
+        ]);
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Conta Nextcloud conectada')
+            ->assertSee('member@example.com')
+            ->assertSee('https://cloud.example.com')
+            ->assertSee('Trocar conta Nextcloud')
+            ->assertSee('id="nc-reconnect"',false)
+            ->assertDontSee('private-test-app-password');
+        $this->get('http://localhost/?view=integrations')->assertOk()
+            ->assertSee('Conectada: member@example.com')
+            ->assertDontSee('private-test-app-password');
+    }
+
     public function test_refuses_unsafe_origins_and_cross_site_login_links(): void
     {
         Http::fake([

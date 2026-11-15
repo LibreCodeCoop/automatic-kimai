@@ -29,11 +29,20 @@ Em distribuições Ubuntu com bloqueio de namespaces via AppArmor, o Electron pr
 
 ### Abrir o Nextcloud para autorizar
 
-O botão de LoginFlow v2 abre somente o URL HTTPS de autorização que
-coincidir exatamente com o fluxo pendente na API PHP local. O processo
-principal do Electron faz essa conferência e solicita ao sistema operacional
-que o abra no navegador padrão. A janela do Automatic Kimai continua
-restrita ao localhost, sem pop-ups externos nem acesso a credenciais.
+Ao selecionar **Conectar pelo navegador**, a interface solicita a autorização
+Login Flow v2 e o Electron abre automaticamente o URL HTTPS pendente no
+navegador padrão. O processo principal só executa essa ação após a resposta
+bem-sucedida do POST local de início, conferindo a URL com o estado atual
+no PHP. **Reabrir navegador** é uma alternativa manual e reutiliza a mesma
+autorização pendente, sem gerar um segundo token. A janela Electron permanece
+restrita ao localhost; nenhum pop-up externo tem acesso ao aplicativo.
+
+Após a autorização e a verificação da identidade, a tela apresenta a conta
+e o servidor vinculados; o formulário de conexão fica oculto até a ação
+explícita **Trocar conta Nextcloud**. Em navegador web (fora do Electron),
+a guia de autorização é reservada no clique inicial para reduzir bloqueios
+de pop-up. Caso a abertura automática falhe, o link de reabertura permanece.
 
 Testes de segurança usam um abridor fictício, sem abrir abas reais, e
-cobrem links inválidos, URLs trocadas e falhas de rede.
+cobrem tentativas concorrentes, links inválidos, URLs trocadas, falhas de
+rede e ausência de abertura quando a requisição de início falha.

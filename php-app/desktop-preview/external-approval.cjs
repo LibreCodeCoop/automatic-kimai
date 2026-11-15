@@ -82,8 +82,34 @@ function createExternalApprovalHandler({ isApproved, openExternal }) {
   };
 }
 
+/**
+ * Browser launches caused by a successful user-initiated local POST, not by
+ * background status polling or untrusted renderer-provided URLs.
+ */
+function createPendingApprovalOpener({ getStatus = currentNextcloudStatus, openExternal }) {
+  let opening = false;
+  return async () => {
+    if (opening) return false;
+    opening = true;
+    try {
+      const state = await getStatus();
+      if (!state || state.waiting !== true ||
+          !await isCurrentNextcloudApproval(state.login_url, async () => state)) {
+        return false;
+      }
+      await openExternal(state.login_url);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      opening = false;
+    }
+  };
+}
+
 module.exports = {
   isSafeNextcloudApprovalUrl,
   isCurrentNextcloudApproval,
   createExternalApprovalHandler,
+  createPendingApprovalOpener,
 };

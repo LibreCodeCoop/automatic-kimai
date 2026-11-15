@@ -3,10 +3,13 @@
 const { app, BrowserWindow, Menu, session, shell } = require('electron');
 const path = require('node:path');
 const { LOCAL_ORIGIN, isAllowedNavigation } = require('./security.cjs');
-const { isCurrentNextcloudApproval, createExternalApprovalHandler } = require('./external-approval.cjs');
+const { isCurrentNextcloudApproval, createExternalApprovalHandler, createPendingApprovalOpener } = require('./external-approval.cjs');
 
 const ENTRY_URL = LOCAL_ORIGIN + '/';
 const APP_ID = 'org.automatic-kimai.desktop';
+const openPendingNextcloudApproval = createPendingApprovalOpener({
+  openExternal: url => shell.openExternal(url),
+});
 let mainWindow;
 
 if (!app.requestSingleInstanceLock()) {
@@ -35,6 +38,18 @@ if (!app.requestSingleInstanceLock()) {
     webSession.webRequest.onBeforeRequest(
       { urls: ['http://*/*', 'https://*/*'] },
       (details, callback) => callback({ cancel: !isAllowedNavigation(details.url) })
+    );
+
+    // Start is a user-initiated POST. On a successful response, check the
+    // current pending authorization before opening the default OS browser.
+    // Never launch an arbitrary URL supplied by the renderer.
+    webSession.webRequest.onCompleted(
+      { urls: [LOCAL_ORIGIN + '/nextcloud/start'] },
+      details => {
+        if (details.method === 'POST' && details.statusCode === 200) {
+          void openPendingNextcloudApproval();
+        }
+      }
     );
 
     Menu.setApplicationMenu(null);

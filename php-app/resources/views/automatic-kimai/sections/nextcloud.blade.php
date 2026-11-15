@@ -1,13 +1,15 @@
-@if(!empty($creds['NEXTCLOUD_URL']) && !empty($creds['NEXTCLOUD_USERNAME']) && !empty($creds['NEXTCLOUD_APP_PASSWORD']))
-<section class="connection-summary">
+@php($nextcloudConnected = !empty($creds['NEXTCLOUD_URL']) && !empty($creds['NEXTCLOUD_USERNAME']) && !empty($creds['NEXTCLOUD_APP_PASSWORD']))
+@if($nextcloudConnected)
+<section class="connection-summary" id="nc-connected">
 <div class="connected-icon" aria-hidden="true">@include('automatic-kimai.components.icon',['name'=>'circle-check'])</div>
 <div>
-<h2>Conta Nextcloud configurada</h2>
-<p class="muted">{{ $creds['NEXTCLOUD_USERNAME'] }} · {{ parse_url($creds['NEXTCLOUD_URL'], PHP_URL_HOST) }}. Você pode reconectar para renovar a autorização do aplicativo.</p>
+<h2>Conta Nextcloud conectada</h2>
+<p><strong>{{ $creds['NEXTCLOUD_LOGIN_NAME'] ?? $creds['NEXTCLOUD_USERNAME'] }}</strong></p>
+<p class="muted">{{ $creds['NEXTCLOUD_URL'] }} · Acesso autorizado para o Automatic Kimai.</p>
 </div>
 </section>
 @endif
-<section>
+<section id="nc-connect-section" @if($nextcloudConnected) hidden @endif>
 <h2>Conectar com Nextcloud</h2>
 <p class="muted">Ao autorizar, o Nextcloud cria uma chave exclusiva para o Automatic Kimai. Se você já estiver conectado no navegador, poderá usar essa sessão para aprovar o acesso, sem digitar sua senha novamente.</p>
 <div class="setup-fields">
@@ -21,11 +23,14 @@
 <button id="nc-start" type="button">Conectar pelo navegador</button>
 <p id="nc-status" role="status" aria-live="polite" class="muted">Use o botão para iniciar uma autorização segura.</p>
 <div id="nc-approval" class="approval-step" hidden>
-<p><strong>Autorize a conexão no Nextcloud.</strong> A janela do navegador pode pedir sua confirmação ou autenticação de dois fatores.</p>
-<a id="nc-login-link" class="button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" href="#">Abrir Nextcloud para autorizar</a>
+<p><strong>Conclua a autorização no navegador.</strong> O Automatic Kimai detectará quando você aprovar o acesso, inclusive com autenticação de dois fatores.</p>
+<a id="nc-login-link" class="button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" href="#">Reabrir navegador</a>
 <button id="nc-check" type="button" class="secondary">Já autorizei, verificar</button>
 </div>
 </section>
+@if($nextcloudConnected)
+<button type="button" id="nc-reconnect" class="secondary">Trocar conta Nextcloud</button>
+@endif
 <section>
 <h2>Fontes de dados habilitadas</h2>
 <p class="muted">A configuração das fontes é feita em um único lugar. Essas opções não são alteradas ao reconectar uma conta.</p>
