@@ -87,6 +87,44 @@ final class ReviewWorkflowFeatureTest extends TestCase
         self::assertFileDoesNotExist($this->store->ledgerFile());
     }
 
+    public function test_conflict_requires_explicit_discard_and_never_creates_remote_write(): void
+    {
+        $queue=new ReviewQueue($this->store->reviewQueueFile());
+        $this->candidate['remote_intersections']=[65];
+        $queue->synchronize([$this->candidate],[
+            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>'2026-11-12T10:30:00-03:00'],
+        ]);
+        $candidate=$queue->rows()[0];
+        self::assertSame('conflict',$candidate['status']);
+        $queue->close();
+        $this->get('http://localhost/?view=review')->assertOk()
+            ->assertSee('Sobreposição com horas já registradas')
+            ->assertSee('Confirmar descarte da sugestão')
+            ->assertSee('Reanalisar sobreposições')
+            ->assertSee('#65')
+            ->assertDontSee('name="project_id" data-default',false);
+        $url='http://localhost/review/conflict';
+        $base=['candidate_id'=>$candidate['id'],'source_digest'=>$candidate['source_digest']];
+        $this->post($url,$base+['decision'=>'already_recorded'])->assertSessionHasErrors('confirm_discard');
+        $this->post($url,$base+['decision'=>'invented','confirm_discard'=>'1'])->assertSessionHasErrors('decision');
+        $this->post($url,array_replace($base,['decision'=>'already_recorded','confirm_discard'=>'1',
+            'source_digest'=>str_repeat('a',64)]))->assertSessionHasErrors('review');
+        $this->post($url,$base+['decision'=>'already_recorded','confirm_discard'=>'1'])->assertRedirect();
+        $queue=new ReviewQueue($this->store->reviewQueueFile());
+        self::assertSame('rejected',$queue->rows()[0]['status']);
+        self::assertStringContainsString('existing Kimai records kept unchanged',
+            $queue->rows()[0]['hold_reason']);
+        $queue->synchronize([$this->candidate],[
+            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>'2026-11-12T10:30:00-03:00'],
+        ]);
+        self::assertSame('rejected',$queue->rows()[0]['status']);
+        $queue->close();
+        self::assertFileDoesNotExist($this->store->ledgerFile());
+        $this->post($url,$base+['decision'=>'already_recorded','confirm_discard'=>'1'])->assertSessionHasErrors('review');
+        $this->post('http://outside.example/review/conflict',
+            $base+['decision'=>'already_recorded','confirm_discard'=>'1'])->assertForbidden();
+    }
+
     public function test_mutations_are_rejected_from_nonlocal_origins(): void
     {
         $this->post('http://outside.example/review/reject',[

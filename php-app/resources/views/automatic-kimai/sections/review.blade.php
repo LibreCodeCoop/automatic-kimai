@@ -60,16 +60,55 @@
 <p class="muted">A revisão registra sua decisão na fila local. O publicador envia apenas sessões aprovadas e verificadas, quando a política de publicação estiver ativa.</p>
 </div>
 </div>
+@php
+$conflictsToReview=count(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='conflict'));
+@endphp
+@if($conflictsToReview>0)
+<p class="warn" role="status">{{ $conflictsToReview }} {{ $conflictsToReview===1?'sobreposição precisa':'sobreposições precisam' }} de decisão. Abra um período para comparar a sugestão com os registros existentes.</p>
+@endif
 @forelse(($reviewRows ?? []) as $candidate)
-<details class="day-card">
+<details class="day-card" @if(($candidate['status'] ?? '')==='conflict' && !isset($firstConflictOpened)) open @php $firstConflictOpened=true; @endphp @endif>
 <summary>
 <span class="day-title">{{ $candidate['date'] ?? 'Período observado' }} · {{ substr($candidate['start'] ?? '',11,5) }}–{{ substr($candidate['end'] ?? '',11,5) }}</span>
-<span class="day-subtitle">Situação: {{ $candidate['status'] ?? 'revisar' }}</span>
+<span class="day-subtitle">Situação: {{ match($candidate['status'] ?? '') {
+    'conflict'=>'Conflito de horários', 'draft'=>'Aguardando revisão',
+    'needs_reapproval'=>'Revisão novamente necessária', 'rejected'=>'Descartado',
+    'covered'=>'Registrado no Kimai', 'approved'=>'Aprovado localmente',
+    'posted'=>'Publicado', 'uncertain'=>'Publicação a conciliar',
+    default=>'Revisar'
+} }}</span>
 </summary>
 <div class="day-body">
 <p class="muted">Contexto observado não comprova duração de trabalho. Revise pausas, atividade e projeto antes de decidir. O faturamento não é controlado por esta tela.</p>
 @if(!empty($candidate['hold_reason']))<p class="warn">{{ $candidate['hold_reason'] }}</p>@endif
-@if(in_array($candidate['status'] ?? '',['draft','needs_reapproval'],true))
+@if(($candidate['status'] ?? '')==='conflict')
+<div class="review-conflict" role="group" aria-label="Decisão sobre sobreposição">
+<h3>Sobreposição com horas já registradas</h3>
+<p class="warn">Este intervalo cruza um ou mais lançamentos existentes no Kimai. Não é seguro aprovar tudo nem substituir registros automaticamente.</p>
+@if(!empty($candidate['remote_intersections']))
+<p><strong>Registros no Kimai:</strong> #{{ implode(', #',array_map('intval',$candidate['remote_intersections'])) }}</p>
+@endif
+<p>Se todo o trabalho já estiver contabilizado, descarte a sugestão. Se não trabalhou nesse intervalo, também pode descartá-la. Se há trabalho adicional não registrado, consulte os horários originais e informe <strong>somente o trecho não coberto</strong> em Informar horas, após a ativação segura do publicador PHP.</p>
+<form method="post" action="{{ route('kimai.review-conflict') }}">
+@csrf
+<input type="hidden" name="candidate_id" value="{{ $candidate['id'] }}"/>
+<input type="hidden" name="source_digest" value="{{ $candidate['source_digest'] }}"/>
+<label>Minha decisão
+<select name="decision" required>
+<option value="">Selecione uma decisão</option>
+<option value="already_recorded">O trabalho já está registrado; descartar sugestão</option>
+<option value="not_worked">Não foi trabalho realizado; descartar sugestão</option>
+</select></label>
+<p><label><input type="checkbox" name="confirm_discard" value="1" required/> Confirmo o descarte da sugestão, sem apagar ou alterar lançamentos existentes.</label></p>
+<button type="submit" class="secondary">Confirmar descarte da sugestão</button>
+</form>
+<div class="review-conflict-actions">
+<a class="button secondary" href="{{ route('kimai.home',['view'=>'manual']) }}">Conferir período não registrado</a>
+<form method="post" action="{{route('kimai.analyze')}}">@csrf
+<button type="submit" class="secondary">Reanalisar sobreposições</button></form>
+</div>
+</div>
+@elseif(in_array($candidate['status'] ?? '',['draft','needs_reapproval'],true))
 @if(($candidate['ongoing'] ?? true)===false && ($candidate['end_stable'] ?? false)===true &&
     ($candidate['proposed_action'] ?? null)==='new')
 <form method="post" action="{{ route('kimai.review-approve') }}" class="review-approval-form" data-review-catalog>

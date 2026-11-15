@@ -19,6 +19,8 @@ Route::post('/manual',[AutomaticKimaiController::class,'manual'])->name('kimai.m
 // Explicit worker approval modifies local SQLite only; no HTTP POST to Kimai.
 Route::post('/review/approve',[ReviewDecisionController::class,'approve'])
     ->middleware('throttle:12,1')->name('kimai.review-approve');
+Route::post('/review/conflict',[ReviewDecisionController::class,'dismissConflict'])
+    ->middleware('throttle:12,1')->name('kimai.review-conflict');
 Route::post('/review/reject',[ReviewDecisionController::class,'reject'])
     ->middleware('throttle:12,1')->name('kimai.review-reject');
 

@@ -93,6 +93,26 @@ final class ReviewDecisionController extends Controller
         }
     }
 
+    public function dismissConflict(Request $request): RedirectResponse
+    {
+        $this->local($request);
+        $input=$request->validate([
+            'candidate_id'=>['required','string','regex:/^[A-Za-z0-9_-]{8,90}$/'],
+            'source_digest'=>['required','string','regex:/^[a-f0-9]{64}$/'],
+            'decision'=>['required','in:already_recorded,not_worked'],
+            'confirm_discard'=>'accepted',
+        ]);
+        try {
+            $queue=new ReviewQueue($this->store->reviewQueueFile());
+            try {
+                $queue->dismissConflict($input['candidate_id'],$input['source_digest'],$input['decision']);
+            } finally {$queue->close();}
+            return back()->with('ok','Conflito descartado na fila local. Nenhuma hora foi alterada no Kimai.');
+        } catch (Throwable) {
+            return back()->withErrors(['review'=>'O conflito mudou ou já foi decidido. Atualize a análise antes de tentar novamente.']);
+        }
+    }
+
     public function reject(Request $request): RedirectResponse
     {
         $this->local($request);

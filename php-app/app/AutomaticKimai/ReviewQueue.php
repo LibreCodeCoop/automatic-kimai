@@ -295,6 +295,33 @@ final class ReviewQueue
         }
     }
 
+    /** Explicitly discard an overlapping hypothesis without changing Kimai. */
+    public function dismissConflict(string $id,string $sourceDigest,string $decision): void
+    {
+        if (!in_array($decision,['already_recorded','not_worked'],true)) {
+            throw new RuntimeException('Explicit conflict decision required');
+        }
+        $this->db->exec('BEGIN IMMEDIATE');
+        try {
+            $row=$this->one($id);
+            if (!$row||$row['status']!=='conflict'||
+                !hash_equals($row['source_digest'],$sourceDigest)) {
+                throw new RuntimeException('Conflict changed; refresh before deciding');
+            }
+            $reason=$decision==='already_recorded'
+                ? 'Worker discarded overlap proposal; existing Kimai records kept unchanged'
+                : 'Worker attested that this overlapping proposal is not worked time';
+            $stmt=$this->db->prepare("UPDATE sessions SET status='rejected',approval_json=NULL,
+                reason=?,updated_utc=? WHERE id=? AND status='conflict' AND source_digest=?");
+            $stmt->execute([$reason,gmdate('c'),$id,$sourceDigest]);
+            if ($stmt->rowCount()!==1)throw new RuntimeException('Concurrent conflict decision');
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            if ($this->db->inTransaction())$this->db->rollBack();
+            throw $e;
+        }
+    }
+
     public function reject(string $id,string $sourceDigest): void
     {
         $this->db->exec('BEGIN IMMEDIATE');

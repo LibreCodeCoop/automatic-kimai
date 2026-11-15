@@ -561,3 +561,17 @@ a.button:hover { background:var(--primary-hover); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+
+/* Keep overlapping records and their explicit decisions legible in both themes. */
+.review-conflict { display: grid; gap: 12px; padding: 16px; margin-top: 12px; border: 1px solid var(--border, #8a8a8a); border-radius: 12px; }
+.review-conflict h3, .review-conflict p { margin: 0; }
+.review-conflict form { display: grid; gap: 12px; }
+.review-conflict select { width: 100%; min-width: 0; }
+.review-conflict-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.review-conflict-actions form { display: block; }
+@media (max-width: 520px) {
+  .review-conflict { padding: 12px; }
+  .review-conflict-actions { display: grid; grid-template-columns: 1fr; }
+  .review-conflict-actions .button, .review-conflict-actions button { width: 100%; justify-content: center; }
+}
