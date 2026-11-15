@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\AutomaticKimai\KimaiClient;
 use App\AutomaticKimai\LocalStore;
 use App\AutomaticKimai\ReviewQueue;
+use App\AutomaticKimai\RemoteOverlapReconciler;
 use App\AutomaticKimai\TimeMath;
 use DateTimeImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -70,6 +71,17 @@ final class ReviewDecisionController extends Controller
             // Convert wall-clock fields once using the verified Kimai timezone.
             $start=TimeMath::dateTime($input['day'],$input['start'],$profile->zone);
             $end=TimeMath::dateTime($input['day'],$input['end'],$profile->zone);
+            // Human approval itself is still local, but never freeze an
+            // interval newly occupied in Kimai since the last shadow cycle.
+            // Do not trust a stale browser form or a previous remote snapshot.
+            $latest=$api->timesheets($me['id'],[$input['day']],$profile->zone);
+            $current=RemoteOverlapReconciler::analyze([
+                'date'=>$input['day'],'start'=>TimeMath::iso($start),
+                'end'=>TimeMath::iso($end),
+            ],$latest);
+            if ($current['kind']!=='new') {
+                throw new RuntimeException('Remote timesheets changed; refresh before approving');
+            }
             $choice=[
                 'source_digest'=>$input['source_digest'],
                 'start'=>TimeMath::iso($start),'end'=>TimeMath::iso($end),

@@ -927,3 +927,52 @@ dos timers Python (classificação semântica, enriquecimento, agentes,
 replay/aprovações e escritor) a verificar; o último ledger Python
 pode crescer enquanto ele opera. Nenhuma autorização de escrita PHP
 nem interrupção de timer Python foi feita nesta etapa.
+
+## 15/11/2026 — Reconciliação automática das sobreposições com Kimai
+
+A fila deixava 14 intervalos como `conflict` apesar de a maior parte das
+horas já estar registrada em timesheets distintos. A análise antes da
+correção apurou 30 fragmentos não cobertos (11.311 segundos) nos 14
+intervalos; vários eram diferenças inferiores a um minuto nas extremidades.
+Não seria seguro descartar todas as propostas nem aprovar seus intervalos
+inteiros.
+
+- `RemoteOverlapReconciler` cruza intervalos com **GET** da conta Kimai
+  autenticada, calcula a união dos registros remotos e a diferença exata.
+  Quando um registro remoto está aberto, incompleto ou inválido, falha
+  fechado: não inventa cobertura nem transforma uma hipótese em aprovação.
+- `ReviewQueue` classifica a proposta original como
+  `reconciled_partial`, preservando cobertura e lacunas em segundos.
+  Gera candidatos independentes `gap-*` somente para intervalos íntegros
+  de pelo menos cinco minutos, sem sobreposição e com hora/minuto completos.
+  Margens menores permanecem no histórico; não são arredondadas para gerar
+  novas horas. A evidência do intervalo original não é atribuída
+  artificialmente ao trecho derivado.
+- IDs dos candidatos derivados e assinaturas são determinísticos; incluem
+  identidade e hash da cobertura remota. Não existe aprovação automática,
+  movimentação de horas, cálculo de faturamento nem POST/PATCH nessa
+  operação. Uma aprovação humana anterior é preservada como evidência,
+  mas torna-se inelegível se o trecho derivado desaparecer do plano.
+- O sincronizador pesquisa conflitos ainda pendentes **fora da janela
+  normal de coleta**, consultando cada grupo histórico por GET, sem
+  extrapolar ausência de trabalho. A aprovação na interface exige agora
+  GET recente para evitar aceitar um intervalo que mudou no Kimai depois
+  da última análise.
+- Na instalação real, a execução read-only retornou `Result=success`,
+  `ExecMainStatus=0`; a fila ficou com **14 reconciled_partial,
+  8 gaps draft, 1 draft independente e 1 stale**, sem `conflict`.
+  Nenhuma decisão humana foi forjada e o publicador não escreveu no Kimai.
+- Testes unitários/Feature cobrem cobertura adjacente, um segundo residual,
+  fragmentação, idempotência, ordem da API, período remoto aberto,
+  reconciliação histórica, rejeição humana preservada e invalidação de
+  aprovação antiga. O Chrome headless renderizou a tela real com a
+  reconciliação e formulários de revisão; a interface tem o cache CSS
+  versionado. Esses testes não homologam a publicação contínua.
+
+**Distinção fundamental:** `conflitos=0` significa que a classificação
+técnica de sobreposições foi reconciliada. Os oito trechos potencialmente não
+registrados ainda exigem confirmação de trabalho. O Python original
+continua com o opt-in de publicação automática, enquanto o perfil PHP local
+permanece em `review_only`. A paridade do escritor automático e o corte de
+serviços continuam bloqueados até testes operacionais, estado congelado
+após parada do Python, zero operação desconhecida e revisão/CI confiáveis.

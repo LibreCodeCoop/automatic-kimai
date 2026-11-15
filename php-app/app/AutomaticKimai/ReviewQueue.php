@@ -52,6 +52,19 @@ final class ReviewQueue
                   'observed_seconds_by_class','no_aw_data_seconds'] as $key) {
             $values[$key]=$proposal[$key]??null;
         }
+        foreach (['source_parent_id','source_parent_digest','remote_coverage_digest'] as $key) {
+            if (isset($proposal[$key]))$values[$key]=$proposal[$key];
+        }
+        return CanonicalJson::digest($values);
+    }
+
+    private static function observedEvidenceFingerprint(array $proposal): string
+    {
+        $values=[];
+        foreach (['date','start','end','ongoing','end_stable',
+            'observed_seconds_by_class','no_aw_data_seconds'] as $key) {
+            $values[$key]=$proposal[$key]??null;
+        }
         return CanonicalJson::digest($values);
     }
 
@@ -92,50 +105,53 @@ final class ReviewQueue
         return $candidate['id'];
     }
 
-    private static function relation(array $candidate,array $remote): array
-    {
-        $a=TimeMath::parse($candidate['start']);
-        $b=TimeMath::parse($candidate['end']);
-        $intersections=[];
-        $coverage=[];
-        foreach ($remote as $row) {
-            if (!is_array($row)||empty($row['end']))continue;
-            try {
-                $x=TimeMath::parse($row['begin']);
-                $y=TimeMath::parse($row['end']);
-                if (TimeMath::ts($x)<TimeMath::ts($b)&&TimeMath::ts($a)<TimeMath::ts($y)) {
-                    $intersections[]=$row;
-                    $coverage[]=[$x,$y];
-                }
-            } catch (\Throwable){}
-        }
-        if ($intersections===[])return ['new',null];
-        // A whole candidate may already be recorded in adjacent Kimai
-        // timesheets. Require *complete* union coverage, not just one overlap.
-        // If even one second is missing, the worker must review the gap.
-        if (TimeMath::subtract([[$a,$b]],$coverage)===[]) {
-            $single=count($intersections)===1?$intersections[0]:null;
-            return ['covered',is_array($single)&&is_int($single['id']??null)
-                ?$single['id']:null];
-        }
-        // Any remote partial overlap requires explicit human judgment.
-        return ['conflict',null];
-    }
-
     /** @return array<string,int> */
     public function synchronize(array $proposals,array $remote): array
     {
-        usort($proposals,static fn($a,$b)=>strcmp($a['date'].$a['start'],$b['date'].$b['start']));
+        $expanded=[];
+        // Split only precisely verified remote coverage; unknown/open timesheets
+        // remain conflicts. No candidate becomes approved automatically.
+        foreach ($proposals as $original) {
+            if (isset($original['source_parent_id'])) {
+                throw new RuntimeException('Nested derived review candidates are forbidden');
+            }
+            $plan=RemoteOverlapReconciler::analyze($original,$remote);
+            if ($plan['kind']==='partial') {
+                $original['remote_uncovered_spans']=$plan['uncovered_spans'];
+                $original['remote_uncovered_seconds']=$plan['uncovered_seconds'];
+                $original['remote_small_gap_seconds']=$plan['small_gap_seconds'];
+                $original['remote_gap_candidates']=count($plan['reviewable_spans']);
+                $original['remote_coverage_digest']=$plan['coverage_digest'];
+                $original['remote_intersections']=$plan['remote_ids'];
+            }
+            $expanded[]=[$original,$plan];
+            // Respect a previous human rejection or frozen approval: do not
+            // fabricate new children when the parent is already decided.
+            $before=$this->one($original['id']);
+            if ($plan['kind']==='partial' &&
+                ($before===null||in_array($before['status'],
+                ['draft','conflict','reconciled_partial','covered','stale','needs_reapproval'],true))) {
+                foreach ($plan['reviewable_spans'] as $span) {
+                    $child=RemoteOverlapReconciler::child(
+                        $original,$span,$plan['coverage_digest']);
+                    $expanded[]=[$child,RemoteOverlapReconciler::analyze($child,$remote)];
+                }
+            }
+        }
+        usort($expanded,static fn($a,$b)=>strcmp($a[0]['date'].$a[0]['start'].$a[0]['id'],
+                                                 $b[0]['date'].$b[0]['start'].$b[0]['id']));
         $claimed=[];$counts=[];
         $timestamp=(new DateTimeImmutable())->format('c');
         $this->db->exec('BEGIN IMMEDIATE');
         try {
-            foreach ($proposals as $original) {
-                $id=$this->matchingIdentity($original,$claimed);
+            foreach ($expanded as [$original,$plan]) {
+                $id=str_starts_with($original['id'],'gap-')
+                    ?$original['id']:$this->matchingIdentity($original,$claimed);
                 if (isset($claimed[$id]))throw new RuntimeException('Duplicated review candidate');
                 $claimed[$id]=true;
                 $candidate=array_replace($original,['id'=>$id]);
-                [$relation,$remoteId]=self::relation($candidate,$remote);
+                $relation=$plan['kind'];
+                $remoteId=$plan['kind']==='covered'?$plan['remote_id']:null;
                 $candidate['proposed_action']=$relation;
                 $candidate['existing_timesheet_id']=$remoteId;
                 $digest=self::fingerprint($candidate);
@@ -150,15 +166,24 @@ final class ReviewQueue
                         // overlap or refreshed segmentation. Reconcile by GET.
                         $status='uncertain';$reason='Remote outcome requires GET reconciliation';
                     } elseif ($before['status']==='rejected') {
-                        $status=$before['source_digest']===$digest?'rejected':'needs_reapproval';
+                        // Automatic remote-coverage reconciliation must not
+                        // revoke a human rejection if observed evidence itself
+                        // is unchanged (only Kimai segment boundaries moved).
+                        $previous=json_decode($before['proposed_json'],true,512,JSON_THROW_ON_ERROR);
+                        $sameEvidence=is_array($previous) &&
+                            self::observedEvidenceFingerprint($previous)===
+                            self::observedEvidenceFingerprint($candidate);
+                        $status=$sameEvidence?'rejected':'needs_reapproval';
                         $reason=$status==='rejected'?'Rejected by the worker':
-                            'Evidence changed after prior rejection';
+                            'Observed evidence changed after prior rejection';
                     } elseif ($before['status']==='approved' && $before['source_digest']!==$digest) {
                         $status='needs_reapproval';$reason='Evidence or boundaries changed after approval';
                     } elseif ($relation==='covered') {
                         $status='covered';$reason='Already present in live Kimai';
                     } elseif ($relation==='conflict') {
-                        $status='conflict';$reason='Live Kimai overlaps; manual choice required';
+                        $status='conflict';$reason='Live Kimai has an unfinished overlapping timesheet';
+                    } elseif ($relation==='partial') {
+                        $status='reconciled_partial';$reason='Remote coverage separated; residual work requires review';
                     } elseif ($before['status']==='approved') {
                         $status='approved';$reason=null;
                     } elseif ($before['status']==='needs_reapproval') {
@@ -174,7 +199,10 @@ final class ReviewQueue
                         CanonicalJson::encode($candidate),$digest,$reason,$timestamp,$id
                     ]);
                 } else {
-                    $status=match($relation) {'covered'=>'covered','conflict'=>'conflict',default=>'draft'};
+                    $status=match($relation) {
+                        'covered'=>'covered','conflict'=>'conflict',
+                        'partial'=>'reconciled_partial',default=>'draft'
+                    };
                     $stmt=$this->db->prepare('INSERT INTO sessions
                         (id,day,start,end,status,proposed_json,source_digest,approval_json,remote_id,reason,updated_utc,created_utc)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -187,12 +215,16 @@ final class ReviewQueue
             }
             $days=array_unique(array_column($proposals,'date'));
             foreach ($days as $day) {
-                $stmt=$this->db->prepare("SELECT id FROM sessions WHERE day=? AND status IN ('draft','conflict')");
+                $stmt=$this->db->prepare("SELECT id,status FROM sessions WHERE day=? AND
+                    (status IN ('draft','conflict','reconciled_partial')
+                     OR (id LIKE 'gap-%' AND status IN ('approved','needs_reapproval')))");
                 $stmt->execute([$day]);
                 foreach ($stmt as $row) {
                     if (isset($claimed[$row['id']]))continue;
+                    // An obsolete frozen gap approval is no longer eligible
+                    // for the publisher. Retain its approval JSON for audit.
                     $this->db->prepare("UPDATE sessions SET status='stale',reason=?,updated_utc=? WHERE id=?")
-                        ->execute(['Not present in the current evidence segmentation',$timestamp,$row['id']]);
+                        ->execute(['Not present in the current verified segmentation',$timestamp,$row['id']]);
                     $counts['stale']=($counts['stale']??0)+1;
                 }
             }
@@ -417,6 +449,30 @@ final class ReviewQueue
         }
         $proposal=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);
         return is_array($proposal)?$proposal:null;
+    }
+
+    /**
+     * Historical conflicts need a bounded remote GET even when their day
+     * falls outside the normal activity-window lookback. No status changes
+     * until synchronize() has authoritative remote coverage.
+     */
+    public function olderConflicts(array $activeDays,int $limit=100): array
+    {
+        if ($limit<1||$limit>100)throw new RuntimeException('Unsafe backlog size');
+        $rows=$this->db->query("SELECT id,day,proposed_json FROM sessions
+            WHERE status='conflict' ORDER BY day,start LIMIT ".($limit+1))->fetchAll();
+        if (count($rows)>$limit)throw new RuntimeException('Historical conflict backlog exceeds scan limit');
+        $proposals=[];
+        foreach ($rows as $row) {
+            if (in_array($row['day'],$activeDays,true))continue;
+            $item=json_decode($row['proposed_json'],true,512,JSON_THROW_ON_ERROR);
+            if (!is_array($item)||($item['date']??null)!==$row['day'] ||
+                ($item['id']??null)!==$row['id']||isset($item['source_parent_id'])) {
+                throw new RuntimeException('Untrusted historical candidate');
+            }
+            $proposals[]=$item;
+        }
+        return $proposals;
     }
 
     public function countByStatus(): array

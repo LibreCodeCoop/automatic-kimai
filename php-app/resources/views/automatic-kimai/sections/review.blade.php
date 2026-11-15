@@ -62,16 +62,28 @@
 </div>
 @php
 $conflictsToReview=count(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='conflict'));
+$reconciledPeriods=count(array_filter($reviewRows ?? [], static fn($row)=>($row['status']??'')==='reconciled_partial'));
+$unregisteredGaps=count(array_filter($reviewRows ?? [], static fn($row)=>isset($row['source_parent_id']) && in_array(($row['status']??''),['draft','needs_reapproval'],true)));
+$remainingSmallSeconds=array_sum(array_map(static fn($row)=>(int)($row['remote_small_gap_seconds']??0),array_filter(
+    $reviewRows ?? [],static fn($row)=>($row['status']??'')==='reconciled_partial')));
 @endphp
+@if($reconciledPeriods>0)
+<p class="muted" role="status"><strong>{{ $reconciledPeriods }} propostas reconciliadas automaticamente com o Kimai.</strong>
+Os trechos já registrados não serão duplicados. Existem {{ $unregisteredGaps }} intervalos inteiros a confirmar;
+{{ $remainingSmallSeconds }} segundos de margens residuais permanecem registrados para conferência, sem aprovação automática.</p>
+@endif
 @if($conflictsToReview>0)
 <p class="warn" role="status">{{ $conflictsToReview }} {{ $conflictsToReview===1?'sobreposição precisa':'sobreposições precisam' }} de decisão. Abra um período para comparar a sugestão com os registros existentes.</p>
 @endif
 @forelse(($reviewRows ?? []) as $candidate)
-<details class="day-card" @if(($candidate['status'] ?? '')==='conflict' && !isset($firstConflictOpened)) open @php $firstConflictOpened=true; @endphp @endif>
+<details class="day-card" @if(in_array(($candidate['status'] ?? ''),['conflict','draft'],true) &&
+    (isset($candidate['source_parent_id']) || ($candidate['status'] ?? '')==='conflict') &&
+    !isset($firstActionOpened)) open @php $firstActionOpened=true; @endphp @endif>
 <summary>
 <span class="day-title">{{ $candidate['date'] ?? 'Período observado' }} · {{ substr($candidate['start'] ?? '',11,5) }}–{{ substr($candidate['end'] ?? '',11,5) }}</span>
 <span class="day-subtitle">Situação: {{ match($candidate['status'] ?? '') {
-    'conflict'=>'Conflito de horários', 'draft'=>'Aguardando revisão',
+    'conflict'=>'Conflito de horários', 'reconciled_partial'=>'Cobertura reconciliada',
+    'draft'=>isset($candidate['source_parent_id'])?'Lacuna não registrada · confirmar':'Aguardando revisão',
     'needs_reapproval'=>'Revisão novamente necessária', 'rejected'=>'Descartado',
     'covered'=>'Registrado no Kimai', 'approved'=>'Aprovado localmente',
     'posted'=>'Publicado', 'uncertain'=>'Publicação a conciliar',
@@ -79,11 +91,34 @@ $conflictsToReview=count(array_filter($reviewRows ?? [], static fn($row)=>($row[
 } }}</span>
 </summary>
 <div class="day-body">
+@if(isset($candidate['source_parent_id']))
+<p class="warn">Trecho não coberto pelo Kimai, extraído automaticamente de uma proposta sobreposta. Não é prova de trabalho: confirme se foi realizado, desconte pausas e escolha o projeto antes de aprovar.</p>
+@else
 <p class="muted">Contexto observado não comprova duração de trabalho. Revise pausas, atividade e projeto antes de decidir. O faturamento não é controlado por esta tela.</p>
+@endif
 @if(($candidate['status'] ?? '')!=='conflict' && !empty($candidate['hold_reason']))
 <p class="warn">{{ $candidate['hold_reason'] }}</p>
 @endif
-@if(($candidate['status'] ?? '')==='conflict')
+@if(($candidate['status'] ?? '')==='reconciled_partial')
+<div class="review-conflict" role="group" aria-label="Resumo da reconciliação automática">
+<h3>Horas já registradas foram preservadas</h3>
+<p>O aplicativo comparou este intervalo aos lançamentos do Kimai e separou as lacunas. Esta proposta original não será lançada de novo.</p>
+<p><strong>{{ count($candidate['remote_intersections'] ?? []) }} registros remotos associados.</strong>
+<strong>{{ intdiv((int)($candidate['remote_uncovered_seconds']??0),60) }} minutos</strong> não cobertos integralmente.
+{{ $candidate['remote_gap_candidates']??0 }} trechos foram preparados como propostas independentes e ainda precisam de confirmação.</p>
+@if(($candidate['remote_small_gap_seconds']??0)>0)
+<p class="muted">{{ $candidate['remote_small_gap_seconds'] }} segundos de margens inferiores a cinco minutos ou sem limite válido de publicação foram mantidos como evidência; não foram descartados nem considerados horas trabalhadas.</p>
+@endif
+<details class="technical-details"><summary>Conferir horários ainda não cobertos</summary>
+<ul>
+@foreach(($candidate['remote_uncovered_spans']??[]) as $span)
+<li>{{ substr($span['start']??'',11,8) }}–{{ substr($span['end']??'',11,8) }}
+ · {{ $span['seconds']??0 }} segundos não registrados</li>
+@endforeach
+</ul>
+</details>
+</div>
+@elseif(($candidate['status'] ?? '')==='conflict')
 <div class="review-conflict" role="group" aria-label="Decisão sobre sobreposição"
  data-conflict-details data-conflict-id="{{ $candidate['id'] }}"
  data-conflict-digest="{{ $candidate['source_digest'] }}">

@@ -450,6 +450,24 @@ final class SyncEngine
                     $queue=new ReviewQueue($this->store->reviewQueueFile());
                     try {
                         $report['review_queue_states']=$queue->synchronize($reviewCandidates,$remote);
+                        $historic=$queue->olderConflicts($days);
+                        if ($historic!==[]) {
+                            $historicDays=array_values(array_unique(array_column($historic,'date')));
+                            $totals=[];
+                            foreach (array_chunk($historicDays,7) as $batch) {
+                                $olderRemote=$api->timesheets($userId,$batch,$profile->zone);
+                                $pending=array_values(array_filter($historic,static fn($r)=>
+                                    in_array($r['date'],$batch,true)));
+                                foreach ($queue->synchronize($pending,$olderRemote) as $key=>$value) {
+                                    $totals[$key]=($totals[$key]??0)+$value;
+                                    $report['review_queue_states'][$key]=
+                                        ($report['review_queue_states'][$key]??0)+$value;
+                                }
+                            }
+                            $report['historic_conflicts_reconciled']=[
+                                'days'=>count($historicDays),'states'=>$totals,
+                            ];
+                        }
                         $report['review_queue_count']=count($queue->rows());
                     } finally {
                         $queue->close();

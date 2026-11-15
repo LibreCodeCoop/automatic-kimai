@@ -385,3 +385,18 @@ O PHP usa somente snapshots Telegram recentes e vinculados à seleção
 confirmada; dados ausentes ou inválidos não impedem outros coletores.
 A cada ciclo da varredura independente, são consultados apenas grupos
 explicitamente autorizados, e nunca são emitidos recibos de leitura.
+
+### Horas já registradas e lacunas
+
+Em **Revisar minhas horas**, o aplicativo compara as propostas com as
+timesheets do usuário autenticado no Kimai. Coberturas completas não geram
+novos lançamentos; coberturas parciais são automaticamente separadas em
+`reconciled_partial` e novas propostas `gap-*` sem sobreposição.
+Intervalos residuais pequenos permanecem documentados, mas não são
+arredondados ou aprovados automaticamente. A revisão humana confirma
+apenas trabalho efetivo, pausas e projeto; a aprovação valida novamente
+os dados remotos. Uma lacuna não equivale a trabalho comprovado.
+
+A reconciliação também revisita conflitos históricos fora dos dias da
+coleta periódica. O comando padrão `automatic-kimai:sync` continua
+somente leitura e não autoriza o corte do publicador Python.

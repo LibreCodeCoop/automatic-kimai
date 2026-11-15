@@ -92,7 +92,7 @@ final class ReviewWorkflowFeatureTest extends TestCase
         $queue=new ReviewQueue($this->store->reviewQueueFile());
         $this->candidate['remote_intersections']=[65];
         $queue->synchronize([$this->candidate],[
-            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>'2026-11-12T10:30:00-03:00'],
+            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>null],
         ]);
         $candidate=$queue->rows()[0];
         self::assertSame('conflict',$candidate['status']);
@@ -121,7 +121,7 @@ final class ReviewWorkflowFeatureTest extends TestCase
         self::assertStringContainsString('existing Kimai records kept unchanged',
             $queue->rows()[0]['hold_reason']);
         $queue->synchronize([$this->candidate],[
-            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>'2026-11-12T10:30:00-03:00'],
+            ['id'=>65,'begin'=>'2026-11-12T09:30:00-03:00','end'=>null],
         ]);
         self::assertSame('rejected',$queue->rows()[0]['status']);
         $queue->close();
@@ -129,6 +129,29 @@ final class ReviewWorkflowFeatureTest extends TestCase
         $this->post($url,$base+['decision'=>'already_recorded','confirm_discard'=>'1'])->assertSessionHasErrors('review');
         $this->post('http://outside.example/review/conflict',
             $base+['decision'=>'already_recorded','confirm_discard'=>'1'])->assertForbidden();
+    }
+
+    public function test_partial_remote_coverage_becomes_visible_separate_reviewable_gap(): void
+    {
+        $queue=new ReviewQueue($this->store->reviewQueueFile());
+        $queue->synchronize([$this->candidate],[
+            ['id'=>81,'begin'=>'2026-11-12T09:00:00-03:00','end'=>'2026-11-12T09:15:00-03:00'],
+            ['id'=>82,'begin'=>'2026-11-12T09:45:00-03:00','end'=>'2026-11-12T10:00:00-03:00'],
+        ]);
+        $rows=$queue->rows();
+        self::assertSame(['reconciled_partial','draft'],array_column($rows,'status'));
+        self::assertSame(1800,$rows[0]['remote_uncovered_seconds']);
+        $queue->close();
+        $this->get('http://localhost/?view=review')->assertOk()
+            ->assertSee('propostas reconciliadas automaticamente com o Kimai')
+            ->assertSee('Cobertura reconciliada')
+            ->assertSee('Lacuna não registrada')
+            ->assertSee('Trecho não coberto pelo Kimai')
+            ->assertSee('09:15:00')
+            ->assertSee('09:45:00')
+            ->assertSee('gap-',false)
+            ->assertSee('data-review-catalog',false);
+        self::assertFileDoesNotExist($this->store->ledgerFile());
     }
 
     public function test_mutations_are_rejected_from_nonlocal_origins(): void
