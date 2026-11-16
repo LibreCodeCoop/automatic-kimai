@@ -28,6 +28,30 @@ const Native = {
 
 contextBridge.exposeInMainWorld('Native', Native);
 
+// Typed, fixed-purpose update commands. Never expose the generic IPC channel
+// or accept an installer URL from the renderer (even the local web page).
+const updaterCommands = {
+    status: 'automatic-kimai:update-status-get',
+    check: 'automatic-kimai:update-check',
+    download: 'automatic-kimai:update-download',
+    restart: 'automatic-kimai:update-restart',
+    openReleases: 'automatic-kimai:update-open-releases',
+};
+contextBridge.exposeInMainWorld('AutomaticKimaiUpdates', {
+    status: () => ipcRenderer.invoke(updaterCommands.status),
+    check: () => ipcRenderer.invoke(updaterCommands.check),
+    download: () => ipcRenderer.invoke(updaterCommands.download),
+    restart: () => ipcRenderer.invoke(updaterCommands.restart),
+    openReleases: () => ipcRenderer.invoke(updaterCommands.openReleases),
+    onStatus: (callback: (status: unknown) => void) => {
+        if (typeof callback !== 'function') return () => {};
+        const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
+        ipcRenderer.on('automatic-kimai:update-status', listener);
+        return () => ipcRenderer.removeListener('automatic-kimai:update-status', listener);
+    },
+});
+
+
 // -------------------------------------------------------------------
 // Log events
 // -------------------------------------------------------------------

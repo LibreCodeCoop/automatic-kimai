@@ -581,3 +581,33 @@ a.button:hover { background:var(--primary-hover); }
 .telegram-work-labels { display: grid; gap: 8px; max-height: 280px; overflow-y: auto;
   padding: 12px; border: 1px solid var(--border, #888); border-radius: 10px; }
 .telegram-work-labels label { display: flex; gap: 10px; align-items: flex-start; overflow-wrap: anywhere; }
+
+/* Native desktop updater: always hidden in an ordinary web browser. */
+[hidden] { display: none !important; }
+.updates-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  width: auto;
+  padding: 8px 13px;
+  font-size: 13px;
+  color: var(--header-fg);
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.25);
+}
+.updates-trigger[data-available="true"] {
+  background: var(--secondary-bg);
+  color: var(--secondary-fg);
+  font-weight: 750;
+}
+.updates-trigger:hover:not(:disabled) { filter: brightness(1.1); }
+.updates-panel { margin: 0 0 18px; border-color: var(--focus); }
+.updates-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.updates-header h2 { margin-bottom: 5px; }
+.updates-header p { margin: 0 0 12px; }
+.updates-header button { flex-shrink: 0; }
+.updates-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.updates-actions button { margin: 0; }
+.updates-panel progress { width: 100%; height: 12px; margin: 6px 0 14px; }
+.updates-note { font-size: 12px; margin: 14px 0 0; }

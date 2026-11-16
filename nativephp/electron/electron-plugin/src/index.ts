@@ -27,6 +27,12 @@ class NativePHP {
     schedulerInterval = undefined;
     quitting = false;
 
+    // The random local PHP port is the only origin authorized to control
+    // the updater. Other localhost web servers cannot invoke privileged IPC.
+    public getAppPort(): number {
+        return state.phpPort;
+    }
+
     public bootstrap(app: CrossProcessExports.App, icon: string, phpBinary: string, cert: string, appPath: string) {
         initialize();
 

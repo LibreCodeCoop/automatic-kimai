@@ -48,8 +48,10 @@ precisar atualizar este README a cada lançamento.
 
 Para outras versões e notas de lançamento, consulte
 **[GitHub Releases](https://github.com/LibreCodeCoop/automatic-kimai/releases)**.
-Leia as notas da versão antes de instalar: os pacotes atuais não são assinados
-digitalmente nem notarizados. Não é necessário instalar PHP, Composer ou Node.js.
+Leia as notas da versão antes de instalar: a disponibilidade de assinatura
+digital e notarização depende da plataforma e da release. Não é necessário
+instalar PHP, Composer ou Node.js.
+
 
 ## Comece em três etapas
 

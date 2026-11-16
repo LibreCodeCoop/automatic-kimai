@@ -7,7 +7,8 @@ on:
       - 'app/**'
       - 'config/**'
       - 'nativephp/**'
-      - 'scripts/check-desktop-package.mjs'
+      - 'scripts/**'
+      - '.github/RELEASE_NOTES.md'
       - 'public/icon.*'
       - 'composer.*'
       - 'README.md'
@@ -47,7 +48,6 @@ jobs:
     env:
       CI: 'true'
       NODE_ENV: 'development'
-      NATIVEPHP_APP_VERSION: '0.4.0'
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # No signing credentials are available to untrusted pull requests.
       CSC_LINK: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
@@ -73,10 +73,12 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: nativephp/electron/package-lock.json
-      - name: Verify tag and application version agree
+      - name: Resolve and validate desktop version
         shell: bash
-        run: |
-          node -e 'const v=require("./nativephp/electron/package.json").version;const tag=process.env.GITHUB_REF_NAME; if(process.env.GITHUB_REF_TYPE==="tag" && tag!=="v"+v)process.exit(1);'
+        run: node scripts/desktop-version.mjs --github-env
+      - name: Test versioning and release preparation without publishing
+        shell: bash
+        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs
       - name: Install PHP dependencies
         shell: bash
         run: |
@@ -131,12 +133,29 @@ jobs:
             export CSC_FOR_PULL_REQUEST=true
           fi
           php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
+      - name: Test update state machine and release metadata
+        shell: bash
+        run: node --test nativephp/electron/src/main/updates.test.mjs scripts/create-update-manifests.test.mjs
       - name: Validate published release filenames
         shell: bash
         run: node --test scripts/check-desktop-package.test.mjs
       - name: Validate embedded PHP, Laravel and installer structure
         shell: bash
         run: node scripts/check-desktop-package.mjs ${{ matrix.target }} ${{ matrix.arch }}
+      - name: Check signed macOS update eligibility
+        if: matrix.target == 'mac'
+        shell: bash
+        run: |
+          # Only advertise a native macOS auto-update if Developer ID signing
+          # and Gatekeeper notarization succeeded for this exact archive.
+          if [[ -n "${CSC_LINK:-}" ]]; then
+            app="$(find nativephp/electron/dist -maxdepth 3 -type d -name '*.app' -print -quit)"
+            test -n "$app"
+            codesign --verify --strict --deep "$app"
+            codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Authority=Developer ID Application:'
+            spctl --assess --type execute "$app"
+            printf 'verified\n' > "release-output/verified-mac-${{ matrix.arch }}.marker"
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ matrix.target }}-${{ matrix.arch }}
@@ -151,27 +170,20 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - uses: actions/download-artifact@v4
         with:
           pattern: installer-*
           path: release-output
           merge-multiple: true
-      - name: Verify all operating-system packages are present
+      - name: Prepare and test release assets
         shell: bash
-        run: |
-          set -euo pipefail
-          test "$(find release-output -maxdepth 1 -name '*.AppImage' -type f | wc -l)" -eq 1
-          test "$(find release-output -maxdepth 1 -name '*-setup.exe' -type f | wc -l)" -eq 1
-          test "$(find release-output -maxdepth 1 -name '*-x64.dmg' -type f | wc -l)" -eq 1
-          test "$(find release-output -maxdepth 1 -name '*-arm64.dmg' -type f | wc -l)" -eq 1
-          # Stable asset names keep README download links on /releases/latest
-          # valid across version changes; keep the version in the release tag.
-          mv -- release-output/*.AppImage release-output/Automatic-Kimai-linux-x86_64.AppImage
-          mv -- release-output/*-setup.exe release-output/Automatic-Kimai-windows-x64-setup.exe
-          mv -- release-output/*-arm64.dmg release-output/Automatic-Kimai-macos-arm64.dmg
-          mv -- release-output/*-x64.dmg release-output/Automatic-Kimai-macos-x64.dmg
-          test "$(find release-output -maxdepth 1 -type f | wc -l)" -eq 4
-          (cd release-output && sha256sum -- * > SHA256SUMS.txt)
+        run: node scripts/prepare-desktop-release.mjs release-output "$GITHUB_REF_NAME"
       - name: Publish public desktop release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -179,39 +191,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat > release-notes.md <<'NOTES'
-          ## Automatic Kimai — Windows, Linux e macOS
-
-          Aplicação desktop para conciliar atividades e períodos trabalhados
-          com o Kimai, com integrações opcionais ActivityWatch, Nextcloud,
-          GitHub e Telegram. Inclui instaladores Linux AppImage, Windows
-          e macOS Intel e Apple Silicon, com PHP integrado.
-
-          ### Instalação e integridade
-          Escolha o arquivo compatível com seu sistema operacional. Use
-          `SHA256SUMS.txt` para verificar a integridade dos downloads.
-          Não é necessário instalar PHP, Composer ou Node.js.
-
-          ### Informação sobre assinatura
-          **Os instaladores desta versão não estão assinados ou notarizados.**
-          Windows SmartScreen e macOS Gatekeeper podem exibir avisos ou
-          restringir a execução. Os hashes verificam integridade, mas não
-          substituem a assinatura de procedência. Não foram concluídos
-          testes de instalação em todas as máquinas físicas de destino.
-          A atualização automática permanece desabilitada.
-
-          ### Dados e envio de horas
-          Integrações exigem autorização individual. Atividades observadas
-          não equivalem automaticamente a horas trabalhadas; a publicação
-          no Kimai depende da configuração e autorização em cada instalação.
-          NOTES
           mapfile -d '' files < <(find release-output -maxdepth 1 -type f -print0)
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
               --title "Automatic Kimai $GITHUB_REF_NAME (prévia)" \
-              --prerelease --notes-file release-notes.md
+              --prerelease --notes-file .github/RELEASE_NOTES.md
           else
             gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
               --title "Automatic Kimai $GITHUB_REF_NAME" \
-              --latest --notes-file release-notes.md
+              --latest --notes-file .github/RELEASE_NOTES.md
           fi

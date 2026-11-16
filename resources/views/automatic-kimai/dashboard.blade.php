@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=19">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=20">
 </head>
 <body>
 <header class="app-header">
@@ -24,6 +24,11 @@ try {
 <span class="brand-mark">@include('automatic-kimai.components.icon',['name'=>'clock-3'])</span>
 <span><strong>Automatic Kimai</strong><small>Seu tempo de trabalho</small></span>
 </a>
+<button type="button" id="updates-trigger" class="updates-trigger" hidden
+        aria-controls="updates-panel" aria-expanded="false" title="Verificar atualizações">
+  @include('automatic-kimai.components.icon',['name'=>'refresh-cw'])
+  <span id="updates-trigger-label">Atualizações</span>
+</button>
 <button type="button" id="theme-switch" class="theme-switch" aria-label="Alternar entre tema claro e escuro" title="Alternar tema" aria-pressed="false">
 @include('automatic-kimai.components.icon',['name'=>'moon','class'=>'theme-icon moon-icon'])
 @include('automatic-kimai.components.icon',['name'=>'sun','class'=>'theme-icon sun-icon'])
@@ -35,6 +40,23 @@ try {
 @include('automatic-kimai.sections.navigation')
 </aside>
 <main id="main-content" class="main-content">
+<section id="updates-panel" class="updates-panel" hidden aria-labelledby="updates-heading">
+  <div class="updates-header">
+    <div>
+      <h2 id="updates-heading">Atualizações do aplicativo</h2>
+      <p id="updates-description" class="muted" role="status" aria-live="polite">Verificando versões disponíveis…</p>
+    </div>
+    <button type="button" id="updates-dismiss" class="secondary" aria-label="Fechar atualizações">Fechar</button>
+  </div>
+  <progress id="updates-progress" max="100" value="0" hidden aria-label="Progresso do download"></progress>
+  <div class="updates-actions">
+    <button type="button" id="updates-check">Verificar agora</button>
+    <button type="button" id="updates-download" hidden>Baixar atualização</button>
+    <button type="button" id="updates-restart" hidden>Reiniciar e atualizar</button>
+    <button type="button" class="secondary" id="updates-manual" hidden>Baixar pelo GitHub</button>
+  </div>
+  <p class="muted updates-note">As atualizações somente são baixadas mediante sua confirmação. Os dados locais não são enviados ao GitHub.</p>
+</section>
 @if(session('ok'))<div class="notice" role="status">{{session('ok')}}</div>@endif
 @if($errors->any())<div class="notice error" role="alert"><strong>Não foi possível concluir a operação.</strong><ul>@foreach($errors->all() as $message)<li>{{$message}}</li>@endforeach</ul></div>@endif
 <div class="page-intro"><div>
@@ -80,6 +102,7 @@ try {
 <script>
 @include('automatic-kimai.scripts.theme')
 @include('automatic-kimai.scripts.sidebar')
+@include('automatic-kimai.scripts.updates')
 @if($view==='kimai')
 @include('automatic-kimai.scripts.catalog')
 @endif

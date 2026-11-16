@@ -2,13 +2,21 @@
 
 use App\Providers\NativeAppServiceProvider;
 
+// CI sets NATIVEPHP_APP_VERSION from the Electron package. When running the
+// source checkout locally, read that same package rather than maintaining a
+// second release number here. Installed bundles rely on the injected version.
+$desktopPackage = base_path('nativephp/electron/package.json');
+$desktopVersion = is_file($desktopPackage)
+    ? json_decode(file_get_contents($desktopPackage), true, 512, JSON_THROW_ON_ERROR)['version']
+    : '0.0.0';
+
 return [
     /**
      * The version of your app.
      * It is used to determine if the app needs to be updated.
-     * Increment this value every time you release a new version of your app.
+     * Manage the release version in nativephp/electron/package.json only.
      */
-    'version' => env('NATIVEPHP_APP_VERSION', '0.4.0'),
+    'version' => env('NATIVEPHP_APP_VERSION', $desktopVersion),
 
     /**
      * The ID of your application. This should be a unique identifier

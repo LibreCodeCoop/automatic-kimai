@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.1 — Assisted desktop updates (November 2026)
+
+- Check official stable GitHub releases at startup and periodically in the
+  installed desktop app; notify users when an update is available.
+- Download a platform-compatible update only after an explicit click, show
+  verified download progress, and offer a separate “Restart and update” action.
+- Publish SHA-512-verified Windows NSIS and Linux AppImage update manifests
+  alongside the latest installer assets.
+- macOS update manifests are published only when both builds have valid
+  Developer ID signatures and pass Gatekeeper verification; unsigned users
+  are directed to the official GitHub download instead.
+- The current v0.4.0 app requires one manual upgrade to a version that
+  includes these controls. Existing local settings must remain on the device.
+
+
 ## 0.4.0 — Public desktop release (November 2026)
 
 - Public release with AppImage, NSIS .exe and macOS Intel/Apple Silicon DMG.

@@ -97,6 +97,20 @@ export function verifyDesktopPackage(root, os, arch) {
     mkdirSync(output, { recursive: true });
     const publicName = canonicalReleaseAssetName(files[0]);
     copyFileSync(artifact, join(output, publicName));
+    if (os === 'mac') {
+        const zips = readdirSync(folder).filter(name =>
+            name.endsWith('-' + arch + '.zip') && name.includes('-' + arch + '.'));
+        if (zips.length !== 1) throw new Error('Expected exactly one macOS ' + arch + ' update ZIP');
+        const zipFile = join(folder, zips[0]);
+        const zipSize = statSync(zipFile).size;
+        if (zipSize < 20_000_000) throw new Error('macOS updater ZIP is suspiciously small');
+        const zipFd = openSync(zipFile, 'r');
+        const header = Buffer.alloc(4);
+        try { readSync(zipFd, header, 0, 4, 0); } finally { closeSync(zipFd); }
+        if (header.toString('hex') !== '504b0304') throw new Error('macOS updater ZIP has invalid header');
+        copyFileSync(zipFile, join(output, canonicalReleaseAssetName(zips[0])));
+        console.log('DESKTOP_UPDATE_ZIP=' + zips[0]);
+    }
     console.log('DESKTOP_PACKAGE_VALID=' + os + '-' + arch);
     console.log('DESKTOP_PACKAGE_FILE=' + publicName);
 }

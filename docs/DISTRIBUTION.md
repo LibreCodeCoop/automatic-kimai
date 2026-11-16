@@ -13,7 +13,10 @@ project at the repository root; NativePHP/Electron lives under
 - macOS Apple Silicon arm64 → `.dmg`
 
 The workflow runs on PRs affecting packaging and on signed release tags
-matching the version in `nativephp/electron/package.json`. A tag triggers
+matching the version in `nativephp/electron/package.json` (the single canonical
+application version). npm maintains `package-lock.json`, which is checked for
+consistency. CI resolves `NATIVEPHP_APP_VERSION` from this package; do not set
+release versions in the workflow or PHP configuration. A tag triggers
 GitHub release upload only after all four package jobs succeed and their
 installer checks verify the files and embedded PHP runtime.
 
@@ -38,9 +41,25 @@ key is reused after restart and updates; if an encrypted profile exists
 without its original key, startup fails instead of silently replacing it.
 The installer itself never contains a shared decryption key.
 
-The application keeps automatic updates disabled until the full signed update
-path is verified. Users can update manually from GitHub Releases, preserving
-their application-data directory.
+Automatic update checking is now handled in Electron's main process, not
+the Laravel HTTP controller. Requests are restricted to the main local frame.
+Every installed app checks for official stable GitHub releases at startup and
+every six hours. A newer release is offered in the UI but not downloaded
+without consent. Once the electron-updater verifies it, the user can choose
+“Reiniciar e atualizar”. The updater keeps credentials and local history
+outside the versioned application payload.
+
+The publishing workflow builds release metadata for Linux AppImage
+(`latest-linux.yml`) and Windows NSIS (`latest.yml`) from the exact final
+installer bytes; the files contain SHA-512 digests. macOS builds include ZIP
+archives, but `latest-mac.yml` is published only after both architecture
+builds pass Developer ID and Gatekeeper verification. Unsigned macOS users
+see a link to the official release rather than a misleading restart button.
+
+These safeguards do not replace on-device testing and certificate management.
+The v0.4.0 generation cannot self-update because it shipped without an updater;
+one initial manual installation is needed. Never force auto-download or
+install-on-quit in the background.
 
 ## Platform signatures
 
@@ -68,11 +87,19 @@ Never describe a successful cross-platform *build* as a verified user installati
 
 ## Releasing
 
-1. Merge the tested PR, updating package and NativePHP version consistently.
-2. Create and push a version tag on the merged commit (for example
-   `v0.4.0`). The workflow builds all four targets.
-3. Check the workflow result, the four assets, `SHA256SUMS.txt`, and
-   the release notes. Never upload unsigned installers to a stable release.
-4. For a future stable version, configure signing and notarization credentials,
-   validate installation on each real OS, and separately enable and test
-   the NativePHP updater only after it can verify trusted update payloads.
+1. Set the intended version with `npm version <version> --no-git-tag-version`
+   inside `nativephp/electron/`; commit both npm metadata files together.
+   `node scripts/desktop-version.mjs` validates their consistency.
+2. Run the release preparation tests without a release:
+   `node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs`.
+   The preparation function can be exercised using fixture artifacts and
+   does not call GitHub or publish anything.
+3. Merge the tested PR; create a tag corresponding to the package version.
+   Four package jobs produce six archives. A dedicated script
+   (`scripts/prepare-desktop-release.mjs`) checks every artifact, renames
+   installers, generates update manifests and SHA256 checksums. The short
+   workflow publishes these assets with `.github/RELEASE_NOTES.md`.
+4. Verify the published installers, macOS archives, update manifests,
+   checksums and release notes. Configure signing/notarization and
+   homologate upgrade, rollback and encrypted settings on real devices.
+   Unsigned macOS releases must not advertise automatic installation.
