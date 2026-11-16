@@ -34,18 +34,22 @@ pessoa utiliza sua própria conta e decide quais fontes serão analisadas.
 
 ## Download
 
-Encontre os instaladores e as notas de cada versão em
-**[Baixar a versão mais recente](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest)**.
+Escolha seu sistema operacional para baixar diretamente o instalador da
+**[versão estável mais recente](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest)**.
+Os links são permanentes: continuam apontando para a última versão sem
+precisar atualizar este README a cada lançamento.
 
-| Sistema operacional | Formato | Como instalar |
+| Sistema | Download | Instalação |
 | --- | --- | --- |
-| **Linux** | AppImage | Baixe o arquivo `.AppImage`, conceda permissão de execução e abra |
-| **Windows** | `.exe` | Baixe o instalador e siga as instruções do assistente |
-| **macOS** | `.dmg` | Baixe a versão compatível com seu Mac (Intel ou Apple Silicon) e mova para Aplicativos |
+| **Linux (x86_64)** | [![Baixar para Linux — AppImage](https://img.shields.io/badge/Linux-AppImage-333333?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-linux-x86_64.AppImage) | Conceda permissão de execução ao `.AppImage` e abra |
+| **Windows (x64)** | [![Baixar para Windows — instalador](https://img.shields.io/badge/Windows-Instalador-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-windows-x64-setup.exe) | Execute o `.exe` e siga as instruções |
+| **macOS (Apple Silicon)** | [![Baixar para macOS — Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-arm64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
+| **macOS (Intel)** | [![Baixar para macOS — Intel](https://img.shields.io/badge/macOS-Intel-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-x64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
 
-Leia as notas da versão antes da instalação, especialmente as informações
-sobre assinatura e compatibilidade. A instalação não deve exigir que você
-configure PHP, Composer ou Node.js manualmente.
+Para outras versões e notas de lançamento, consulte
+**[GitHub Releases](https://github.com/LibreCodeCoop/automatic-kimai/releases)**.
+Leia as notas da versão antes de instalar: os pacotes atuais não são assinados
+digitalmente nem notarizados. Não é necessário instalar PHP, Composer ou Node.js.
 
 ## Comece em três etapas
 

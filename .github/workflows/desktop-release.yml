@@ -164,6 +164,13 @@ jobs:
           test "$(find release-output -maxdepth 1 -name '*-setup.exe' -type f | wc -l)" -eq 1
           test "$(find release-output -maxdepth 1 -name '*-x64.dmg' -type f | wc -l)" -eq 1
           test "$(find release-output -maxdepth 1 -name '*-arm64.dmg' -type f | wc -l)" -eq 1
+          # Stable asset names keep README download links on /releases/latest
+          # valid across version changes; keep the version in the release tag.
+          mv -- release-output/*.AppImage release-output/Automatic-Kimai-linux-x86_64.AppImage
+          mv -- release-output/*-setup.exe release-output/Automatic-Kimai-windows-x64-setup.exe
+          mv -- release-output/*-arm64.dmg release-output/Automatic-Kimai-macos-arm64.dmg
+          mv -- release-output/*-x64.dmg release-output/Automatic-Kimai-macos-x64.dmg
+          test "$(find release-output -maxdepth 1 -type f | wc -l)" -eq 4
           (cd release-output && sha256sum -- * > SHA256SUMS.txt)
       - name: Publish public desktop release
         env:
