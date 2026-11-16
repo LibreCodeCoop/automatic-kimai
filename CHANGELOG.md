@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 — Public desktop release (November 2026)
+
+- Public release with AppImage, NSIS .exe and macOS Intel/Apple Silicon DMG.
+- Fixed the minimatch dependency advisory in the build toolchain while
+  retaining the compatibility required by legacy glob consumers.
+- Distribution notes explicitly disclose unsigned installer status, disabled
+  automatic updates and the need for physical-device acceptance testing.
+
+
 ## 0.4.0-alpha.2 — Release signing configuration (November 2026)
 
 - Fixed an empty-certificate release-only failure in the macOS builder:
