@@ -26,7 +26,9 @@ test('the build tooling resolves a patched minimatch for modern consumers', () =
     const modern = ['app-builder-lib', '@typescript-eslint/typescript-estree', '@electron/universal'];
     for (const name of modern) {
         const resolved = installedMinimatch(name);
-        assert.ok(resolved.includes('node_modules/minimatch/'), name + ': ' + resolved);
+        // Node resolves Windows packages with backslashes, Unix with '/'.
+        const canonicalPath = resolved.replaceAll('\\', '/');
+        assert.ok(canonicalPath.includes('/node_modules/minimatch/'), name + ': ' + resolved);
         const source = createRequire(require.resolve(name + '/package.json'))('minimatch');
         assert.equal(typeof source.minimatch, 'function', name);
     }
