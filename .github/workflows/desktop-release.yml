@@ -127,6 +127,9 @@ jobs:
             export CSC_FOR_PULL_REQUEST=true
           fi
           php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
+      - name: Validate published release filenames
+        shell: bash
+        run: node --test scripts/check-desktop-package.test.mjs
       - name: Validate embedded PHP, Laravel and installer structure
         shell: bash
         run: node scripts/check-desktop-package.mjs ${{ matrix.target }} ${{ matrix.arch }}
