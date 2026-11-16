@@ -52,18 +52,6 @@ Leia as notas da versão antes de instalar: a disponibilidade de assinatura
 digital e notarização depende da plataforma e da release. Não é necessário
 instalar PHP, Composer ou Node.js.
 
-### Atualizações do aplicativo
-
-O Automatic Kimai verifica novas versões estáveis ao iniciar e periodicamente
-enquanto está aberto. Quando encontra uma atualização, mostra um aviso dentro do
-aplicativo. O download depende da sua confirmação; ao terminar, aparece a opção
-**Reiniciar e atualizar**. O mecanismo mantém o diretório de dados da aplicação.
-
-Em Linux, a instalação integrada requer execução por AppImage. Em Windows, usa
-o instalador NSIS. Em macOS, a instalação automática só fica disponível para
-aplicativos assinados e notarizados; até lá, o aviso oferece o download oficial.
-A versão `v0.4.0` foi publicada antes deste recurso: para habilitá-lo, será
-necessária uma atualização inicial usando o instalador.
 
 ## Comece em três etapas
 

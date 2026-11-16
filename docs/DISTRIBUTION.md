@@ -13,7 +13,10 @@ project at the repository root; NativePHP/Electron lives under
 - macOS Apple Silicon arm64 → `.dmg`
 
 The workflow runs on PRs affecting packaging and on signed release tags
-matching the version in `nativephp/electron/package.json`. A tag triggers
+matching the version in `nativephp/electron/package.json` (the single canonical
+application version). npm maintains `package-lock.json`, which is checked for
+consistency. CI resolves `NATIVEPHP_APP_VERSION` from this package; do not set
+release versions in the workflow or PHP configuration. A tag triggers
 GitHub release upload only after all four package jobs succeed and their
 installer checks verify the files and embedded PHP runtime.
 
@@ -84,12 +87,19 @@ Never describe a successful cross-platform *build* as a verified user installati
 
 ## Releasing
 
-1. Merge the tested PR, updating package and NativePHP version consistently.
-2. Create and push a version tag on the merged commit (for example
-   `v0.4.0`). The workflow builds all four targets.
-3. Verify the four installer links, both macOS ZIP archives, the generated
-   update manifests, `SHA256SUMS.txt`, and the release notes. Reject
-   a manifest whose checksum differs from the published installer.
-4. Configure signing and notarization credentials and validate upgrade,
-   rollback and preservation of encrypted user settings on actual devices.
-   An unsigned macOS release must never advertise automatic installation.
+1. Set the intended version with `npm version <version> --no-git-tag-version`
+   inside `nativephp/electron/`; commit both npm metadata files together.
+   `node scripts/desktop-version.mjs` validates their consistency.
+2. Run the release preparation tests without a release:
+   `node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs`.
+   The preparation function can be exercised using fixture artifacts and
+   does not call GitHub or publish anything.
+3. Merge the tested PR; create a tag corresponding to the package version.
+   Four package jobs produce six archives. A dedicated script
+   (`scripts/prepare-desktop-release.mjs`) checks every artifact, renames
+   installers, generates update manifests and SHA256 checksums. The short
+   workflow publishes these assets with `.github/RELEASE_NOTES.md`.
+4. Verify the published installers, macOS archives, update manifests,
+   checksums and release notes. Configure signing/notarization and
+   homologate upgrade, rollback and encrypted settings on real devices.
+   Unsigned macOS releases must not advertise automatic installation.
