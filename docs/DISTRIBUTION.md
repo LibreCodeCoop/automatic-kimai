@@ -17,9 +17,10 @@ matching the version in `nativephp/electron/package.json`. A tag triggers
 GitHub release upload only after all four package jobs succeed and their
 installer checks verify the files and embedded PHP runtime.
 
-PR builds produce temporary workflow artifacts only. Tag builds are published
-as an explicitly marked **pre-release** while code-signing and on-device
-verification remain unproven. The `GITHUB_TOKEN` for publishing exists
+PR builds produce temporary workflow artifacts only. A tag containing
+a prerelease suffix is labeled **pre-release**; normal version tags are
+published as regular GitHub releases. Release notes disclose any missing
+code signatures, notarization and on-device verification. The `GITHUB_TOKEN` for publishing exists
 only in the final release job.
 
 ## Security and installation lifecycle
@@ -58,17 +59,18 @@ For Windows Authenticode signing, provide `WIN_CSC_LINK` and
 Linux packages are unsigned by the OS; release checksums provide integrity
 evidence but **not** publisher authentication.
 
-Promote a pre-release to stable only after signed binaries, actual
-Windows/macOS/Linux launch tests, preserved encrypted settings across
-updates, permission tests and a review of remaining dependency advisories.
-Never describe a successful cross-platform *build* as a verified user
-installation.
+GitHub's regular-release flag means a publicly listed download, **not**
+that the installer has independent code-signing attestation or completed
+cross-platform operational certification. Stable production suitability
+requires signed binaries, real Windows/macOS/Linux launch tests, preserved
+encrypted settings across updates, permission tests and vulnerability review.
+Never describe a successful cross-platform *build* as a verified user installation.
 
 ## Releasing
 
 1. Merge the tested PR, updating package and NativePHP version consistently.
 2. Create and push a version tag on the merged commit (for example
-   `v0.4.0-alpha.2`). The workflow builds all four targets.
+   `v0.4.0`). The workflow builds all four targets.
 3. Check the workflow result, the four assets, `SHA256SUMS.txt`, and
    the release notes. Never upload unsigned installers to a stable release.
 4. For a future stable version, configure signing and notarization credentials,

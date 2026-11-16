@@ -35,7 +35,7 @@ pessoa utiliza sua própria conta e decide quais fontes serão analisadas.
 ## Download
 
 Encontre os instaladores e as notas de cada versão em
-**[GitHub Releases](https://github.com/LibreCodeCoop/automatic-kimai/releases)**.
+**[Baixar a versão mais recente](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest)**.
 
 | Sistema operacional | Formato | Como instalar |
 | --- | --- | --- |

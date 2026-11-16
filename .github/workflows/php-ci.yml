@@ -70,6 +70,8 @@ jobs:
           sh -n ../../desktop-preview/launch.sh
           sh -n ../../desktop-preview/install-desktop.sh
           test -s ../../desktop-preview/automatic-kimai.png
+      - name: Check build dependency security and compatibility
+        run: node --test build/dependency-compat.test.mjs
       - name: Compile NativePHP Electron plugin (required for #plugin import)
         run: npm run plugin:build
       - name: Verify installer secrets guard
