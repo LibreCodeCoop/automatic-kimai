@@ -74,6 +74,20 @@ class AutomaticKimaiUiTest extends TestCase
         $this->get('http://localhost/?view=invalid')->assertOk()->assertSee('Resumo do trabalho');
     }
 
+    public function test_desktop_update_controls_are_hidden_from_regular_browsers(): void
+    {
+        $response=$this->get('http://localhost/')->assertOk();
+        $response->assertSee('id="updates-trigger"', false)
+            ->assertSee('id="updates-panel"', false)
+            ->assertSee('id="updates-download"', false)
+            ->assertSee('id="updates-restart"', false)
+            ->assertSee('id="updates-manual"', false)
+            ->assertSee('window.AutomaticKimaiUpdates', false);
+        $html=$response->getContent();
+        self::assertMatchesRegularExpression('/id="updates-trigger"[^>]*hidden/', $html);
+        self::assertMatchesRegularExpression('/id="updates-panel"[^>]*hidden/', $html);
+    }
+
     public function test_public_network_host_is_blocked(): void
     {
         $this->get('http://evil.example/')->assertForbidden();

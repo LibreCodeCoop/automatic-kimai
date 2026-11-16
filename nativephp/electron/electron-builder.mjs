@@ -159,6 +159,9 @@ export default {
         schemes: [deepLinkProtocol],
     },
     mac: {
+        // Squirrel.Mac requires ZIP in addition to DMG. The installer remains
+        // DMG; ZIP is used only by signed, notarized auto-updates.
+        target: ['dmg', 'zip'],
         // An explicitly unsigned preview must not accidentally enter the
         // tag/release signing path. A real supplied certificate restores
         // normal signing and notarization behavior.
