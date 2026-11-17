@@ -209,15 +209,17 @@ jobs:
           retention-days: 7
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: packages
+    if: needs.plan.outputs.publish == 'true'
+    needs: [plan, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -226,23 +228,74 @@ jobs:
           pattern: installer-*
           path: release-output
           merge-multiple: true
+      - name: Stamp and validate release version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            (cd nativephp/electron && npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts --allow-same-version)
+          fi
+          node scripts/desktop-version.mjs
       - name: Prepare and test release assets
         shell: bash
-        run: node scripts/prepare-desktop-release.mjs release-output "$GITHUB_REF_NAME"
-      - name: Publish public desktop release
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: node scripts/prepare-desktop-release.mjs release-output "$RELEASE_TAG"
+      - name: Prepare release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+          BASE_SHA: ${{ needs.plan.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          cp .github/RELEASE_NOTES.md release-notes.md
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            node scripts/plan-desktop-release.mjs --notes "$BASE_SHA" "$GITHUB_SHA" "$RELEASE_TAG" > release-notes.md
+          fi
+      - name: Tag the versioned sources after successful builds
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git checkout --detach "$GITHUB_SHA"
+          if ! git diff --quiet -- nativephp/electron/package.json nativephp/electron/package-lock.json; then
+            git add -- nativephp/electron/package.json nativephp/electron/package-lock.json
+            git -c user.name='github-actions[bot]' \
+                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+                commit -s -m "chore(release): ${RELEASE_TAG}"
+          fi
+          test "$(node scripts/desktop-version.mjs)" = "${RELEASE_TAG#v}"
+          if git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
+            echo 'Release tag already exists; refusing to overwrite it' >&2
+            exit 1
+          fi
+          git tag "$RELEASE_TAG"
+          git push origin "refs/tags/${RELEASE_TAG}"
+      - name: Publish verified assets and finalize release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo 'Release already exists; refusing duplicate publication' >&2
+            exit 1
+          fi
           mapfile -d '' files < <(find release-output -maxdepth 1 -type f -print0)
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
-              --title "Automatic Kimai $GITHUB_REF_NAME (prévia)" \
-              --prerelease --notes-file .github/RELEASE_NOTES.md
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --draft \
+              --title "Automatic Kimai $RELEASE_TAG (prévia)" \
+              --prerelease --notes-file release-notes.md
+            gh release edit "$RELEASE_TAG" --draft=false --latest=false
           else
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
-              --title "Automatic Kimai $GITHUB_REF_NAME" \
-              --latest --notes-file .github/RELEASE_NOTES.md
+            gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --draft \
+              --title "Automatic Kimai $RELEASE_TAG" \
+              --notes-file release-notes.md
+            gh release edit "$RELEASE_TAG" --draft=false --latest
           fi
