@@ -123,6 +123,9 @@ function run() {
         }
     } else if ((event === 'push' && refType === 'tag') ||
         (event === 'workflow_dispatch' && requestedTag)) {
+        if (event === 'workflow_dispatch' && ref !== 'refs/heads/main') {
+            throw new Error('Manual release recovery must be dispatched from main');
+        }
         const tag = event === 'workflow_dispatch' ? requestedTag : refName;
         if (!MANUAL_TAG.test(tag)) throw new Error('Invalid desktop release tag');
         assertReleaseTag(current, 'tag', tag);
