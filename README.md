@@ -39,12 +39,12 @@ Escolha seu sistema operacional para baixar diretamente o instalador da
 Os links são permanentes: continuam apontando para a última versão sem
 precisar atualizar este README a cada lançamento.
 
-| Sistema | Download | Instalação |
-| --- | --- | --- |
-| **Linux (x86_64)** | [![Baixar para Linux — AppImage](https://img.shields.io/badge/Linux-AppImage-333333?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-linux-x86_64.AppImage) | Conceda permissão de execução ao `.AppImage` e abra |
-| **Windows (x64)** | [![Baixar para Windows — instalador](https://img.shields.io/badge/Windows-Instalador-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-windows-x64-setup.exe) | Execute o `.exe` e siga as instruções |
-| **macOS (Apple Silicon)** | [![Baixar para macOS — Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-arm64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
-| **macOS (Intel)** | [![Baixar para macOS — Intel](https://img.shields.io/badge/macOS-Intel-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-x64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
+| Download | Instalação |
+| --- | --- |
+| [![Baixar para Linux — AppImage](https://img.shields.io/badge/Linux-AppImage-333333?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-linux-x86_64.AppImage) | Conceda permissão de execução ao `.AppImage` e abra |
+| [![Baixar para Windows — instalador](https://img.shields.io/badge/Windows-Instalador-0078D4?style=for-the-badge&logo=windows11&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-windows-x64-setup.exe) | Execute o `.exe` e siga as instruções |
+| [![Baixar para macOS — Apple Silicon](https://img.shields.io/badge/macOS-Apple%20Silicon-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-arm64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
+| [![Baixar para macOS — Intel](https://img.shields.io/badge/macOS-Intel-555555?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/download/Automatic-Kimai-macos-x64.dmg) | Abra o `.dmg` e mova o aplicativo para Aplicativos |
 
 Para outras versões e notas de lançamento, consulte
 **[GitHub Releases](https://github.com/LibreCodeCoop/automatic-kimai/releases)**.
