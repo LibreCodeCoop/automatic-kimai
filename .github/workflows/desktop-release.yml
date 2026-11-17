@@ -13,19 +13,55 @@ on:
       - 'composer.*'
       - 'README.md'
   push:
+    branches:
+      - main
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing tag to rebuild and publish; leave empty for preview.'
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: desktop-installers-${{ github.ref }}
+  group: desktop-installers-${{ github.event_name == 'pull_request' && github.ref || 'release-serialization' }}
   cancel-in-progress: false
 
 jobs:
+  plan:
+    name: Determine release from Conventional Commits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      base_sha: ${{ steps.plan.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Plan release or preview
+        id: plan
+        env:
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag || '' }}
+        run: node scripts/plan-desktop-release.mjs --github-output
+
   packages:
+    needs: plan
+    if: >-
+      needs.plan.outputs.publish == 'true' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'workflow_dispatch'
     name: ${{ matrix.target }} / ${{ matrix.arch }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 80
@@ -48,20 +84,22 @@ jobs:
     env:
       CI: 'true'
       NODE_ENV: 'development'
+      NATIVEPHP_APP_VERSION: ${{ needs.plan.outputs.version }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # No signing credentials are available to untrusted pull requests.
-      CSC_LINK: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
-      CSC_KEY_PASSWORD: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-      NATIVEPHP_APPLE_ID: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_APPLE_ID || '' }}
-      NATIVEPHP_APPLE_ID_PASS: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_APPLE_ID_PASS || '' }}
-      NATIVEPHP_APPLE_TEAM_ID: ${{ github.ref_type == 'tag' && matrix.target == 'mac' && secrets.MAC_APPLE_TEAM_ID || '' }}
-      WIN_CSC_LINK: ${{ github.ref_type == 'tag' && matrix.target == 'win' && secrets.WIN_CSC_LINK || '' }}
-      WIN_CSC_KEY_PASSWORD: ${{ github.ref_type == 'tag' && matrix.target == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+      CSC_LINK: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
+      CSC_KEY_PASSWORD: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+      NATIVEPHP_APPLE_ID: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_ID || '' }}
+      NATIVEPHP_APPLE_ID_PASS: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_ID_PASS || '' }}
+      NATIVEPHP_APPLE_TEAM_ID: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_TEAM_ID || '' }}
+      WIN_CSC_LINK: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'win' && secrets.WIN_CSC_LINK || '' }}
+      WIN_CSC_KEY_PASSWORD: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.release_tag || github.sha }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -73,12 +111,19 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: nativephp/electron/package-lock.json
-      - name: Resolve and validate desktop version
+      - name: Stamp planned version into the packaging workspace
         shell: bash
-        run: node scripts/desktop-version.mjs --github-env
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            (cd nativephp/electron && npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts --allow-same-version)
+          fi
+          node scripts/desktop-version.mjs --github-env
       - name: Test versioning and release preparation without publishing
         shell: bash
-        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs
+        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs scripts/plan-desktop-release.test.mjs scripts/finalize-desktop-release.test.mjs
       - name: Install PHP dependencies
         shell: bash
         run: |
@@ -164,15 +209,17 @@ jobs:
           retention-days: 7
 
   publish:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: packages
+    if: needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request'
+    needs: [plan, packages]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ inputs.release_tag || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -181,23 +228,42 @@ jobs:
           pattern: installer-*
           path: release-output
           merge-multiple: true
+      - name: Stamp and validate release version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            (cd nativephp/electron && npm version "$RELEASE_VERSION" --no-git-tag-version --ignore-scripts --allow-same-version)
+          fi
+          node scripts/desktop-version.mjs
       - name: Prepare and test release assets
         shell: bash
-        run: node scripts/prepare-desktop-release.mjs release-output "$GITHUB_REF_NAME"
-      - name: Publish public desktop release
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+        run: node scripts/prepare-desktop-release.mjs release-output "$RELEASE_TAG"
+      - name: Prepare release notes
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
+          BASE_SHA: ${{ needs.plan.outputs.base_sha }}
+        run: |
+          set -euo pipefail
+          cp .github/RELEASE_NOTES.md release-notes.md
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            node scripts/plan-desktop-release.mjs --notes "$BASE_SHA" "$GITHUB_SHA" "$RELEASE_TAG" > release-notes.md
+          fi
+      - name: Finalize versioned tag and publish verified assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -d '' files < <(find release-output -maxdepth 1 -type f -print0)
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
-              --title "Automatic Kimai $GITHUB_REF_NAME (prévia)" \
-              --prerelease --notes-file .github/RELEASE_NOTES.md
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            node scripts/finalize-desktop-release.mjs release-output "$RELEASE_TAG" --main-source "$GITHUB_SHA"
           else
-            gh release create "$GITHUB_REF_NAME" "${files[@]}" --target "$GITHUB_SHA" \
-              --title "Automatic Kimai $GITHUB_REF_NAME" \
-              --latest --notes-file .github/RELEASE_NOTES.md
+            node scripts/finalize-desktop-release.mjs release-output "$RELEASE_TAG"
           fi
