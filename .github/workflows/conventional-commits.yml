@@ -3,7 +3,7 @@
 name: Conventional commits
 on:
   pull_request:
-    types: [opened, ready_for_review, reopened, synchronize]
+    types: [opened, edited, ready_for_review, reopened, synchronize]
 
 permissions:
   contents: read
@@ -15,6 +15,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate squash merge title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/plan-desktop-release.mjs --validate-title "$PR_TITLE"
       - uses: webiny/action-conventional-commits@7f91b1595ca1951cdb671ddc9f07a49081ec5b69 # v1.4.2
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

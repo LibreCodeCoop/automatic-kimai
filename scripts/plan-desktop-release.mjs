@@ -54,6 +54,9 @@ export function releaseDecision(previousTag, messages) {
     const version = nextVersion(previous.join('.'), level);
     return { publish: level !== 'none', version, tag: level === 'none' ? '' : 'v' + version, level, changes: relevant };
 }
+export function isConventionalTitle(title) {
+    return typeof title === 'string' && Boolean(conventionalChange(title).type);
+}
 export function parseGitMessages(output) {
     return output.split('\0').map(message => message.trim()).filter(Boolean);
 }
@@ -86,6 +89,13 @@ export function releaseNotes(template, messages, tag, previousTag) {
 }
 function run() {
     const [mode, ...args] = process.argv.slice(2);
+    if (mode === '--validate-title') {
+        if (!isConventionalTitle(args.join(' '))) {
+            throw new Error('Pull request title must follow Conventional Commits for squash merges');
+        }
+        console.log('Conventional pull request title valid');
+        return;
+    }
     if (mode === '--notes') {
         if (args.length !== 3) throw new Error('Usage: --notes <base-sha> <head-sha> <tag>');
         const [baseSha, headSha, tag] = args;

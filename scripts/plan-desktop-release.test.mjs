@@ -5,8 +5,15 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSy
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { conventionalChange, latestStableTag, nextVersion, parseGitMessages, releaseDecision, releaseNotes } from './plan-desktop-release.mjs';
+import { conventionalChange, latestStableTag, nextVersion, parseGitMessages, releaseDecision, releaseNotes, isConventionalTitle } from './plan-desktop-release.mjs';
 
+test('PR titles are Conventional for squash merges, including non-releasing types', () => {
+    assert.equal(isConventionalTitle('feat(ci): auto release'), true);
+    assert.equal(isConventionalTitle('docs: adjust README'), true);
+    assert.equal(isConventionalTitle('fix!: incompatible fix'), true);
+    assert.equal(isConventionalTitle('Improve the release process'), false);
+    assert.equal(isConventionalTitle('Merge pull request #14'), false);
+});
 test('highest stable SemVer tag excludes prereleases and invalid tags', () => {
     assert.equal(latestStableTag(['v0.4.9', 'v0.10.0', 'v1.0.0-rc.1', 'v0.9.10', 'anything']), 'v0.10.0');
     assert.equal(latestStableTag(['v0.4.0-beta.1', 'unrelated']), null);
