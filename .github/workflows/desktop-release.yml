@@ -123,7 +123,7 @@ jobs:
           node scripts/desktop-version.mjs --github-env
       - name: Test versioning and release preparation without publishing
         shell: bash
-        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs scripts/plan-desktop-release.test.mjs
+        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs scripts/plan-desktop-release.test.mjs scripts/finalize-desktop-release.test.mjs
       - name: Install PHP dependencies
         shell: bash
         run: |
@@ -254,28 +254,7 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
             node scripts/plan-desktop-release.mjs --notes "$BASE_SHA" "$GITHUB_SHA" "$RELEASE_TAG" > release-notes.md
           fi
-      - name: Tag the versioned sources after successful builds
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ needs.plan.outputs.tag }}
-        run: |
-          set -euo pipefail
-          git checkout --detach "$GITHUB_SHA"
-          if ! git diff --quiet -- nativephp/electron/package.json nativephp/electron/package-lock.json; then
-            git add -- nativephp/electron/package.json nativephp/electron/package-lock.json
-            git -c user.name='github-actions[bot]' \
-                -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
-                commit -s -m "chore(release): ${RELEASE_TAG}"
-          fi
-          test "$(node scripts/desktop-version.mjs)" = "${RELEASE_TAG#v}"
-          if git show-ref --verify --quiet "refs/tags/${RELEASE_TAG}"; then
-            echo 'Release tag already exists; refusing to overwrite it' >&2
-            exit 1
-          fi
-          git tag "$RELEASE_TAG"
-          git push origin "refs/tags/${RELEASE_TAG}"
-      - name: Publish verified assets and finalize release
+      - name: Finalize versioned tag and publish verified assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -283,19 +262,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo 'Release already exists; refusing duplicate publication' >&2
-            exit 1
-          fi
-          mapfile -d '' files < <(find release-output -maxdepth 1 -type f -print0)
-          if [[ "$RELEASE_TAG" == *-* ]]; then
-            gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --draft \
-              --title "Automatic Kimai $RELEASE_TAG (prévia)" \
-              --prerelease --notes-file release-notes.md
-            gh release edit "$RELEASE_TAG" --draft=false --latest=false
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            node scripts/finalize-desktop-release.mjs release-output "$RELEASE_TAG" --main-source "$GITHUB_SHA"
           else
-            gh release create "$RELEASE_TAG" "${files[@]}" --verify-tag --draft \
-              --title "Automatic Kimai $RELEASE_TAG" \
-              --notes-file release-notes.md
-            gh release edit "$RELEASE_TAG" --draft=false --latest
+            node scripts/finalize-desktop-release.mjs release-output "$RELEASE_TAG"
           fi
