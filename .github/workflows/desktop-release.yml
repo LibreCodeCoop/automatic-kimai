@@ -87,13 +87,13 @@ jobs:
       NATIVEPHP_APP_VERSION: ${{ needs.plan.outputs.version }}
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       # No signing credentials are available to untrusted pull requests.
-      CSC_LINK: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
-      CSC_KEY_PASSWORD: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-      NATIVEPHP_APPLE_ID: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'mac' && secrets.MAC_APPLE_ID || '' }}
-      NATIVEPHP_APPLE_ID_PASS: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'mac' && secrets.MAC_APPLE_ID_PASS || '' }}
-      NATIVEPHP_APPLE_TEAM_ID: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'mac' && secrets.MAC_APPLE_TEAM_ID || '' }}
-      WIN_CSC_LINK: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'win' && secrets.WIN_CSC_LINK || '' }}
-      WIN_CSC_KEY_PASSWORD: ${{ needs.plan.outputs.publish == 'true' && matrix.target == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+      CSC_LINK: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_CSC_LINK || '' }}
+      CSC_KEY_PASSWORD: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+      NATIVEPHP_APPLE_ID: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_ID || '' }}
+      NATIVEPHP_APPLE_ID_PASS: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_ID_PASS || '' }}
+      NATIVEPHP_APPLE_TEAM_ID: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'mac' && secrets.MAC_APPLE_TEAM_ID || '' }}
+      WIN_CSC_LINK: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'win' && secrets.WIN_CSC_LINK || '' }}
+      WIN_CSC_KEY_PASSWORD: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -209,7 +209,7 @@ jobs:
           retention-days: 7
 
   publish:
-    if: needs.plan.outputs.publish == 'true'
+    if: needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request'
     needs: [plan, packages]
     runs-on: ubuntu-24.04
     permissions:
