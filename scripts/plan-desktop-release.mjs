@@ -106,7 +106,7 @@ function run() {
     let result;
     if (event === 'push' && ref === 'refs/heads/main') {
         result = planFromGit();
-        if (parseStableTag('v' + current) && parseStableTag('v' + result.version) &&
+        if (result.publish && parseStableTag('v' + current) && parseStableTag('v' + result.version) &&
             latestStableTag(['v' + current, 'v' + result.version]) === 'v' + current &&
             current !== result.version) {
             throw new Error('Desktop package version ' + current + ' is ahead of calculated release ' + result.version);
