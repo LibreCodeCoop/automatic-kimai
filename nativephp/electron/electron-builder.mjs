@@ -162,10 +162,14 @@ export default {
         // Squirrel.Mac requires ZIP in addition to DMG. The installer remains
         // DMG; ZIP is used only by signed, notarized auto-updates.
         target: ['dmg', 'zip'],
-        // An explicitly unsigned preview must not accidentally enter the
-        // tag/release signing path. A real supplied certificate restores
-        // normal signing and notarization behavior.
-        identity: macCertificateConfigured ? undefined : null,
+        // Without a Developer ID certificate, sign ad hoc ('-'). A completely
+        // unsigned arm64 app downloaded from the internet is reported by
+        // Gatekeeper as "damaged and can't be opened, move to Trash" with no
+        // way to allow it. An ad hoc signature turns that into the normal
+        // "unidentified developer" prompt (right-click > Open, or System
+        // Settings > Privacy & Security > Open Anyway). A real supplied
+        // certificate restores Developer ID signing and notarization.
+        identity: macCertificateConfigured ? undefined : '-',
         hardenedRuntime: macCertificateConfigured,
         entitlementsInherit: 'build/entitlements.mac.plist',
         artifactName: appName + '-${version}-${arch}.${ext}',

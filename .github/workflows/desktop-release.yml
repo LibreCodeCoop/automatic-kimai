@@ -200,6 +200,14 @@ jobs:
             codesign -dv --verbose=4 "$app" 2>&1 | grep -q 'Authority=Developer ID Application:'
             spctl --assess --type execute "$app"
             printf 'verified\n' > "release-output/verified-mac-${{ matrix.arch }}.marker"
+          else
+            # Without Developer ID, the app must still carry an ad hoc
+            # signature; otherwise Apple Silicon Gatekeeper reports the
+            # downloaded app as "damaged" instead of offering to open it.
+            app="$(find nativephp/electron/dist -maxdepth 3 -type d -name '*.app' -print -quit)"
+            test -n "$app"
+            codesign --verify --strict --deep "$app"
+            codesign -dv "$app" 2>&1 | grep -q 'Signature=adhoc'
           fi
       - uses: actions/upload-artifact@v4
         with:
