@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 
 use App\AutomaticKimai\ActivityWatchClient;
 use App\AutomaticKimai\KimaiClient;
+use App\AutomaticKimai\WeeklyCalendar;
 use App\AutomaticKimai\LocalStore;
 use App\AutomaticKimai\NextcloudDesktopDiscovery;
 use App\AutomaticKimai\NextcloudLoginFlow;
@@ -42,6 +43,7 @@ final class AutomaticKimaiController extends Controller
         $titles=[
             'overview'=>'Visão geral',
             'review'=>'Conciliação de horas',
+            'calendar'=>'Calendário semanal',
             'attendance'=>'Trabalho presencial',
             'manual'=>'Informar horas',
             'kimai'=>'Conta Kimai',
@@ -54,6 +56,7 @@ final class AutomaticKimaiController extends Controller
         $hints=[
             'overview'=>'Acompanhe seu monitoramento e veja o que precisa de atenção.',
             'review'=>'Acompanhe horas reconciliadas e observações monitoradas automaticamente.',
+            'calendar'=>'Compare lançamentos confirmados e evidências que ainda precisam de revisão.',
             'attendance'=>'Revise compromissos presenciais e desconte as pausas.',
             'manual'=>'Informe atividades realizadas fora da coleta automática.',
             'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',
@@ -105,8 +108,41 @@ final class AutomaticKimaiController extends Controller
             try {$reviewRows=$queue->rows();}
             finally {$queue->close();}
         }
+        $calendar=null;
+        if ($view==='calendar') {
+            $day=(string)$request->query('week','');
+            if ($day!=='' && !preg_match('/^\d{4}-\d{2}-\d{2}$/D',$day)) {
+                abort(422,'Semana inválida');
+            }
+            $profile=$this->store->profile();
+            $zone=new \DateTimeZone((string)($profile?->get('timezone')??'UTC'));
+            try {
+                $calendar=WeeklyCalendar::week($day==='' ? (new DateTimeImmutable('now',$zone))->format('Y-m-d') : $day,$zone);
+            } catch (\Throwable) {abort(422,'Semana inválida');}
+            $calendar['events']=[];
+            $calendar['error']=null;
+            $calendar['outdated']=false;
+            if ($profile===null) {
+                $calendar['error']='Conecte uma conta Kimai para consultar as horas registradas.';
+            } else {
+                try {
+                    $creds=$this->store->credentials();
+                    $api=new KimaiClient($creds['KIMAI_BASE_URL']??'', $creds['KIMAI_API_TOKEN']??'');
+                    $me=$api->me();
+                    if (!is_int($me['id']??null))throw new RuntimeException('Conta Kimai sem identificação');
+                    $remote=$api->timesheets($me['id'],$calendar['days'],$zone);
+                    $calendar['events']=WeeklyCalendar::entries($remote,$this->store->report(),$calendar['days'],$zone);
+                } catch (Throwable) {
+                    $calendar['error']='Não foi possível consultar os lançamentos do Kimai. Confira a conexão e tente novamente.';
+                    $calendar['outdated']=true;
+                    $calendar['events']=WeeklyCalendar::entries([],$this->store->report(),$calendar['days'],$zone);
+                }
+            }
+            $calendar=WeeklyCalendar::decorate($calendar);
+        }
         return view('automatic-kimai.dashboard',[
             'reviewRows'=>$reviewRows,
+            'calendar'=>$calendar,
             'view'=>$view,
             'statusLabel'=>$statusLabel,
             'lastAnalysis'=>$lastAnalysis,

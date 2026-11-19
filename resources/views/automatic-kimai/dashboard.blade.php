@@ -69,6 +69,9 @@ try {
 @if($view==='overview')
 @include('automatic-kimai.sections.overview')
 @endif
+@if($view==='calendar')
+@include('automatic-kimai.sections.calendar')
+@endif
 @if($view==='review')
 @include('automatic-kimai.sections.review')
 @endif

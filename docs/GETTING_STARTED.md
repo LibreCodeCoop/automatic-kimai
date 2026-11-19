@@ -46,7 +46,7 @@ credenciais diretamente no serviço de origem se não forem mais necessárias.
 
 ## Acompanhar suas horas
 
-Na **Visão geral**, execute **Atualizar análise**. Abra **Conciliação de horas**
+Na **Visão geral**, execute **Atualizar análise**. Na tela **Calendário semanal** (prova de conceito somente leitura), navegue entre semanas para visualizar os horários confirmados no Kimai ao lado das observações locais; blocos de agenda e atividade observada não são somados às horas registradas. Abra **Conciliação de horas**
 para ver três situações distintas:
 
 - **Já registrado:** o Kimai possui um lançamento correspondente; a
