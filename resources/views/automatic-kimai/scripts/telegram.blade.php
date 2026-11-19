@@ -671,11 +671,14 @@
     }
   };
 
+  let firstStatusCheck=true;
   const check=async()=>{
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),15000);
     try {
       const response=await fetch(urls.status,{
         method:'GET',credentials:'same-origin',cache:'no-store',
-        headers:{Accept:'application/json'},
+        headers:{Accept:'application/json'},signal:controller.signal,
       });
       const data=await response.json();
       if(!response.ok)throw new Error(data.message||'Não foi possível verificar a conexão.');
@@ -686,9 +689,18 @@
     } catch(error){
       message('Não foi possível verificar o Telegram. Tente novamente.');
       stopPoll();
+    } finally {
+      clearTimeout(timeout);
+      if(firstStatusCheck) {
+        firstStatusCheck=false;
+        window.AutomaticKimaiLoading?.hide();
+      }
     }
   };
-  $('tg-refresh').addEventListener('click',check);
+  $('tg-refresh').addEventListener('click',()=>{
+    window.AutomaticKimaiLoading?.show('Verificando a conexão do Telegram…');
+    void check().finally(()=>window.AutomaticKimaiLoading?.hide());
+  });
   $('tg-start').addEventListener('click',async()=>{
     if(currentState==='not_configured'){
       $('tg-advanced-settings').open=true;
@@ -819,5 +831,6 @@
     } catch(error){ $('tg-groups-status').textContent=error.message;}
     finally{button.disabled=false;}
   });
-  check();
+  window.AutomaticKimaiLoading?.show('Verificando a conexão do Telegram…');
+  void check();
 })();
