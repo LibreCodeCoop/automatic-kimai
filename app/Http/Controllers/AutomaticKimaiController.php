@@ -233,12 +233,9 @@ final class AutomaticKimaiController extends Controller
             $manual=isset($input['nextcloud_url']) || isset($input['nextcloud_user']) ||
                 isset($input['nextcloud_password']);
             if ($manual) {
-                $enabled=$this->store->sources();
-                if (!$enabled['nextcloud_calendar'] && !$enabled['nextcloud_talk'] &&
-                    !$enabled['nextcloud_activity'] && !$enabled['nextcloud_mail'] &&
-                    empty($this->store->credentials()['NEXTCLOUD_APP_PASSWORD'])) {
-                    throw new RuntimeException('Ative ao menos um aplicativo Nextcloud antes de conectar.');
-                }
+                // Authorization for encrypted backups is independent from
+                // consent to inspect any Nextcloud source (Talk, Mail, etc.).
+                // The manually provided app password is still verified by OCS.
                 $existing=$this->store->credentials();
                 $server=NextcloudLoginFlow::normalizeServer((string)($input['nextcloud_url']??''));
                 $login=trim((string)($input['nextcloud_user']??''));

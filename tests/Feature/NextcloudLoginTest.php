@@ -252,6 +252,27 @@ final class NextcloudLoginTest extends TestCase
         self::assertSame('app-password-for-tests',$creds['NEXTCLOUD_APP_PASSWORD']);
     }
 
+    public function test_manual_nextcloud_login_for_backup_does_not_activate_collection_sources(): void
+    {
+        $this->local->setSources([
+            'nextcloud_calendar'=>false,'nextcloud_talk'=>false,
+            'nextcloud_activity'=>false,'nextcloud_mail'=>false,
+        ]);
+        Http::fake([
+            'https://cloud.example.com/ocs/v2.php/cloud/user?format=json'=>Http::response([
+                'ocs'=>['meta'=>['statuscode'=>200],'data'=>['id'=>'member']],
+            ]),
+        ]);
+        $this->post('http://localhost/connectors',[
+            'nextcloud_url'=>'https://cloud.example.com',
+            'nextcloud_user'=>'member@example.com',
+            'nextcloud_password'=>'app-password-for-tests',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+        self::assertSame('member',$this->local->credentials()['NEXTCLOUD_USERNAME']);
+        self::assertFalse($this->local->sources()['nextcloud_calendar']);
+        self::assertFalse($this->local->sources()['nextcloud_talk']);
+    }
+
     public function test_manual_app_password_does_not_save_an_unverified_connection(): void
     {
         Http::fake([
