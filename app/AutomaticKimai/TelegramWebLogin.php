@@ -87,11 +87,7 @@ final class TelegramWebLogin
             empty($secrets['TELEGRAM_API_ID'])||empty($secrets['TELEGRAM_API_HASH']))return null;
         $old=umask(0077);
         try {
-            $api=new API($session,MadelineTelegramAdapter::settings(
-                (int)$secrets['TELEGRAM_API_ID'],
-                (string)$secrets['TELEGRAM_API_HASH'],
-                $this->store->root().'/telegram-user.log'
-            ));
+            $api=new API($session);
             $me=$api->getSelf();
             $valid=$api->getAuthorization()===API::LOGGED_IN &&
                 is_array($me)?self::publicAccount($me):null;
@@ -166,10 +162,7 @@ final class TelegramWebLogin
         $own=$client===null;
         $old=umask(0077);
         try {
-            $client??=new API($session,MadelineTelegramAdapter::settings(
-                (int)$credentials['TELEGRAM_API_ID'],(string)$credentials['TELEGRAM_API_HASH'],
-                $this->store->root().'/telegram-user.log'
-            ));
+            $client??=new API($session);
             $self=$client->getSelf();
             if (!is_array($self)||self::publicAccount($self)===null) return null;
             $list=$client->photos->getUserPhotos(

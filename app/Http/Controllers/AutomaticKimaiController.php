@@ -34,17 +34,17 @@ final class AutomaticKimaiController extends Controller
         }
     }
 
-    public function home(Request $request): View
+    public function home(Request $request): View|RedirectResponse
     {
         $this->local($request);
         $view=(string)$request->query('view','overview');
         if ($view==='settings')$view='kimai'; // Existing bookmarks.
+        if ($view==='attendance')return redirect()->route('kimai.home',['view'=>'manual']); // Old bookmarks.
         if ($view==='about')$view='overview'; // Old migration-page links.
         $titles=[
             'overview'=>'Visão geral',
             'review'=>'Conciliação de horas',
             'calendar'=>'Calendário semanal',
-            'attendance'=>'Trabalho presencial',
             'manual'=>'Informar horas',
             'kimai'=>'Conta Kimai',
             'sources'=>'Fontes de dados',
@@ -57,7 +57,6 @@ final class AutomaticKimaiController extends Controller
             'overview'=>'Acompanhe seu monitoramento e veja o que precisa de atenção.',
             'review'=>'Acompanhe horas reconciliadas e observações monitoradas automaticamente.',
             'calendar'=>'Compare lançamentos confirmados e evidências que ainda precisam de revisão.',
-            'attendance'=>'Revise compromissos presenciais e desconte as pausas.',
             'manual'=>'Informe atividades realizadas fora da coleta automática.',
             'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',
             'sources'=>'Controle quais informações o aplicativo pode consultar.',
@@ -397,6 +396,8 @@ final class AutomaticKimaiController extends Controller
             'start'=>'required|date_format:H:i',
             'end'=>'required|date_format:H:i',
             'task'=>'required|string|min:3|max:64',
+            'pause_start'=>'nullable|date_format:H:i|required_with:pause_end',
+            'pause_end'=>'nullable|date_format:H:i|required_with:pause_start',
             'confirmed'=>'accepted',
         ]);
         $profile=$this->store->profile();
@@ -408,11 +409,24 @@ final class AutomaticKimaiController extends Controller
             if (!is_int($user)||$user<1)throw new RuntimeException('Kimai account unavailable');
             \App\AutomaticKimai\PublicationGate::assertManualReady(
                 $this->store,$profile,$creds,$user);
-            $result=(new ManualTime())->submit($profile,$api,$this->store->ledgerFile(),
-                true,
-                $data['day'],$data['start'],$data['end'],$data['task'],true,
-                new DateTimeImmutable('now',$profile->zone));
-            return back()->with('ok','Kimai worklog entry #'.$result['remote_id'].' verified.');
+            $now=new DateTimeImmutable('now',$profile->zone);
+            $segments=[[$data['start'],$data['end']]];
+            if (!empty($data['pause_start']) && !empty($data['pause_end'])) {
+                $segments=ManualTime::attendanceSegments($profile,[
+                    'day'=>$data['day'],'start'=>$data['start'],'end'=>$data['end'],
+                    'label'=>$data['task'],
+                    'breaks'=>[[$data['pause_start'],$data['pause_end']]],
+                    'schedule_source'=>'Horários declarados pelo usuário',
+                    'attendance_attested'=>true,
+                ],$now);
+            }
+            $ids=[];$manual=new ManualTime();
+            foreach ($segments as [$start,$end]) {
+                $result=$manual->submit($profile,$api,$this->store->ledgerFile(),
+                    true,$data['day'],$start,$end,$data['task'],true,$now);
+                $ids[]=(int)$result['remote_id'];
+            }
+            return back()->with('ok','Horas registradas no Kimai. IDs: '.implode(', ',$ids));
         } catch(Throwable $e) {
             return back()->withErrors(['manual'=>$e->getMessage()]);
         }

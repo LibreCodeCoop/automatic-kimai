@@ -42,7 +42,7 @@ final class MadelineTelegramAdapter
             throw new RuntimeException('MadelineProto session not imported; run the controlled migration first');
         }
         if (is_link($sessionPath))throw new RuntimeException('Symlinked Telegram session forbidden');
-        $this->api=new API($sessionPath,self::settings($apiId,$apiHash,dirname($sessionPath).'/telegram-user.log'));
+        $this->api=new API($sessionPath);
         $me=$this->api->getSelf();
         if (!is_array($me)||($me['bot']??false)) {
             throw new RuntimeException('Authorized individual Telegram user session required');

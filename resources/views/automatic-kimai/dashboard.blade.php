@@ -75,9 +75,6 @@ try {
 @if($view==='review')
 @include('automatic-kimai.sections.review')
 @endif
-@if($view==='attendance')
-@include('automatic-kimai.sections.attendance')
-@endif
 @if($view==='manual')
 @include('automatic-kimai.sections.manual')
 @endif
@@ -99,15 +96,26 @@ try {
 @if($view==='github')
 @include('automatic-kimai.sections.github')
 @endif
+<div id="page-loading-overlay" class="page-loading-overlay" hidden aria-live="polite" aria-busy="true" role="status">
+  <div class="page-loading-card">
+    <span class="page-loading-spinner" aria-hidden="true"></span>
+    <strong id="page-loading-message">Carregando…</strong>
+    <small>Aguarde a atualização da tela.</small>
+  </div>
+</div>
 <footer class="muted">Automatic Kimai · dados locais e privados · informações não equivalem a aprovação financeira.</footer>
 </main>
 </div>
 <script>
 @include('automatic-kimai.scripts.theme')
 @include('automatic-kimai.scripts.sidebar')
+@include('automatic-kimai.scripts.loading')
 @include('automatic-kimai.scripts.updates')
 @if($view==='kimai')
 @include('automatic-kimai.scripts.catalog')
+@endif
+@if($view==='calendar')
+@include('automatic-kimai.scripts.calendar')
 @endif
 @if($view==='review')
 @include('automatic-kimai.scripts.review')

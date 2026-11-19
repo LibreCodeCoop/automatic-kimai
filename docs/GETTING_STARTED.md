@@ -46,7 +46,7 @@ credenciais diretamente no serviço de origem se não forem mais necessárias.
 
 ## Acompanhar suas horas
 
-Na **Visão geral**, execute **Atualizar análise**. Na tela **Calendário semanal** (prova de conceito somente leitura), navegue entre semanas para visualizar os horários confirmados no Kimai ao lado das observações locais; blocos de agenda e atividade observada não são somados às horas registradas. Abra **Conciliação de horas**
+Na **Visão geral**, execute **Atualizar análise**. Na tela **Calendário semanal** (prova de conceito somente leitura), navegue entre semanas para visualizar os horários confirmados no Kimai ao lado das observações locais; blocos de agenda e atividade observada não são somados às horas registradas. Utilize **Atualizar do Kimai** para consultar novamente os lançamentos da semana e selecione blocos, inclusive os curtos, para visualizar seus horários e detalhes. Abra **Conciliação de horas**
 para ver três situações distintas:
 
 - **Já registrado:** o Kimai possui um lançamento correspondente; a
@@ -58,8 +58,7 @@ para ver três situações distintas:
   uma aprovação que tenha perdido validade pode exigir tratamento específico.
 
 Uma fila de revisão vazia não garante que toda a jornada foi registrada.
-Para trabalho comprovado fora do computador, utilize **Trabalho presencial**
-ou **Informar horas**, com horários reais e pausas. A publicação em servidor
+Para trabalho comprovado fora do computador, utilize **Informar horas**, com data, horários reais e descrição. Se houver pausa, abra **Informar pausa (opcional)** para descontá-la. A publicação em servidor
 depende da política autorizada para a instalação.
 
 ## Problemas comuns
