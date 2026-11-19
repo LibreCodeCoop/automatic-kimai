@@ -1,6 +1,6 @@
 {
     "name": "automatic-kimai",
-    "version": "0.4.1",
+    "version": "0.6.0",
     "description": "Local-first Kimai work-activity review",
     "main": "./out/main/index.js",
     "author": "LibreCode coop",
