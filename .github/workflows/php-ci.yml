@@ -22,7 +22,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
-          extensions: curl, dom, fileinfo, mbstring, openssl, pdo_sqlite, sqlite3, xml, zip
+          extensions: curl, dom, fileinfo, mbstring, openssl, pdo_sqlite, sodium, sqlite3, xml, zip
           coverage: none
           tools: composer:v2
       - name: Verify dependencies and install without side effects
