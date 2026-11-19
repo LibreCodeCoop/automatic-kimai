@@ -27,7 +27,7 @@ class AutomaticKimaiUiTest extends TestCase
         $expectations=[
             'overview'=>['Resumo do trabalho','name="nextcloud_url"'],
             'review'=>['Observações acompanhadas automaticamente','name="label"'],
-            'attendance'=>['Trabalho presencial','name="telegram_labels"'],
+            'calendar'=>['Calendário semanal','name="telegram_labels"'],
             'manual'=>['Informar horas manualmente','name="kimai_url"'],
             'kimai'=>['Buscar meus projetos','id="tg-api-id"'],
             'sources'=>['Escolha quais dados serão usados','id="kimai-token"'],
@@ -42,6 +42,14 @@ class AutomaticKimaiUiTest extends TestCase
             $html=$response->getContent();
             self::assertSame(1,substr_count($html,'aria-current="page"'),$view);
         }
+        // A previously published attendance bookmark redirects to the single manual form.
+        $this->get('http://localhost/?view=attendance')
+            ->assertRedirect(route('kimai.home',['view'=>'manual']));
+        $manual=$this->get('http://localhost/?view=manual')->assertOk();
+        $manual->assertSee('Informar pausa (opcional)')
+            ->assertSee('name="pause_start"',false)
+            ->assertSee('name="pause_end"',false)
+            ->assertDontSee('Trabalho presencial');
         // Existing saved bookmarks remain functional.
         $this->get('http://localhost/?view=settings')->assertOk()->assertSee('Buscar meus projetos');
         $this->get('http://localhost/?view=about')->assertOk()

@@ -38,6 +38,7 @@ O monitoramento continua funcionando, mas uma das fontes selecionadas pode estar
 <section class="next-action">
 <h2>O que deseja fazer?</h2>
 <div class="action-links">
+<a href="{{ route('kimai.home',['view'=>'calendar']) }}">Ver calendário semanal @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
 <a href="{{ route('kimai.home',['view'=>'review']) }}">Acompanhar conciliação de horas @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
 <a href="{{ route('kimai.home',['view'=>'kimai']) }}">Conta Kimai @include('automatic-kimai.components.icon',['name'=>'chevron-right'])</a>
 <a href="{{ route('kimai.home',['view'=>in_array(true,$connectionVisibility,true)?'integrations':'sources']) }}">
