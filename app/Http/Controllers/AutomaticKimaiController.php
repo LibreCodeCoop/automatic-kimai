@@ -45,6 +45,7 @@ final class AutomaticKimaiController extends Controller
             'attendance'=>'Trabalho presencial',
             'manual'=>'Informar horas',
             'kimai'=>'Conta Kimai',
+            'settings_sync'=>'Backup e sincronização',
             'sources'=>'Fontes de dados',
             'integrations'=>'Conexões',
             'nextcloud'=>'Nextcloud',
@@ -57,6 +58,7 @@ final class AutomaticKimaiController extends Controller
             'attendance'=>'Revise compromissos presenciais e desconte as pausas.',
             'manual'=>'Informe atividades realizadas fora da coleta automática.',
             'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',
+            'settings_sync'=>'Proteja suas configurações com criptografia e sincronize entre computadores.',
             'sources'=>'Controle quais informações o aplicativo pode consultar.',
             'integrations'=>'Conecte cada serviço separadamente.',
             'nextcloud'=>'Autorize o acesso no navegador sem usar sua senha principal.',
@@ -75,7 +77,7 @@ final class AutomaticKimaiController extends Controller
             'telegram'=>$sources['telegram_setup']||$sources['telegram'],
         ];
         $hiddenConnection=null;
-        if (array_key_exists($view,$connectionVisibility) && !$connectionVisibility[$view]) {
+        if (array_key_exists($view,$connectionVisibility) && !$connectionVisibility[$view] && $view!=='nextcloud') {
             $hiddenConnection=$titles[$view];
             $view='sources';
         }
@@ -107,6 +109,8 @@ final class AutomaticKimaiController extends Controller
         }
         return view('automatic-kimai.dashboard',[
             'reviewRows'=>$reviewRows,
+            'settingsSyncStatus'=>$view==='settings_sync' ?
+                $this->store->read('settings-sync-state.json',['enabled'=>false]) : [],
             'view'=>$view,
             'statusLabel'=>$statusLabel,
             'lastAnalysis'=>$lastAnalysis,

@@ -5,6 +5,7 @@ use App\Http\Controllers\ReviewDecisionController;
 use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\NextcloudLoginController;
 use App\Http\Controllers\GitHubAccountController;
+use App\Http\Controllers\SettingsSyncController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/',[AutomaticKimaiController::class,'home'])->name('kimai.home');
@@ -56,3 +57,15 @@ Route::post('/nextcloud/source',[NextcloudLoginController::class,'source'])->mid
 Route::post('/nextcloud/disconnect',[NextcloudLoginController::class,'disconnect'])->middleware('throttle:5,1')->name('kimai.nextcloud.disconnect');
 Route::post('/nextcloud/start',[NextcloudLoginController::class,'start'])->middleware('throttle:5,1')->name('kimai.nextcloud.start');
 Route::post('/nextcloud/poll',[NextcloudLoginController::class,'poll'])->middleware('throttle:25,1')->name('kimai.nextcloud.poll');
+
+
+// Optional Nextcloud settings backup. All mutations require localhost, CSRF and
+// explicit user consent; no remote backup file is ever served to the browser.
+Route::post('/settings-sync/enable',[SettingsSyncController::class,'enable'])
+    ->middleware('throttle:3,1')->name('kimai.settings-sync.enable');
+Route::post('/settings-sync/run',[SettingsSyncController::class,'synchronize'])
+    ->middleware('throttle:6,1')->name('kimai.settings-sync.run');
+Route::post('/settings-sync/resolve',[SettingsSyncController::class,'resolve'])
+    ->middleware('throttle:3,1')->name('kimai.settings-sync.resolve');
+Route::post('/settings-sync/disable',[SettingsSyncController::class,'disable'])
+    ->middleware('throttle:4,1')->name('kimai.settings-sync.disable');

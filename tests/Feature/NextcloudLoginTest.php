@@ -280,15 +280,20 @@ final class NextcloudLoginTest extends TestCase
         Http::assertNothingSent();
     }
 
-    public function test_unselected_sources_cannot_start_nextcloud_authentication(): void
+    public function test_nextcloud_can_authenticate_for_backup_without_enabling_collection(): void
     {
         $this->local->setSources(['nextcloud_calendar'=>false,'nextcloud_talk'=>false]);
-        Http::fake();
+        Http::fake([
+            'https://cloud.example.com/index.php/login/v2'=>Http::response($this->flowResponse()),
+            'https://cloud.example.com/login/v2/poll'=>Http::response('pending',404),
+        ]);
         $this->postJson('http://localhost/nextcloud/start',['url'=>'https://cloud.example.com'])
-            ->assertForbidden();
-        $this->postJson('http://localhost/nextcloud/poll')->assertForbidden();
-        $this->get('http://localhost/nextcloud/status')->assertForbidden();
-        Http::assertNothingSent();
+            ->assertOk()->assertJsonPath('status','waiting');
+        $this->get('http://localhost/nextcloud/status')->assertOk()->assertJsonPath('connected',false);
+        $this->postJson('http://localhost/nextcloud/poll')
+            ->assertOk()->assertJsonPath('status','waiting');
+        self::assertFalse($this->local->sources()['nextcloud_calendar']);
+        self::assertFalse($this->local->sources()['nextcloud_talk']);
     }
 
     public function test_server_side_flow_blocks_remote_hosts(): void
