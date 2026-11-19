@@ -27,16 +27,6 @@ final class NextcloudLoginController extends Controller
         }
     }
 
-    private function requireSelectedSource(): void
-    {
-        $sources=$this->store->sources();
-        if (!$sources['nextcloud_calendar'] && !$sources['nextcloud_talk'] &&
-            !$sources['nextcloud_activity'] && !$sources['nextcloud_mail'] &&
-            empty($this->store->credentials()['NEXTCLOUD_APP_PASSWORD'])) {
-            abort(403,'Habilite ao menos uma fonte Nextcloud antes de conectar.');
-        }
-    }
-
     private static function reply(array $payload,int $status=200): JsonResponse
     {
         return response()->json($payload,$status)
@@ -49,14 +39,12 @@ final class NextcloudLoginController extends Controller
     public function status(Request $request): JsonResponse
     {
         $this->requireLocal($request);
-        $this->requireSelectedSource();
         return self::reply($this->flow->status());
     }
 
     public function start(Request $request): JsonResponse
     {
         $this->requireLocal($request);
-        $this->requireSelectedSource();
         $data=$request->validate(['url'=>'required|string|max:250']);
         try { return self::reply($this->flow->start($data['url'])); }
         catch (Throwable $exception) {
@@ -130,7 +118,6 @@ final class NextcloudLoginController extends Controller
     public function poll(Request $request): JsonResponse
     {
         $this->requireLocal($request);
-        $this->requireSelectedSource();
         try {return self::reply($this->flow->poll());}
         catch (Throwable $exception) {
             return self::reply(['status'=>'error','message'=>$exception->getMessage()],422);

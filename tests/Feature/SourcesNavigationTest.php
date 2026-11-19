@@ -43,12 +43,20 @@ final class SourcesNavigationTest extends TestCase
                 self::assertStringNotContainsString($this->href($provider),$html);
             }
         }
-        foreach (['nextcloud','telegram','github'] as $provider) {
+        // Nextcloud login is available independently for encrypted backup,
+        // but opening the connection UI never enables any data collector.
+        $this->get('http://localhost/?view=nextcloud')->assertOk()
+            ->assertSee('Conectar pelo navegador')
+            ->assertSee('Configurar backup e sincronização')
+            ->assertDontSee('name="github_token"',false);
+        foreach (['telegram','github'] as $provider) {
             $this->get('http://localhost/?view='.$provider)->assertOk()
                 ->assertSee('Fontes de dados')
                 ->assertDontSee('name="nextcloud_password"',false)
                 ->assertDontSee('name="github_token"',false);
         }
+        self::assertFalse($this->store->sources()['nextcloud_calendar']);
+        self::assertFalse($this->store->sources()['nextcloud_talk']);
     }
 
     public function test_nextcloud_becomes_visible_if_either_calendar_or_talk_is_enabled(): void

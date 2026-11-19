@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=20">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=21">
 </head>
 <body>
 <header class="app-header">
@@ -80,6 +80,9 @@ try {
 @endif
 @if($view==='kimai')
 @include('automatic-kimai.sections.kimai')
+@endif
+@if($view==='settings_sync')
+@include('automatic-kimai.sections.settings-sync')
 @endif
 @if($view==='sources')
 @include('automatic-kimai.sections.sources')

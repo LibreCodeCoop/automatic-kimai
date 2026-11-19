@@ -47,6 +47,7 @@ final class AutomaticKimaiController extends Controller
             'calendar'=>'Calendário semanal',
             'manual'=>'Informar horas',
             'kimai'=>'Conta Kimai',
+            'settings_sync'=>'Backup e sincronização',
             'sources'=>'Fontes de dados',
             'integrations'=>'Conexões',
             'nextcloud'=>'Nextcloud',
@@ -59,6 +60,7 @@ final class AutomaticKimaiController extends Controller
             'calendar'=>'Compare lançamentos confirmados e evidências que ainda precisam de revisão.',
             'manual'=>'Informe atividades realizadas fora da coleta automática.',
             'kimai'=>'Visualize sua conta e altere a conexão apenas se necessário.',
+            'settings_sync'=>'Proteja suas configurações com criptografia e sincronize entre computadores.',
             'sources'=>'Controle quais informações o aplicativo pode consultar.',
             'integrations'=>'Conecte cada serviço separadamente.',
             'nextcloud'=>'Autorize o acesso no navegador sem usar sua senha principal.',
@@ -77,7 +79,7 @@ final class AutomaticKimaiController extends Controller
             'telegram'=>$sources['telegram_setup']||$sources['telegram'],
         ];
         $hiddenConnection=null;
-        if (array_key_exists($view,$connectionVisibility) && !$connectionVisibility[$view]) {
+        if (array_key_exists($view,$connectionVisibility) && !$connectionVisibility[$view] && $view!=='nextcloud') {
             $hiddenConnection=$titles[$view];
             $view='sources';
         }
@@ -142,6 +144,8 @@ final class AutomaticKimaiController extends Controller
         return view('automatic-kimai.dashboard',[
             'reviewRows'=>$reviewRows,
             'calendar'=>$calendar,
+            'settingsSyncStatus'=>$view==='settings_sync' ?
+                $this->store->read('settings-sync-state.json',['enabled'=>false]) : [],
             'view'=>$view,
             'statusLabel'=>$statusLabel,
             'lastAnalysis'=>$lastAnalysis,
@@ -264,12 +268,9 @@ final class AutomaticKimaiController extends Controller
             $manual=isset($input['nextcloud_url']) || isset($input['nextcloud_user']) ||
                 isset($input['nextcloud_password']);
             if ($manual) {
-                $enabled=$this->store->sources();
-                if (!$enabled['nextcloud_calendar'] && !$enabled['nextcloud_talk'] &&
-                    !$enabled['nextcloud_activity'] && !$enabled['nextcloud_mail'] &&
-                    empty($this->store->credentials()['NEXTCLOUD_APP_PASSWORD'])) {
-                    throw new RuntimeException('Ative ao menos um aplicativo Nextcloud antes de conectar.');
-                }
+                // Authorization for encrypted backups is independent from
+                // consent to inspect any Nextcloud source (Talk, Mail, etc.).
+                // The manually provided app password is still verified by OCS.
                 $existing=$this->store->credentials();
                 $server=NextcloudLoginFlow::normalizeServer((string)($input['nextcloud_url']??''));
                 $login=trim((string)($input['nextcloud_user']??''));

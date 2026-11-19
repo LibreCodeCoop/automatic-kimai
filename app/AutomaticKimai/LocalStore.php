@@ -156,6 +156,8 @@ final class LocalStore
             'NEXTCLOUD_URL','NEXTCLOUD_USERNAME','NEXTCLOUD_LOGIN_NAME','NEXTCLOUD_APP_PASSWORD'
         ]);
         $this->write('nextcloud-login.json',[]);
+        $this->write('settings-sync-state.json',['enabled'=>false,'state'=>'disabled']);
+        $this->write('settings-sync-key.json',[]);
     }
 
     public function sources(): array

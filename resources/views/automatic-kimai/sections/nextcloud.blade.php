@@ -39,6 +39,11 @@
 <button id="nc-check" type="button" class="secondary">Já autorizei, verificar</button>
 </div>
 </section>
+<section class="nextcloud-backup-link">
+<h2>Backup das configurações</h2>
+<p class="muted">Sincronize suas preferências entre computadores com criptografia de ponta a ponta e uma senha de recuperação independente.</p>
+<a class="button secondary" href="{{ route('kimai.home',['view'=>'settings_sync']) }}">Configurar backup e sincronização</a>
+</section>
 <section id="nc-sources">
 <h2>Aplicativos Nextcloud</h2>
 <p class="muted">Ative somente as fontes que deseja consultar. As mudanças são salvas imediatamente e não desconectam sua conta. Eventos e e-mails servem como contexto para revisão, não como horas comprovadas.</p>

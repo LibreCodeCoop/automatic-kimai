@@ -40,6 +40,7 @@
 </div>
 <div class="nav-group">
 <p class="nav-caption">Preferências</p>
+<a href="{{route('kimai.home',['view'=>'settings_sync'])}}" aria-label="Backup e sincronização" title="Backup e sincronização" class="nav-item nav-root @if($view==='settings_sync') is-current @endif" @if($view==='settings_sync') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'database'])<span class="nav-label">Backup e sincronização</span></a>
 <a href="{{route('kimai.home',['view'=>'kimai'])}}" aria-label="Conta Kimai" title="Conta Kimai" class="nav-item nav-root @if($view==='kimai') is-current @endif" @if($view==='kimai') aria-current="page" @endif>@include('automatic-kimai.components.icon',['name'=>'settings-2'])<span class="nav-label">Conta Kimai</span></a>
 </div>
 </nav>
