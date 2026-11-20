@@ -2,7 +2,7 @@
 
 const { app, BrowserWindow, Menu, session, shell } = require('electron');
 const path = require('node:path');
-const { LOCAL_ORIGIN, isAllowedNavigation } = require('./security.cjs');
+const { LOCAL_ORIGIN, isAllowedNavigation, OFFICIAL_RELEASES_URL, isOfficialReleaseUrl } = require('./security.cjs');
 const { isCurrentNextcloudApproval, createExternalApprovalHandler, createPendingApprovalOpener } = require('./external-approval.cjs');
 
 const ENTRY_URL = LOCAL_ORIGIN + '/';
@@ -78,10 +78,19 @@ if (!app.requestSingleInstanceLock()) {
     // link is the sole exception to external browser launching, not to
     // navigation inside Electron. Re-check the exact URL against the current
     // PHP pending state before asking the OS to open it.
-    mainWindow.webContents.setWindowOpenHandler(createExternalApprovalHandler({
+    const nextcloudApproval = createExternalApprovalHandler({
       isApproved: isCurrentNextcloudApproval,
       openExternal: url => shell.openExternal(url),
-    }));
+    });
+    mainWindow.webContents.setWindowOpenHandler(details => {
+      // A deliberate click on the application's release link may open the
+      // fixed, public GitHub page. Never follow a renderer-controlled URL.
+      if (isOfficialReleaseUrl(details?.url)) {
+        void shell.openExternal(OFFICIAL_RELEASES_URL).catch(() => {});
+        return { action: 'deny' };
+      }
+      return nextcloudApproval(details);
+    });
     mainWindow.webContents.on('will-navigate', (event, url) => {
       if (!isAllowedNavigation(url)) event.preventDefault();
     });

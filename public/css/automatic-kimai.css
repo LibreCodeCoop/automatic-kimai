@@ -696,3 +696,10 @@ a.button:hover { background:var(--primary-hover); }
 .settings-sync-conflict-actions form{padding:1rem;border:1px solid var(--line);border-radius:10px}
 .settings-sync-overview .notice p{margin-bottom:0}
 @media(max-width:760px){.settings-sync-conflict-actions{grid-template-columns:1fr}}
+
+/* Version visibility for every view, without inventing a release version for local previews. */
+.app-footer{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px 18px}
+.app-footer-version{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.app-version-check{margin:0;min-height:32px;padding:5px 10px;font-size:12px;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px}
+.app-version-check:hover:not(:disabled){background:var(--raised);border-color:var(--line-strong)}
+.app-version-check:focus-visible{outline:2px solid var(--focus);outline-offset:2px}

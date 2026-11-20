@@ -14,4 +14,11 @@ function isAllowedNavigation(value) {
   }
 }
 
-module.exports = { LOCAL_ORIGIN, isAllowedNavigation };
+// Only this immutable public release destination may open in the OS browser.
+// No user-provided URL, query string or alternate host is accepted.
+const OFFICIAL_RELEASES_URL = 'https://github.com/LibreCodeCoop/automatic-kimai/releases/latest';
+function isOfficialReleaseUrl(value) {
+  return value === OFFICIAL_RELEASES_URL;
+}
+
+module.exports = { LOCAL_ORIGIN, OFFICIAL_RELEASES_URL, isAllowedNavigation, isOfficialReleaseUrl };
