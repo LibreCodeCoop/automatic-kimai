@@ -97,6 +97,15 @@ test('Electron main wires approved LoginFlow links to the OS browser, keeping al
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(opened, [approved], 'unapproved destinations must not reach shell.openExternal');
 
+  const releases = require('./security.cjs').OFFICIAL_RELEASES_URL;
+  assert.deepEqual({ ...registered.open({ url: releases }) }, { action: 'deny' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [approved, releases], 'exact public release page opens in OS browser');
+  registered.open({ url: releases + '?redirect=evil' });
+  registered.open({ url: 'https://github.com.evil.example/repository/releases/latest' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(opened, [approved, releases], 'similar URLs must remain blocked');
+
   let result;
   registered.networkFilter({ url: 'https://evil.example/' }, value => { result = value; });
   assert.equal(result.cancel, true);

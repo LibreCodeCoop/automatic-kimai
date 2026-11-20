@@ -6,6 +6,7 @@ use App\Http\Controllers\TelegramController;
 use App\Http\Controllers\NextcloudLoginController;
 use App\Http\Controllers\GitHubAccountController;
 use App\Http\Controllers\SettingsSyncController;
+use App\Http\Controllers\OfficialReleaseController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/',[AutomaticKimaiController::class,'home'])->name('kimai.home');
@@ -69,3 +70,9 @@ Route::post('/settings-sync/resolve',[SettingsSyncController::class,'resolve'])
     ->middleware('throttle:3,1')->name('kimai.settings-sync.resolve');
 Route::post('/settings-sync/disable',[SettingsSyncController::class,'disable'])
     ->middleware('throttle:4,1')->name('kimai.settings-sync.disable');
+
+
+// Read-only public version lookup for non-packaged and browser previews.
+// The GitHub destination is fixed server-side; never accepts URLs or tokens.
+Route::get('/updates/latest',[OfficialReleaseController::class,'latest'])
+    ->middleware('throttle:6,1')->name('kimai.updates.latest');

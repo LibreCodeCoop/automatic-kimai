@@ -103,6 +103,7 @@ export class DesktopUpdateManager {
         this.status = {
             phase: 'idle',
             currentVersion: app.getVersion(),
+            packaged: Boolean(app.isPackaged),
             version: null,
             mode: 'manual',
             progress: 0,

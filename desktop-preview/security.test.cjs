@@ -27,3 +27,16 @@ test('blocks external navigation, other local ports and URL credentials', () => 
     assert.equal(isAllowedNavigation(url), false, url);
   }
 });
+
+test('only the exact official release destination is eligible for external opening', () => {
+  const { isOfficialReleaseUrl } = require('./security.cjs');
+  assert.equal(isOfficialReleaseUrl('https://github.com/LibreCodeCoop/automatic-kimai/releases/latest'), true);
+  for (const url of [
+    'https://github.com/LibreCodeCoop/automatic-kimai/releases/latest/',
+    'https://github.com/LibreCodeCoop/automatic-kimai/releases/latest?redirect=evil',
+    'https://github.com.evil.example/LibreCodeCoop/automatic-kimai/releases/latest',
+    'http://github.com/LibreCodeCoop/automatic-kimai/releases/latest',
+    'https://github.com/other/repository/releases/latest',
+    'javascript:alert(1)',
+  ]) assert.equal(isOfficialReleaseUrl(url), false, url);
+});

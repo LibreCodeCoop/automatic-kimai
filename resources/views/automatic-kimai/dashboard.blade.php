@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=21">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=22">
 </head>
 <body>
 <header class="app-header">
@@ -53,7 +53,9 @@ try {
     <button type="button" id="updates-check">Verificar agora</button>
     <button type="button" id="updates-download" hidden>Baixar atualização</button>
     <button type="button" id="updates-restart" hidden>Reiniciar e atualizar</button>
-    <button type="button" class="secondary" id="updates-manual" hidden>Baixar pelo GitHub</button>
+    <a class="button secondary" id="updates-manual"
+       href="{{ \App\AutomaticKimai\OfficialRelease::RELEASES_URL }}"
+       target="_blank" rel="noopener noreferrer" hidden>Ver versões no GitHub</a>
   </div>
   <p class="muted updates-note">As atualizações somente são baixadas mediante sua confirmação. Os dados locais não são enviados ao GitHub.</p>
 </section>
@@ -106,7 +108,15 @@ try {
     <small>Aguarde a atualização da tela.</small>
   </div>
 </div>
-<footer class="muted">Automatic Kimai · dados locais e privados · informações não equivalem a aprovação financeira.</footer>
+<footer class="muted app-footer">
+  <span>Automatic Kimai · dados locais e privados · informações não equivalem a aprovação financeira.</span>
+  <span class="app-footer-version">
+    <span id="app-version-label" aria-live="polite">Prévia local</span>
+    <button type="button" id="app-check-updates" class="app-version-check"
+            aria-controls="updates-panel"
+            data-release-check-url="{{ route('kimai.updates.latest') }}">Verificar atualizações</button>
+  </span>
+</footer>
 </main>
 </div>
 <script>

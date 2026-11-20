@@ -134,6 +134,15 @@ test('IPC rejects external renderer before running operations', async () => {
     assert.equal(handlers.size, 5);
 });
 
+test('version metadata identifies packaged builds and development previews without calling GitHub', () => {
+    const packaged = harness({version: '0.7.0', packaged: true});
+    assert.equal(packaged.manager.snapshot().currentVersion, '0.7.0');
+    assert.equal(packaged.manager.snapshot().packaged, true);
+    assert.equal(packaged.manager.snapshot().phase, 'idle');
+    const preview = harness({version: '0.4.1', packaged: false});
+    assert.equal(preview.manager.snapshot().packaged, false);
+});
+
 test('development mode never checks remote release or installs', async () => {
     const { manager } = harness({ packaged: false });
     assert.equal((await manager.check()).phase, 'unavailable');
