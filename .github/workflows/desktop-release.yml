@@ -42,14 +42,15 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       base_sha: ${{ steps.plan.outputs.base_sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ inputs.release_tag || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
+          package-manager-cache: false
       - name: Plan release or preview
         id: plan
         env:
@@ -96,7 +97,7 @@ jobs:
       WIN_CSC_KEY_PASSWORD: ${{ (needs.plan.outputs.publish == 'true' && github.event_name != 'pull_request') && matrix.target == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
           ref: ${{ inputs.release_tag || github.sha }}
@@ -106,7 +107,7 @@ jobs:
           coverage: none
           extensions: curl, dom, fileinfo, mbstring, openssl, pdo_sqlite, sodium, sqlite3, xml, zip
           tools: composer:v2
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           cache: npm
@@ -123,7 +124,7 @@ jobs:
           node scripts/desktop-version.mjs --github-env
       - name: Test versioning and release preparation without publishing
         shell: bash
-        run: node --test scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs scripts/plan-desktop-release.test.mjs scripts/finalize-desktop-release.test.mjs
+        run: node --test scripts/actions-runtime.test.mjs scripts/desktop-version.test.mjs scripts/create-update-manifests.test.mjs scripts/prepare-desktop-release.test.mjs scripts/plan-desktop-release.test.mjs scripts/finalize-desktop-release.test.mjs
       - name: Install PHP dependencies
         shell: bash
         run: |
@@ -209,7 +210,7 @@ jobs:
             codesign --verify --strict --deep "$app"
             codesign -dv "$app" 2>&1 | grep -q 'Signature=adhoc'
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: installer-${{ matrix.target }}-${{ matrix.arch }}
           path: release-output/*
@@ -223,15 +224,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: true
           fetch-depth: 0
           ref: ${{ inputs.release_tag || github.sha }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
-      - uses: actions/download-artifact@v4
+          package-manager-cache: false
+      - uses: actions/download-artifact@v7
         with:
           pattern: installer-*
           path: release-output
