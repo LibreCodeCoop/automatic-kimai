@@ -181,7 +181,7 @@ jobs:
           php artisan native:build ${{ matrix.target }} ${{ matrix.arch }} --no-interaction
       - name: Test update state machine and release metadata
         shell: bash
-        run: node --test nativephp/electron/src/main/updates.test.mjs scripts/create-update-manifests.test.mjs
+        run: node --test nativephp/electron/src/main/updates.test.mjs nativephp/electron/src/main/release-announcements.test.mjs scripts/create-update-manifests.test.mjs
       - name: Validate published release filenames
         shell: bash
         run: node --test scripts/check-desktop-package.test.mjs

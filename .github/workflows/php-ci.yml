@@ -73,7 +73,7 @@ jobs:
       - name: Check build dependency security and compatibility
         run: node --test build/dependency-compat.test.mjs
       - name: Test desktop update flow and metadata
-        run: node --test src/main/updates.test.mjs ../../scripts/create-update-manifests.test.mjs ../../scripts/desktop-version.test.mjs ../../scripts/prepare-desktop-release.test.mjs ../../scripts/plan-desktop-release.test.mjs ../../scripts/finalize-desktop-release.test.mjs
+        run: node --test src/main/updates.test.mjs src/main/release-announcements.test.mjs ../../scripts/create-update-manifests.test.mjs ../../scripts/desktop-version.test.mjs ../../scripts/prepare-desktop-release.test.mjs ../../scripts/plan-desktop-release.test.mjs ../../scripts/finalize-desktop-release.test.mjs
       - name: Validate canonical desktop version and lockfile
         run: node ../../scripts/desktop-version.mjs
       - name: Compile NativePHP Electron plugin (required for #plugin import)
