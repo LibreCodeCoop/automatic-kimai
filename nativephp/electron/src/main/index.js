@@ -4,6 +4,7 @@ import path from 'path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import electronUpdater from 'electron-updater';
 import { DesktopUpdateManager, UPDATE_CHANNEL, API_URL, RELEASES_URL } from './updates.mjs';
+import { ReleaseAnnouncementTracker, FileReleaseAnnouncementStorage } from './release-announcements.mjs';
 import { createSplash } from './splash.js';
 // Inherit User's PATH in Process & ChildProcess
 import fixPath from 'fix-path';
@@ -60,6 +61,20 @@ async function latestStableRelease(url) {
     return response.json();
 }
 
+// Query only the installed official version, never an arbitrary renderer URL.
+async function installedReleaseNotes(version) {
+    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) {
+        throw new Error('Invalid installed version');
+    }
+    const endpoint = API_URL.replace(/\/latest$/, '/tags/v' + version);
+    const response = await fetch(endpoint, {
+        headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'Automatic-Kimai-Desktop' },
+        signal: AbortSignal.timeout(12000),
+    });
+    if (!response.ok) throw new Error('Release notes unavailable');
+    return response.json();
+}
+
 function macUpdaterTrusted() {
     if (process.platform !== 'darwin' || !app.isPackaged) return false;
     try {
@@ -104,6 +119,12 @@ app.whenReady().then(() => {
             app,
             updater: electronUpdater.autoUpdater,
             fetchRelease: latestStableRelease,
+            fetchReleaseNotes: installedReleaseNotes,
+            releaseAnnouncements: new ReleaseAnnouncementTracker({
+                version: app.getVersion(),
+                packaged: app.isPackaged,
+                storage: new FileReleaseAnnouncementStorage(app.getPath('userData')),
+            }),
             openExternal: () => shell.openExternal(RELEASES_URL),
             broadcast: status => {
                 for (const window of BrowserWindow.getAllWindows()) {

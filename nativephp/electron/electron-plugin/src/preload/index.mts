@@ -36,6 +36,8 @@ const updaterCommands = {
     download: 'automatic-kimai:update-download',
     restart: 'automatic-kimai:update-restart',
     openReleases: 'automatic-kimai:update-open-releases',
+    releaseNotes: 'automatic-kimai:update-release-notes',
+    acknowledgeReleaseNotes: 'automatic-kimai:update-release-notes-acknowledge',
 };
 contextBridge.exposeInMainWorld('AutomaticKimaiUpdates', {
     status: () => ipcRenderer.invoke(updaterCommands.status),
@@ -43,6 +45,8 @@ contextBridge.exposeInMainWorld('AutomaticKimaiUpdates', {
     download: () => ipcRenderer.invoke(updaterCommands.download),
     restart: () => ipcRenderer.invoke(updaterCommands.restart),
     openReleases: () => ipcRenderer.invoke(updaterCommands.openReleases),
+    releaseNotes: () => ipcRenderer.invoke(updaterCommands.releaseNotes),
+    acknowledgeReleaseNotes: () => ipcRenderer.invoke(updaterCommands.acknowledgeReleaseNotes),
     onStatus: (callback: (status: unknown) => void) => {
         if (typeof callback !== 'function') return () => {};
         const listener = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);

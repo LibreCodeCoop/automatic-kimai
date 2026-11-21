@@ -12,6 +12,8 @@ export const UPDATE_OPERATIONS = Object.freeze({
     download: 'automatic-kimai:update-download',
     restart: 'automatic-kimai:update-restart',
     open: 'automatic-kimai:update-open-releases',
+    notes: 'automatic-kimai:update-release-notes',
+    acknowledgeNotes: 'automatic-kimai:update-release-notes-acknowledge',
 });
 
 const PLATFORMS = {
@@ -88,7 +90,7 @@ export function describeUpdate(release, currentVersion, platform, arch, canUseMa
 }
 
 export class DesktopUpdateManager {
-    constructor({ app, updater, fetchRelease, openExternal, broadcast, platform, arch, appPort, canUseMacUpdates = false, appImage = false }) {
+    constructor({ app, updater, fetchRelease, openExternal, broadcast, platform, arch, appPort, canUseMacUpdates = false, appImage = false, releaseAnnouncements = null, fetchReleaseNotes = null }) {
         this.app = app;
         this.updater = updater;
         this.fetchRelease = fetchRelease;
@@ -99,6 +101,8 @@ export class DesktopUpdateManager {
         this.appPort = appPort;
         this.canUseMacUpdates = canUseMacUpdates;
         this.appImage = appImage;
+        this.releaseAnnouncements = releaseAnnouncements;
+        this.fetchReleaseNotes = fetchReleaseNotes;
         this.busy = false;
         this.status = {
             phase: 'idle',
@@ -133,7 +137,9 @@ export class DesktopUpdateManager {
         });
     }
 
-    snapshot() { return { ...this.status }; }
+    snapshot() {
+        return { ...this.status, releaseNotesPending: Boolean(this.releaseAnnouncements?.status().pending) };
+    }
 
     change(next) {
         this.status = { ...this.status, ...next };
@@ -193,6 +199,29 @@ export class DesktopUpdateManager {
         return this.snapshot();
     }
 
+    async releaseNotes() {
+        const version = this.app.getVersion();
+        const pending = Boolean(this.releaseAnnouncements?.status().pending);
+        if (!this.app.isPackaged || typeof this.fetchReleaseNotes !== 'function' ||
+            !this.releaseAnnouncements || !/^\d+\.\d+\.\d+$/.test(version)) {
+            return { pending: false, version: null };
+        }
+        try {
+            const release = await this.fetchReleaseNotes(version);
+            if (!release || release.tag_name !== 'v' + version ||
+                release.draft !== false || release.prerelease !== false ||
+                typeof release.body !== 'string') throw new Error('Invalid official release');
+            return { pending, version, notes: release.body.slice(0, 18000) };
+        } catch {
+            return { pending, version, error: 'Não foi possível obter as notas oficiais desta versão.' };
+        }
+    }
+
+    acknowledgeReleaseNotes() {
+        if (this.app.isPackaged) this.releaseAnnouncements?.acknowledge();
+        return this.change({});
+    }
+
     registerIpc(ipcMain) {
         const guarded = handler => (event) => {
             if (!isLocalTopFrame(event, this.appPort())) throw new Error('Updater request denied');
@@ -203,5 +232,7 @@ export class DesktopUpdateManager {
         ipcMain.handle(UPDATE_OPERATIONS.download, guarded(() => this.download()));
         ipcMain.handle(UPDATE_OPERATIONS.restart, guarded(() => this.restart()));
         ipcMain.handle(UPDATE_OPERATIONS.open, guarded(() => this.openReleases()));
+        ipcMain.handle(UPDATE_OPERATIONS.notes, guarded(() => this.releaseNotes()));
+        ipcMain.handle(UPDATE_OPERATIONS.acknowledgeNotes, guarded(() => this.acknowledgeReleaseNotes()));
     }
 }

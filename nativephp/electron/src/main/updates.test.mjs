@@ -131,7 +131,7 @@ test('IPC rejects external renderer before running operations', async () => {
     assert.throws(() => handlers.get(UPDATE_OPERATIONS.check)({
         senderFrame: external, sender: { mainFrame: external },
     }), /denied/);
-    assert.equal(handlers.size, 5);
+    assert.equal(handlers.size, 7);
 });
 
 test('version metadata identifies packaged builds and development previews without calling GitHub', () => {
@@ -148,4 +148,54 @@ test('development mode never checks remote release or installs', async () => {
     assert.equal((await manager.check()).phase, 'unavailable');
     assert.equal((await manager.download()).phase, 'unavailable');
     assert.equal(manager.restart(), false);
+});
+
+test('release notes are bound to the installed version and acknowledgment is local', async () => {
+    let acknowledged = false;
+    const { manager } = harness({ version: '0.8.2' });
+    manager.releaseAnnouncements = {
+        status: () => ({ pending: !acknowledged }),
+        acknowledge: () => { acknowledged = true; },
+    };
+    manager.fetchReleaseNotes = async version => ({
+        tag_name: 'v' + version, draft: false, prerelease: false,
+        body: '# Novidades\n- Melhorias de estabilidade',
+    });
+    assert.equal(manager.snapshot().releaseNotesPending, true);
+    const notes = await manager.releaseNotes();
+    assert.equal(notes.pending, true);
+    assert.equal(notes.version, '0.8.2');
+    assert.match(notes.notes, /Melhorias de estabilidade/);
+    assert.equal(manager.acknowledgeReleaseNotes().releaseNotesPending, false);
+});
+
+test('mismatched or untrusted release notes fail closed without leaking external details', async () => {
+    const { manager } = harness({ version: '0.8.2' });
+    manager.releaseAnnouncements = {
+        status: () => ({ pending: true }),
+        acknowledge: () => { throw Error('should not acknowledge'); },
+    };
+    manager.fetchReleaseNotes = async () => ({
+        tag_name: 'v0.9.0', draft: false, prerelease: false, body: 'malicious provider details',
+    });
+    const mismatch = await manager.releaseNotes();
+    assert.equal(mismatch.pending, true);
+    assert.equal('notes' in mismatch, false);
+    assert.doesNotMatch(JSON.stringify(mismatch), /malicious provider details/);
+    manager.fetchReleaseNotes = async () => { throw Error('private provider credentials'); };
+    const offline = await manager.releaseNotes();
+    assert.equal(offline.pending, true);
+    assert.doesNotMatch(JSON.stringify(offline), /private provider credentials/);
+});
+
+test('notes IPC denies untrusted frames and does not accept arbitrary URLs or versions', async () => {
+    const { manager } = harness();
+    const handlers = new Map();
+    manager.registerIpc({ handle: (key, fn) => handlers.set(key, fn) });
+    const external = { url: 'https://example.com' };
+    for (const operation of [UPDATE_OPERATIONS.notes, UPDATE_OPERATIONS.acknowledgeNotes]) {
+        assert.throws(() => handlers.get(operation)({
+            senderFrame: external, sender: { mainFrame: external },
+        }), /denied/);
+    }
 });
