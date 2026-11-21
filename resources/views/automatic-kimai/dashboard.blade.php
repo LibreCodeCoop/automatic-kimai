@@ -15,7 +15,7 @@ try {
   }
 } catch (_error) { /* Browser storage is optional. */ }
 </script>
-<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=22">
+<link rel="stylesheet" href="{{ asset('css/automatic-kimai.css') }}?v=23">
 </head>
 <body>
 <header class="app-header">
@@ -51,6 +51,7 @@ try {
   <progress id="updates-progress" max="100" value="0" hidden aria-label="Progresso do download"></progress>
   <div class="updates-actions">
     <button type="button" id="updates-check">Verificar agora</button>
+    <button type="button" id="updates-release-notes" class="secondary" hidden>Ver novidades desta versão</button>
     <button type="button" id="updates-download" hidden>Baixar atualização</button>
     <button type="button" id="updates-restart" hidden>Reiniciar e atualizar</button>
     <a class="button secondary" id="updates-manual"
@@ -119,11 +120,28 @@ try {
 </footer>
 </main>
 </div>
+<dialog id="release-notes-dialog" class="release-notes-dialog" aria-labelledby="release-notes-title">
+  <div class="release-notes-header">
+    <div>
+      <p class="eyebrow">Atualizações do aplicativo</p>
+      <h2 id="release-notes-title">Novidades do Automatic Kimai</h2>
+      <p id="release-notes-version" class="muted"></p>
+    </div>
+    <button type="button" id="release-notes-dismiss" class="secondary">Entendi</button>
+  </div>
+  <div id="release-notes-content" class="release-notes-content" aria-live="polite"></div>
+  <div class="release-notes-actions">
+    <button type="button" id="release-notes-retry" hidden>Tentar novamente</button>
+    <a href="https://github.com/LibreCodeCoop/automatic-kimai/releases/latest"
+       target="_blank" rel="noopener noreferrer">Todas as versões no GitHub</a>
+  </div>
+</dialog>
 <script>
 @include('automatic-kimai.scripts.theme')
 @include('automatic-kimai.scripts.sidebar')
 @include('automatic-kimai.scripts.loading')
 @include('automatic-kimai.scripts.updates')
+@include('automatic-kimai.scripts.release-notes')
 @if($view==='kimai')
 @include('automatic-kimai.scripts.catalog')
 @endif

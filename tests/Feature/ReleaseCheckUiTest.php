@@ -61,4 +61,13 @@ final class ReleaseCheckUiTest extends TestCase
             ->assertJson(['error'=>'release_unavailable'])
             ->assertDontSee('provider-internal-error');
     }
+
+    public function test_release_notes_dialog_and_manual_reopen_control_are_available(): void
+    {
+        $this->get('http://localhost/?view=overview')->assertOk()
+            ->assertSee('id="release-notes-dialog"', false)
+            ->assertSee('id="updates-release-notes"', false)
+            ->assertSee('id="release-notes-content"', false)
+            ->assertSee('Ver novidades desta versão');
+    }
 }

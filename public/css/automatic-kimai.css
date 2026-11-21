@@ -703,3 +703,38 @@ a.button:hover { background:var(--primary-hover); }
 .app-version-check{margin:0;min-height:32px;padding:5px 10px;font-size:12px;background:transparent;color:var(--fg);border:1px solid var(--line);border-radius:8px}
 .app-version-check:hover:not(:disabled){background:var(--raised);border-color:var(--line-strong)}
 .app-version-check:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+
+/* Release notes: native, accessible modal; theme variables keep dark mode consistent. */
+.release-notes-dialog {
+  box-sizing: border-box;
+  width: min(720px, calc(100% - 32px));
+  max-height: min(78vh, 740px);
+  padding: 24px;
+  background: var(--card);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px var(--shadow);
+}
+.release-notes-dialog::backdrop { background: rgba(9, 19, 35, .64); }
+.release-notes-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
+.release-notes-header h2 { margin: 2px 0 6px; font-size: 1.45rem; }
+.release-notes-content {
+  overflow-y: auto;
+  max-height: min(48vh, 480px);
+  padding: 10px 4px;
+  margin: 12px 0;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.release-notes-content h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+.release-notes-content p { margin: 8px 0; }
+.release-notes-content ul { margin: 8px 0 12px; padding-left: 24px; }
+.release-notes-content li { margin: 6px 0; }
+.release-notes-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.release-notes-actions a { color: var(--primary-bg); }
+@media (max-width: 520px) {
+  .release-notes-dialog { padding: 16px; }
+  .release-notes-header { flex-wrap: wrap; }
+}
